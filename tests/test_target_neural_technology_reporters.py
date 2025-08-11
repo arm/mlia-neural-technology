@@ -136,9 +136,6 @@ def test_nx_graph_compiler_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
             ignored_path,
             ignored_path,
             ignored_path,
-            ignored_path,
-            ignored_path,
-            ignored_path,
         ),
         performance_db_parser=performance_db_parser,
         performance_metrics=NXPerformanceStats(

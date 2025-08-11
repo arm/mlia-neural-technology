@@ -17,7 +17,7 @@ from mlia.utils.proc import OutputConsumer
 
 
 # pylint: disable=line-too-long
-@pytest.mark.parametrize(
+@pytest.mark.parametrize(  # type: ignore[misc]
     "vmc_log, expected_ops, expected_errors",
     [
         (
@@ -146,7 +146,7 @@ def test_parse_loc_fused() -> None:
     assert loc == "hierarchy/dotted.dashes-semi:loc"
 
 
-@pytest.mark.parametrize(
+@pytest.mark.parametrize(  # type: ignore[misc]
     "line",
     ["loc(unmatched", "loc(noquotes)", 'loc(fused["op1", "op2")', "foo", 'loc("a b")'],
 )
@@ -183,7 +183,7 @@ def test_checker_calls_vmc_correctly(
 
     def back_end_call(consumer: OutputConsumer, program: str, *args: list[str]) -> None:
         """Fake Backend call."""
-        if not program.endswith("backend"):
+        if not program.endswith("converter"):
             pytest.fail("Expected backend call")
         assert "--experimental-analysis" in args
         for line in back_end_output:
