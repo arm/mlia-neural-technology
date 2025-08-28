@@ -46,6 +46,17 @@ from mlia.backend.install import Installation
                 "VHT_Corstone_SSE-310_Ethos-U65",
             ],
         ],
+        [
+            "Corstone-320/FVP_Corstone_SSE-320_11.24_13_Linux64.tgz",
+            "6986af8805de54fa8dcbc54ea2cd63b305ebf5f1c07d3cba09641e2f8cc4e2f5",
+            [
+                "models/Linux64_GCC-9.3/FVP_Corstone_SSE-320",
+            ],
+            "11.24_13",
+            [
+                "VHT_Corstone_SSE-320",
+            ],
+        ],
     ],
 )
 def test_corstone_fvp(
@@ -126,6 +137,22 @@ def test_get_corstone_installation(corstone_name: str) -> None:
                         "-q",
                         "-d",
                         "corstone-310",
+                        "--nointeractive",
+                        "--i-agree-to-the-contained-eula",
+                    ]
+                )
+            ],
+        ],
+        [
+            "corstone-320",
+            False,
+            [
+                call(
+                    [
+                        "./FVP_Corstone_SSE-320.sh",
+                        "-q",
+                        "-d",
+                        "corstone-320",
                         "--nointeractive",
                         "--i-agree-to-the-contained-eula",
                     ]

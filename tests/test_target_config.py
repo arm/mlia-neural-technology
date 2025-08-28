@@ -24,17 +24,22 @@ from mlia.utils.registry import Registry
 def test_builtin_supported_profile_names() -> None:
     """Test built-in profile names."""
     assert BUILTIN_SUPPORTED_PROFILE_NAMES == get_builtin_supported_profile_names()
-    assert BUILTIN_SUPPORTED_PROFILE_NAMES == [
-        "NX-peak-12SC-8NX-600MHz",
-        "NX-sustained-12SC-8NX-350MHz",
+    assert set(BUILTIN_SUPPORTED_PROFILE_NAMES) == {
         "cortex-a",
         "ethos-u55-128",
         "ethos-u55-256",
         "ethos-u65-256",
         "ethos-u65-512",
+        "ethos-u85-128",
+        "ethos-u85-256",
+        "ethos-u85-512",
+        "ethos-u85-1024",
+        "ethos-u85-2048",
         "neural-technology",
+        "NX-peak-12SC-8NX-600MHz",
+        "NX-sustained-12SC-8NX-350MHz",
         "tosa",
-    ]
+    }
     for profile_name in BUILTIN_SUPPORTED_PROFILE_NAMES:
         assert is_builtin_target_profile(profile_name)
         profile_file = get_builtin_target_profile_path(profile_name)

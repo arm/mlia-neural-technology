@@ -46,6 +46,16 @@ from mlia.core.common import AdviceCategory
             BackendType.CUSTOM,
         ),
         (
+            "corstone-320",
+            [
+                AdviceCategory.COMPATIBILITY,
+                AdviceCategory.PERFORMANCE,
+                AdviceCategory.OPTIMIZATION,
+            ],
+            [System.LINUX_AMD64, System.LINUX_AARCH64],
+            BackendType.CUSTOM,
+        ),
+        (
             "tosa-checker",
             [AdviceCategory.COMPATIBILITY],
             [System.LINUX_AMD64],
@@ -96,6 +106,7 @@ SUPPORTED_BACKENDS = {
     "armnn-tflite-delegate",
     "corstone-300",
     "corstone-310",
+    "corstone-320",
     "nx-graph-compiler",
     "tosa-checker",
     "tosa-converter-for-tflite",
