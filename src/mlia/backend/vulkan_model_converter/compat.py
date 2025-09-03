@@ -26,7 +26,12 @@ class VMCCompatibilityLogReader:
         """Initialize cumulative fields and patterns."""
         self._lowered_ops = {}
         self._lowering_errors = {}
-        self._loc_pattern = re.compile(r'loc\((?:"(\S+)"|fused\[(.*?)\])\)')
+        self._loc_pattern = re.compile(
+            r"(?:loc\(\"(\S+)\"\(\"([^\"]+)\"(?::\d+:\d+)?\)\))"
+            r"|(?:loc\(\"(\S+)\"\))"
+            r"|(?:loc\(fused\[(.*?)\]\))"
+        )
+
         self._success_pattern = re.compile(r"^Successfully lowered: (\S*)\s+(at)? (.*)")
         self._error_pattern = re.compile(r"^\S+: error: (.*?): (.*?)$")
 
@@ -56,14 +61,18 @@ class VMCCompatibilityLogReader:
 
     def parse_loc(self, line: str) -> str:
         """Parse loc() expression in log strings."""
-        if loc_match := self._loc_pattern.match(line):
-            loc_string, fused_list = loc_match.group(1, 2)
-            if loc_string:
-                return loc_string
-            if fused_list:
-                locs = fused_list.split(", ")
-                loc_strings = [loc.strip('"') for loc in locs]
-                return loc_strings[0]
+        if line.strip() == "loc(unknown)":
+            return "unknown"  # handle unknowns gracefully
+
+        loc_match = self._loc_pattern.match(line)
+        if loc_match:
+            if loc_match.group(1):  # nested: loc("op"("file"...))
+                return loc_match.group(1)
+            if loc_match.group(3):  # simple: loc("op")
+                return loc_match.group(3)
+            if loc_match.group(4):  # fused
+                return loc_match.group(4).split(", ")[0].strip('"')
+
         raise RuntimeError(f"Can't find a valid location string in {line}")
 
 
@@ -79,10 +88,6 @@ class VMCCompatbilityChecker(VulkanModelConverterBase):
     def _extra_back_end_arguments(self) -> list[str]:
         """Return any extra arguments to be used with the VMC back-end."""
         return ["--experimental-analysis"]
-
-    def _extra_front_end_arguments(self) -> list[str]:
-        """Return any extra arguments to be used with the VMC front-end."""
-        return self._extra_back_end_arguments() + ["--emit-byte-code"]
 
     @property
     def compatibility_log_reader(self) -> VMCCompatibilityLogReader:

@@ -8,5 +8,6 @@ from mlia.backend import armnn_tflite_delegate
 from mlia.backend import corstone
 from mlia.backend import nx_graph_compiler
 from mlia.backend import tosa_checker
+from mlia.backend import tosa_converter_for_tflite
 from mlia.backend import vela
 from mlia.backend import vulkan_model_converter

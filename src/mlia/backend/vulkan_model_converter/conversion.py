@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
 from mlia.utils.logging import log_action
 from mlia.utils.proc import Command
 from mlia.utils.proc import OutputConsumer
@@ -18,14 +19,11 @@ logger = logging.getLogger(__name__)
 class VulkanModelConverterBase:
     """Wrapper class to run the Vulkan Model Converter."""
 
-    FRONT_END_DIR = "front-ends/tflite"
-    FRONT_END_EXE = "converter-tflite-frontend"
     BACK_END_EXE = "model-converter"
 
     def __init__(self, converter_path: Path) -> None:
         """Set up some paths to run the Vulkan Model Converter."""
         self.converter_path = converter_path.resolve()
-        self.frontend_library_paths = self._library_paths()
         self.output_consumers: list[OutputConsumer] = [
             OutputLogger(logger, logging.INFO)
         ]
@@ -51,39 +49,23 @@ class VulkanModelConverterBase:
 
         return vgf_file
 
-    def _create_front_end_command(self, tflite_file: Path, tosa_file: Path) -> Command:
-        """Create the command to run the front end."""
-        env = {
-            "LD_LIBRARY_PATH": ":".join(
-                str(path) for path in self.frontend_library_paths
-            )
-        }
-        cmd = Command(
-            cmd=[
-                str(self.converter_path / self.FRONT_END_EXE),
-                "-i",
-                str(tflite_file),
-                "-o",
-                str(tosa_file),
-                *self._extra_front_end_arguments(),
-            ],
-            env=env,
-        )
-        return cmd
+    def _convert_file(self, tflite_file: Path, output_dir: Path) -> Path:
+        """Run the TosaConverterForTflite to convert the tflite file to tosa."""
+        model_converter = TosaConverterForTflite()
+        return model_converter(tflite_file, output_dir)
 
     def _run_front_end(self, tflite_file: Path, output_dir: Path) -> Path:
-        """Run the frontend and return the TOSA MLIR output file."""
-        tosa_file = output_dir / f"{tflite_file.stem}.tosamlir"
-        cmd = self._create_front_end_command(tflite_file, tosa_file)
-        process_command_output(cmd, self.output_consumers)
+        """Run the TosaConverterForTflite frontend."""
+        tosa_file = self._convert_file(tflite_file, output_dir)
 
         if not tosa_file.is_file():
             raise FileNotFoundError(
-                "No output from the Vulkan Model Converter frontend found. "
+                "No output from the TosaConverterForTflite frontend found. "
                 f"File {tosa_file} does not exist."
             )
         logger.debug(
-            "Frontend of Vulkan Model Converter run successfully. See output: %s",
+            "TosaConverterForTflite Frontend of Vulkan Model Converter run "
+            + "successfully. See output: %s",
             tosa_file,
         )
 
@@ -111,13 +93,9 @@ class VulkanModelConverterBase:
 
         return vgf_file
 
-    def _library_paths(self) -> list[Path]:
-        paths = [self.converter_path / path for path in (self.FRONT_END_DIR,)]
-        return paths
-
     def _extra_front_end_arguments(self) -> list[str]:
         """Return any extra arguments to be used with the VMC front-end."""
-        return ["--emit-byte-code"]
+        return ["--text"]
 
     def _extra_back_end_arguments(self) -> list[str]:
         """Return any extra arguments to be used with the VMC back-end."""

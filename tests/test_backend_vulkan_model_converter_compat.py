@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
 from unittest.mock import MagicMock
 
 import pytest
 
+from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
 from mlia.backend.vulkan_model_converter.compat import NXCompatibilityChecker
 from mlia.backend.vulkan_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.vulkan_model_converter.compat import NXOperatorCompatibilityInfo
@@ -146,6 +146,17 @@ def test_parse_loc_fused() -> None:
     assert loc == "hierarchy/dotted.dashes-semi:loc"
 
 
+def test_parse_nested() -> None:
+    """Test parse loc() string, fused case."""
+    loc = VMCCompatibilityLogReader().parse_loc(
+        'loc("arm_nss_clampnet_v1/quant_conv2d_5/Relu;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd;arm_nss_clampnet_v1/quant_conv2d_9/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd/ReadVariableOp"("/filepath/arm_nss_clampnet_v1-2160_3840-int8_qat.tflite":0:0))'
+    )
+    assert (
+        loc
+        == "arm_nss_clampnet_v1/quant_conv2d_5/Relu;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd;arm_nss_clampnet_v1/quant_conv2d_9/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd/ReadVariableOp"
+    )
+
+
 @pytest.mark.parametrize(  # type: ignore[misc]
     "line",
     ["loc(unmatched", "loc(noquotes)", 'loc(fused["op1", "op2")', "foo", 'loc("a b")'],
@@ -163,23 +174,11 @@ def test_checker_calls_vmc_correctly(
 ) -> None:
     """Test VMC compatibity check."""
 
-    front_end_output = ["""Successfully lowered: tosa.custom at loc("tfl.custom")"""]
     back_end_output = [
         """<unknown>:0: error: loc("model/tf.math.multiply_75/Mul1"): failed to materialize conversion for result #0 of"""
         + """operation 'tfl.broadcast_to' that remained live after conversion"""
         ""
     ]
-
-    def front_end_call(consumer: OutputConsumer, program: str, *args: str) -> None:
-        """Fake Frontend call."""
-        if not program.endswith("frontend"):
-            pytest.fail("Expected frontend call")
-        assert "--experimental-analysis" in args
-        output_index = args.index("-o") + 1
-        output_path = args[output_index]
-        Path(output_path).touch()
-        for line in front_end_output:
-            consumer(line)
 
     def back_end_call(consumer: OutputConsumer, program: str, *args: list[str]) -> None:
         """Fake Backend call."""
@@ -189,11 +188,19 @@ def test_checker_calls_vmc_correctly(
         for line in back_end_output:
             consumer(line)
 
-    vmc_commands: list[Callable] = [front_end_call, back_end_call]
+    def fake_tosa_converter_call(
+        _: TosaConverterForTflite, tflite_file: Path, output_dir: Path
+    ) -> Path:
+        output_path = output_dir / f"{tflite_file.stem}.tosamlir"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.touch()
+        return output_path
+
+    monkeypatch.setattr(TosaConverterForTflite, "__call__", fake_tosa_converter_call)
 
     monkeypatch.setattr(
         "mlia.backend.vulkan_model_converter.conversion.process_command_output",
-        lambda cmd, consumers: vmc_commands.pop(0)(consumers[1], *cmd.cmd),
+        lambda cmd, consumers: back_end_call(consumers[1], *cmd.cmd),
     )
 
     mock_repo = MagicMock()
@@ -212,7 +219,6 @@ def test_checker_calls_vmc_correctly(
 
     result = checker.check_compatibility(Path("model.tflite"))
 
-    assert len(vmc_commands) == 0
     assert result.dump() == [
         {
             "compat_level": "Non-NX",
@@ -220,12 +226,6 @@ def test_checker_calls_vmc_correctly(
             "'tfl.broadcast_to' that remained live after conversion",
             "location": "model/tf.math.multiply_75/Mul1",
             "type": "MUL",
-        },
-        {
-            "location": "tfl.custom",
-            "compat_level": "Shader",
-            "tosa_op": "tosa.custom",
-            "placement": "EE",
         },
     ]
 

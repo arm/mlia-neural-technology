@@ -15,6 +15,7 @@ from mlia.backend.registry import registry
 from mlia.core.common import AdviceCategory
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     ("backend", "advices", "systems", "type_"),
     (
@@ -97,6 +98,7 @@ SUPPORTED_BACKENDS = {
     "corstone-310",
     "nx-graph-compiler",
     "tosa-checker",
+    "tosa-converter-for-tflite",
     "vela",
     "vulkan-model-converter",
 }
