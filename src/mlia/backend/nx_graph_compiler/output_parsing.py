@@ -172,7 +172,7 @@ class NXPerformanceDatabaseParser(NXOutputParser):
         self.register_sub_table(
             "Memory", "memoryName;readBytes;writeBytes;trafficCycles", "memoryName"
         )
-        self.register_sub_table("Utilization", "sectionName;hwUtil", None)
+        self.register_sub_table("Utilization", "sectionName;cycles", None)
         self._column_parsers: dict[str, ColumnParser] = {}
 
     def register_sub_table(

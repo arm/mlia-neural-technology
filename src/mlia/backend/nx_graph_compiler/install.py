@@ -18,19 +18,18 @@ def get_nx_graph_compiler_installation() -> BackendInstallation:
         download_config=DownloadConfig(
             url=(
                 # pylint: disable=line-too-long
-                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/nx-graph-compiler/latest/graph_compiler_drage_release_pe.tar.gz"
+                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/nx-graph-compiler/r55p0_00eac0_mlia_2/graph_compiler_performance_estimator_r55p0_00eac0_mlia_2.tar.gz"
                 # pylint: enable=line-too-long
             ),
             sha256_hash=(
-                "bc1f4c8b97d9af87991a7bca3efe44f44def0af820e6046b4b82c95c126f4d15"
+                "9140585e4a6bee147facdf78f91cc865c23dc127a68913f7fe837e1da4cc4e30"
             ),
             header_gen_fn=artifactory_credential_headers,
         ),
         supported_platforms=["Linux"],
         path_checker=PackagePathChecker(
             expected_files=[
-                "graph_compiler_performance_estimator",
-                "graph_compiler_performance_estimator-0.1.0",
+                "graph_compiler_performance_estimator_r55p0_00eac0_mlia_2",
             ],
             backend_subfolder="graph-compiler",
         ),

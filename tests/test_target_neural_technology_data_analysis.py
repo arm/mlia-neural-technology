@@ -20,6 +20,7 @@ from mlia.target.neural_technology.data_analysis import (
 )
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     "analyzed_data",
     (
@@ -43,8 +44,8 @@ from mlia.target.neural_technology.data_analysis import (
                             },
                         },
                         utilization=[
-                            {"sectionName": "OutputWriter", "hwUtil": 1},
-                            {"sectionName": "VectorEngine", "hwUtil": 1},
+                            {"sectionName": "OutputWriter", "cycles": 1},
+                            {"sectionName": "VectorEngine", "cycles": 1},
                         ],
                         operators=["foo"],
                     )

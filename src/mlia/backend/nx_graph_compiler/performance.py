@@ -27,10 +27,7 @@ from mlia.utils.proc import process_command_output
 logger = logging.getLogger(__name__)
 
 GC_OUTPUT_CONTROL_PARAMS = [  # #               | Corresponding option in the .ini file
-    "--enable-command-list-summary-dump",  # #  | commandListSummary
     "--enable-debug-database-dump",  # #        | debugDatabase
-    "--enable-performance-database-dump",  # #  | performanceDatabase
-    "--enable-performance-summary-dump",  # #   | networkPerformanceEstimation
 ]
 
 
@@ -38,9 +35,7 @@ GC_OUTPUT_CONTROL_PARAMS = [  # #               | Corresponding option in the .i
 class NXGraphCompilerOutputFiles:
     """Collection of output files of the Neural Accelerator Graph Compiler."""
 
-    cmd_stream_summary: Path
     debug_database: Path
-    network_performance_summary: Path
     performance_database: Path
 
     @classmethod
@@ -49,9 +44,7 @@ class NXGraphCompilerOutputFiles:
     ) -> NXGraphCompilerOutputFiles:
         """Create files in the Neural Accelerator Graph Compiler output dir."""
         name_to_suffix = {
-            "cmd_stream_summary": "_command_stream_summary.dat",
             "debug_database": "_debug_database.dat",
-            "network_performance_summary": "_network_performance_summary.json",
             "performance_database": "_performance_database.dat",
         }
         args = {
@@ -180,7 +173,9 @@ class NXGraphCompilerPerformanceEstimator(
 
         cmd = Command(
             cmd=[
-                str(gc_path / "graph_compiler_performance_estimator-0.1.0"),
+                str(
+                    gc_path / "graph_compiler_performance_estimator_r55p0_00eac0_mlia_2"
+                ),
                 "-i",
                 str(vgf_file),
                 "-o",

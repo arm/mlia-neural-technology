@@ -1,36 +1,47 @@
 <?xml version='1.0' encoding='utf-8' ?>
-<regor_version>0.1.0</regor_version>
+<performance_database>
+<regor_version>6.1.0</regor_version>
 <table name="performance">
 <![CDATA[
-"id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;hwUtil"
-26, 18, 218, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
-25, 4, 19, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-24, 3, 19, Undefined;0;0;0;Internal;0;0;0;L1;0;8;0;L2;0;0;0;SystemCache;0;0;0;DRAM;192;8;6;, OutputWriter;0.0625;OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;InputReader;0.0625;
-23, 3, 191, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-22, 4, 19, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-21, 3, 18, Undefined;0;0;0;Internal;0;0;0;L1;0;8;0;L2;0;0;0;SystemCache;0;0;0;DRAM;64;8;2;, OutputWriter;0.0625;OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;
-20, 2, 15, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-19, 15, 208, Undefined;0;0;0;Internal;0;0;0;L1;0;12;0;L2;0;0;0;SystemCache;0;0;0;DRAM;192;12;6;, OutputWriter;0.0625;OutputWriter;0.0625;OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;InputReader;0.25;
-18, 22, 836, Undefined;0;0;0;Internal;0;0;0;L1;0;48;0;L2;0;0;0;SystemCache;0;0;0;DRAM;6720;48;139;, OutputWriter;0.25;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;InputReader;0.25;InputReader;0.25;InputReader;1;InputReader;0.125;
-17, 38, 1089, Undefined;0;0;0;Internal;0;0;0;L1;0;48;0;L2;0;0;0;SystemCache;0;0;0;DRAM;12480;48;257;, OutputWriter;0.25;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;InputReader;1;InputReader;1;InputReader;0.125;
-16, 18, 826, Undefined;0;0;0;Internal;0;0;0;L1;0;48;0;L2;0;0;0;SystemCache;0;0;0;DRAM;6336;48;131;, OutputWriter;0.25;VectorEngine;0.25;VectorEngine;0.25;InputReader;1;InputReader;0.125;
-15, 6, 205, Undefined;0;0;0;Internal;0;0;0;L1;0;24;0;L2;0;0;0;SystemCache;0;0;0;DRAM;256;24;8;, OutputWriter;0.1875;VectorEngine;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.25;
-14, 7, 199, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;192;4;6;, OutputWriter;0.0625;VectorEngine;0.25;VectorEngine;0.25;InputReader;0.25;
-13, 6, 233, Undefined;0;0;0;Internal;0;0;0;L1;0;48;1;L2;0;0;0;SystemCache;0;0;0;DRAM;64;48;3;, OutputWriter;0.25;VectorEngine;0.25;InputReader;0.1875;
-0, 6912, 7343, Undefined;0;0;0;Internal;0;0;0;L1;0;69000;269;L2;0;0;0;SystemCache;0;0;0;DRAM;126613;69000;4018;, OutputWriter;0.833333;VectorEngine;1;ConvolutionEngine;0.729167;WeightDecoder;1;InputReader;0.761905;InputReader;0.65;
-1, 624, 3249, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;99971;17940;2422;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.546875;WeightDecoder;1;InputReader;0.914286;InputReader;0.916667;
-2, 1794, 7776, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;323195;17940;7008;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.77381;WeightDecoder;1;InputReader;0.914286;InputReader;0.625;
-3, 624, 1981, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;41106;17940;1213;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.507812;WeightDecoder;1;InputReader;0.914286;InputReader;0.875;
-4, 1794, 7751, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;322005;17940;6983;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.77381;WeightDecoder;1;InputReader;0.914286;InputReader;0.625;
-5, 624, 1981, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;41106;17940;1213;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.507812;WeightDecoder;1;InputReader;0.914286;InputReader;0.875;
-6, 1794, 7800, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;324385;17940;7032;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.77381;WeightDecoder;1;InputReader;0.914286;InputReader;0.625;
-7, 624, 1981, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;41106;17940;1213;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.507812;WeightDecoder;1;InputReader;0.914286;InputReader;0.875;
-8, 1794, 7849, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;326766;17940;7081;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.77381;WeightDecoder;1;InputReader;0.914286;InputReader;0.625;
-9, 624, 1992, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;41658;17940;1224;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.507812;WeightDecoder;1;InputReader;0.914286;InputReader;0.875;
-10, 1794, 7825, Undefined;0;0;0;Internal;0;0;0;L1;0;17940;112;L2;0;0;0;SystemCache;0;0;0;DRAM;325575;17940;7057;, OutputWriter;0.625;VectorEngine;0.833333;ConvolutionEngine;0.77381;WeightDecoder;1;InputReader;0.914286;InputReader;0.625;
-11, 520, 1704, Undefined;0;0;0;Internal;0;0;0;L1;0;276;1;L2;0;0;0;SystemCache;0;0;0;DRAM;28704;276;595;, OutputWriter;0.25;VectorEngine;0.5;ConvolutionEngine;0.0625;InputReader;0.625;
-12, 40, 241, Undefined;0;0;0;Internal;0;0;0;L1;0;12;0;L2;0;0;0;SystemCache;0;0;0;DRAM;4876;12;152;, OutputWriter;0.1875;VectorEngine;0.5;ConvolutionEngine;0.09375;WeightDecoder;1;InputReader;0.857143;InputReader;0.239583;
+"id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
+37, 18, 235, Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, InputReader;32;ConvolutionEngine;0;VectorEngine;18;TransformUnit;12;WeightDecoder;0;OutputWriter;16;
+36, 4, 23, Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, InputReader;8;ConvolutionEngine;0;VectorEngine;4;TransformUnit;0;WeightDecoder;0;OutputWriter;4;
+35, 3, 23, Internal;0;0;0;L1;0;8;0;L2;0;0;0;SystemCache;0;0;0;DRAM;192;8;6;, InputReader;12;ConvolutionEngine;0;VectorEngine;3;TransformUnit;0;WeightDecoder;0;OutputWriter;8;
+34, 3, 198, Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, InputReader;8;ConvolutionEngine;0;VectorEngine;3;TransformUnit;0;WeightDecoder;0;OutputWriter;4;
+33, 4, 23, Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, InputReader;8;ConvolutionEngine;0;VectorEngine;4;TransformUnit;0;WeightDecoder;0;OutputWriter;4;
+32, 3, 18, Internal;0;0;0;L1;0;8;0;L2;0;0;0;SystemCache;0;0;0;DRAM;64;8;2;, InputReader;4;ConvolutionEngine;0;VectorEngine;3;TransformUnit;0;WeightDecoder;0;OutputWriter;8;
+31, 2, 19, Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, InputReader;8;ConvolutionEngine;0;VectorEngine;2;TransformUnit;0;WeightDecoder;0;OutputWriter;4;
+30, 15, 235, Internal;0;0;0;L1;0;12;0;L2;0;0;0;SystemCache;0;0;0;DRAM;192;12;6;, InputReader;24;ConvolutionEngine;0;VectorEngine;15;TransformUnit;0;WeightDecoder;0;OutputWriter;12;
+29, 22, 851, Internal;0;0;0;L1;0;48;0;L2;0;0;0;SystemCache;0;0;0;DRAM;6720;48;139;, InputReader;277;ConvolutionEngine;0;VectorEngine;22;TransformUnit;0;WeightDecoder;0;OutputWriter;8;
+12, 1120, 4989, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;216090;9660;4637;, InputReader;4980;ConvolutionEngine;1120;VectorEngine;336;TransformUnit;0;WeightDecoder;1072;OutputWriter;448;
+11, 288, 1496, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;24740;8280;678;, InputReader;573;ConvolutionEngine;247;VectorEngine;288;TransformUnit;0;WeightDecoder;68;OutputWriter;384;
+10, 336, 774, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;27582;9660;765;, InputReader;656;ConvolutionEngine;288;VectorEngine;336;TransformUnit;0;WeightDecoder;68;OutputWriter;448;
+9, 960, 4689, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;193458;8280;4144;, InputReader;4280;ConvolutionEngine;960;VectorEngine;288;TransformUnit;0;WeightDecoder;1032;OutputWriter;384;
+8, 1120, 4989, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;213330;9660;4581;, InputReader;4980;ConvolutionEngine;1120;VectorEngine;336;TransformUnit;0;WeightDecoder;1032;OutputWriter;448;
+7, 288, 1496, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;24740;8280;678;, InputReader;573;ConvolutionEngine;247;VectorEngine;288;TransformUnit;0;WeightDecoder;68;OutputWriter;384;
+6, 336, 774, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;27582;9660;765;, InputReader;656;ConvolutionEngine;288;VectorEngine;336;TransformUnit;0;WeightDecoder;68;OutputWriter;448;
+5, 960, 4689, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;194562;8280;4167;, InputReader;4280;ConvolutionEngine;960;VectorEngine;288;TransformUnit;0;WeightDecoder;1048;OutputWriter;384;
+4, 1120, 4989, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;214434;9660;4603;, InputReader;4980;ConvolutionEngine;1120;VectorEngine;336;TransformUnit;0;WeightDecoder;1048;OutputWriter;448;
+3, 288, 2132, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;50291;8280;1203;, InputReader;1314;ConvolutionEngine;247;VectorEngine;288;TransformUnit;0;WeightDecoder;68;OutputWriter;384;
+2, 336, 1529, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;57390;9660;1377;, InputReader;1520;ConvolutionEngine;288;VectorEngine;336;TransformUnit;0;WeightDecoder;68;OutputWriter;448;
+1, 4254, 4952, Internal;0;0;0;L1;0;33120;172;L2;0;0;0;SystemCache;0;0;0;DRAM;41508;33120;1533;, InputReader;2629;ConvolutionEngine;4254;VectorEngine;720;TransformUnit;0;WeightDecoder;193;OutputWriter;864;
+0, 4608, 4617, Internal;0;0;0;L1;0;35880;186;L2;0;0;0;SystemCache;0;0;0;DRAM;44677;35880;1654;, InputReader;2844;ConvolutionEngine;4608;VectorEngine;780;TransformUnit;0;WeightDecoder;210;OutputWriter;936;
+13, 960, 4689, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;196218;8280;4201;, InputReader;4280;ConvolutionEngine;960;VectorEngine;288;TransformUnit;0;WeightDecoder;1072;OutputWriter;384;
+14, 336, 774, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;27582;9660;765;, InputReader;656;ConvolutionEngine;288;VectorEngine;336;TransformUnit;0;WeightDecoder;68;OutputWriter;448;
+15, 288, 1496, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;24740;8280;678;, InputReader;573;ConvolutionEngine;247;VectorEngine;288;TransformUnit;0;WeightDecoder;68;OutputWriter;384;
+16, 1120, 4989, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;217746;9660;4671;, InputReader;4980;ConvolutionEngine;1120;VectorEngine;336;TransformUnit;0;WeightDecoder;1096;OutputWriter;448;
+17, 960, 4689, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;197874;8280;4235;, InputReader;4280;ConvolutionEngine;960;VectorEngine;288;TransformUnit;0;WeightDecoder;1096;OutputWriter;384;
+18, 336, 785, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;28134;9660;776;, InputReader;656;ConvolutionEngine;288;VectorEngine;336;TransformUnit;0;WeightDecoder;76;OutputWriter;448;
+19, 288, 1507, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;25292;8280;689;, InputReader;573;ConvolutionEngine;247;VectorEngine;288;TransformUnit;0;WeightDecoder;76;OutputWriter;384;
+20, 1120, 4989, Internal;0;0;0;L1;0;9660;60;L2;0;0;0;SystemCache;0;0;0;DRAM;216090;9660;4637;, InputReader;4980;ConvolutionEngine;1120;VectorEngine;336;TransformUnit;0;WeightDecoder;1072;OutputWriter;448;
+21, 960, 4689, Internal;0;0;0;L1;0;8280;51;L2;0;0;0;SystemCache;0;0;0;DRAM;196218;8280;4201;, InputReader;4280;ConvolutionEngine;960;VectorEngine;288;TransformUnit;0;WeightDecoder;1072;OutputWriter;384;
+22, 390, 2071, Internal;0;0;0;L1;0;276;1;L2;0;0;0;SystemCache;0;0;0;DRAM;28704;276;595;, InputReader;624;ConvolutionEngine;390;VectorEngine;12;TransformUnit;0;WeightDecoder;0;OutputWriter;24;
+23, 40, 241, Internal;0;0;0;L1;0;12;0;L2;0;0;0;SystemCache;0;0;0;DRAM;4876;12;152;, InputReader;190;ConvolutionEngine;40;VectorEngine;3;TransformUnit;0;WeightDecoder;224;OutputWriter;8;
+24, 6, 239, Internal;0;0;0;L1;0;48;1;L2;0;0;0;SystemCache;0;0;0;DRAM;64;48;3;, InputReader;10;ConvolutionEngine;0;VectorEngine;6;TransformUnit;0;WeightDecoder;0;OutputWriter;24;
+25, 7, 234, Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;192;4;6;, InputReader;24;ConvolutionEngine;0;VectorEngine;7;TransformUnit;0;WeightDecoder;0;OutputWriter;4;
+26, 6, 224, Internal;0;0;0;L1;0;24;0;L2;0;0;0;SystemCache;0;0;0;DRAM;256;24;8;, InputReader;28;ConvolutionEngine;0;VectorEngine;6;TransformUnit;6;WeightDecoder;0;OutputWriter;12;
+27, 18, 829, Internal;0;0;0;L1;0;48;0;L2;0;0;0;SystemCache;0;0;0;DRAM;6336;48;131;, InputReader;261;ConvolutionEngine;0;VectorEngine;18;TransformUnit;0;WeightDecoder;0;OutputWriter;8;
+28, 38, 1092, Internal;0;0;0;L1;0;48;0;L2;0;0;0;SystemCache;0;0;0;DRAM;12480;48;257;, InputReader;517;ConvolutionEngine;0;VectorEngine;38;TransformUnit;0;WeightDecoder;0;OutputWriter;8;
 ]]>
 </table>
-OutputWriter;0.1875;VectorEngine;0.5;ConvolutionEngine;0.09375;WeightDecoder;1;InputReader;0.857143;InputReader;0.239583;
-OutputWriter;0.25;VectorEngine;0.25;InputReader;0.1875;
+</performance_database>

@@ -22,11 +22,6 @@ def test_nx_operator_performance_stats_to_dict() -> None:
         op_cycles=15,
         total_cycles=18,
         memory={
-            "Undefined": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
             "Internal": {
                 "readBytes": 0,
                 "writeBytes": 0,
@@ -54,8 +49,8 @@ def test_nx_operator_performance_stats_to_dict() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
         ],
         operators=["foo"],
     )
@@ -65,11 +60,6 @@ def test_nx_operator_performance_stats_to_dict() -> None:
         "op_cycles": 15,
         "total_cycles": 18,
         "memory": {
-            "Undefined": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
             "Internal": {
                 "readBytes": 0,
                 "writeBytes": 0,
@@ -97,8 +87,8 @@ def test_nx_operator_performance_stats_to_dict() -> None:
             },
         },
         "utilization": [
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
         ],
         "operators": ["foo"],
     }
@@ -111,11 +101,6 @@ def test_sanitize_memory_fields_expected_input() -> None:
         op_cycles=15,
         total_cycles=18,
         memory={
-            "Undefined": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
             "Internal": {
                 "readBytes": 0,
                 "writeBytes": 0,
@@ -143,8 +128,8 @@ def test_sanitize_memory_fields_expected_input() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
         ],
         operators=["foo"],
     )
@@ -180,8 +165,8 @@ def test_sanitize_memory_fields_missing_memory_name_input() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
         ],
         operators=["foo"],
     )
@@ -194,13 +179,8 @@ def test_sanitize_utilization_fields_expected_input() -> None:
     op_stats = NXOperatorPerformanceStats(
         op_id=[33],
         op_cycles=15,
-        total_cycles=18,
+        total_cycles=180,
         memory={
-            "Undefined": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
             "Internal": {
                 "readBytes": 0,
                 "writeBytes": 0,
@@ -228,25 +208,25 @@ def test_sanitize_utilization_fields_expected_input() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
-            {"sectionName": "OutputWriter", "hwUtil": 0.65625},
-            {"sectionName": "VectorEngine", "hwUtil": 0.875},
-            {"sectionName": "ConvolutionEngine", "hwUtil": 0.875},
-            {"sectionName": "WeightDecoder", "hwUtil": 1},
-            {"sectionName": "InputReader", "hwUtil": 1},
-            {"sectionName": "InputReader", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 100},
+            {"sectionName": "VectorEngine", "cycles": 80},
+            {"sectionName": "OutputWriter", "cycles": 65},
+            {"sectionName": "VectorEngine", "cycles": 87},
+            {"sectionName": "ConvolutionEngine", "cycles": 87},
+            {"sectionName": "WeightDecoder", "cycles": 100},
+            {"sectionName": "InputReader", "cycles": 80},
+            {"sectionName": "InputReader", "cycles": 80},
         ],
         operators=["foo"],
     )
     op_stats.sanitize_utilization_fields()
 
     assert op_stats.utilization == [
-        {"sectionName": "OutputWriter", "hwUtil": "0.828"},
-        {"sectionName": "VectorEngine", "hwUtil": "0.938"},
-        {"sectionName": "ConvolutionEngine", "hwUtil": "0.875"},
-        {"sectionName": "WeightDecoder", "hwUtil": "1.0"},
-        {"sectionName": "InputReader", "hwUtil": "1.0"},
+        {"sectionName": "OutputWriter", "cycles": "165", "percentage": "91.7%"},
+        {"sectionName": "VectorEngine", "cycles": "167", "percentage": "92.8%"},
+        {"sectionName": "ConvolutionEngine", "cycles": "87", "percentage": "48.3%"},
+        {"sectionName": "WeightDecoder", "cycles": "100", "percentage": "55.6%"},
+        {"sectionName": "InputReader", "cycles": "160", "percentage": "88.9%"},
     ]
 
 
@@ -255,7 +235,7 @@ def test_sanitize_utilization_fields_additional_utilization_field_input() -> Non
     op_stats = NXOperatorPerformanceStats(
         op_id=[33],
         op_cycles=15,
-        total_cycles=18,
+        total_cycles=180,
         memory={
             "Undefined": {
                 "readBytes": 0,
@@ -279,25 +259,25 @@ def test_sanitize_utilization_fields_additional_utilization_field_input() -> Non
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
-            {"sectionName": "OutputWriter", "hwUtil": 0.65625},
-            {"sectionName": "VectorEngine", "hwUtil": 0.875},
-            {"sectionName": "ConvolutionEngine", "hwUtil": 0.875},
-            {"sectionName": "Bar", "hwUtil": 1},
-            {"sectionName": "Bar", "hwUtil": 1},
-            {"sectionName": "Foo", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 100},
+            {"sectionName": "VectorEngine", "cycles": 80},
+            {"sectionName": "OutputWriter", "cycles": 65},
+            {"sectionName": "VectorEngine", "cycles": 87},
+            {"sectionName": "ConvolutionEngine", "cycles": 87},
+            {"sectionName": "Bar", "cycles": 1},
+            {"sectionName": "Bar", "cycles": 1},
+            {"sectionName": "Foo", "cycles": 1},
         ],
         operators=["foo"],
     )
     op_stats.sanitize_utilization_fields()
 
     assert op_stats.utilization == [
-        {"sectionName": "OutputWriter", "hwUtil": "0.828"},
-        {"sectionName": "VectorEngine", "hwUtil": "0.938"},
-        {"sectionName": "ConvolutionEngine", "hwUtil": "0.875"},
-        {"sectionName": "Bar", "hwUtil": "1.0"},
-        {"sectionName": "Foo", "hwUtil": "1.0"},
+        {"sectionName": "OutputWriter", "cycles": "165", "percentage": "91.7%"},
+        {"sectionName": "VectorEngine", "cycles": "167", "percentage": "92.8%"},
+        {"sectionName": "ConvolutionEngine", "cycles": "87", "percentage": "48.3%"},
+        {"sectionName": "Bar", "cycles": "2", "percentage": "1.1%"},
+        {"sectionName": "Foo", "cycles": "1", "percentage": "0.6%"},
     ]
 
 
@@ -353,11 +333,11 @@ def test_merge_nx_operator_performance_stats() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
-            {"sectionName": "ConvolutionEngine", "hwUtil": 0.875},
-            {"sectionName": "WeightDecoder", "hwUtil": 1},
-            {"sectionName": "InputReader", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
+            {"sectionName": "ConvolutionEngine", "cycles": 0.875},
+            {"sectionName": "WeightDecoder", "cycles": 1},
+            {"sectionName": "InputReader", "cycles": 1},
         ],
         operators=["foo", "bar"],
     )
@@ -389,8 +369,8 @@ def test_merge_nx_operator_performance_stats() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
         ],
         operators=["foo", "bar"],
     )
@@ -437,14 +417,14 @@ def test_merge_different_location_strings_error() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
-            {"sectionName": "OutputWriter", "hwUtil": 0.65625},
-            {"sectionName": "VectorEngine", "hwUtil": 0.875},
-            {"sectionName": "ConvolutionEngine", "hwUtil": 0.875},
-            {"sectionName": "WeightDecoder", "hwUtil": 1},
-            {"sectionName": "InputReader", "hwUtil": 1},
-            {"sectionName": "InputReader", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
+            {"sectionName": "OutputWriter", "cycles": 0.65625},
+            {"sectionName": "VectorEngine", "cycles": 0.875},
+            {"sectionName": "ConvolutionEngine", "cycles": 0.875},
+            {"sectionName": "WeightDecoder", "cycles": 1},
+            {"sectionName": "InputReader", "cycles": 1},
+            {"sectionName": "InputReader", "cycles": 1},
         ],
         operators=[{"foo": "bar"}],
     )
@@ -476,8 +456,8 @@ def test_merge_different_location_strings_error() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
         ],
         operators=[{"foo": "test"}],
     )
@@ -515,14 +495,14 @@ def test_merge_missing_memory_name_input() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
-            {"sectionName": "OutputWriter", "hwUtil": 0.65625},
-            {"sectionName": "VectorEngine", "hwUtil": 0.875},
-            {"sectionName": "ConvolutionEngine", "hwUtil": 0.875},
-            {"sectionName": "WeightDecoder", "hwUtil": 1},
-            {"sectionName": "InputReader", "hwUtil": 1},
-            {"sectionName": "InputReader", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
+            {"sectionName": "OutputWriter", "cycles": 0.65625},
+            {"sectionName": "VectorEngine", "cycles": 0.875},
+            {"sectionName": "ConvolutionEngine", "cycles": 0.875},
+            {"sectionName": "WeightDecoder", "cycles": 1},
+            {"sectionName": "InputReader", "cycles": 1},
+            {"sectionName": "InputReader", "cycles": 1},
         ],
         operators=["foo", "bar"],
     )
@@ -539,8 +519,8 @@ def test_merge_missing_memory_name_input() -> None:
             },
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": 1},
-            {"sectionName": "VectorEngine", "hwUtil": 1},
+            {"sectionName": "OutputWriter", "cycles": 1},
+            {"sectionName": "VectorEngine", "cycles": 1},
         ],
         operators=["foo", "bar"],
     )
@@ -576,137 +556,62 @@ def test_process_stats_per_chain(test_resources_path: Path) -> None:
     performance_stats_per_chain = performance_stats.process_stats_per_chain()
 
     # One chain per stripe, no accumulation of statistics
-    performance_stats_chain_901 = NXOperatorPerformanceStats(
+    performance_stats_chain_962 = NXOperatorPerformanceStats(
         op_id=["26"],
-        op_cycles=18,
-        total_cycles=218,
+        op_cycles=6,
+        total_cycles=224,
         memory={
-            "L1": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "L2": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "SystemCache": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "DRAM": {
-                "readBytes": 320,
-                "writeBytes": 12,
-                "trafficCycles": 10,
-            },
+            "L1": {"readBytes": 0, "writeBytes": 24, "trafficCycles": 0},
+            "L2": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+            "SystemCache": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+            "DRAM": {"readBytes": 256, "writeBytes": 24, "trafficCycles": 8},
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": "1.0"},
-            {"sectionName": "VectorEngine", "hwUtil": "0.25"},
-            {"sectionName": "TransformUnit", "hwUtil": "0.25"},
-            {"sectionName": "InputReader", "hwUtil": "0.125"},
+            {"sectionName": "InputReader", "cycles": "28", "percentage": "12.5%"},
+            {"sectionName": "ConvolutionEngine", "cycles": "0", "percentage": "0.0%"},
+            {"sectionName": "VectorEngine", "cycles": "6", "percentage": "2.7%"},
+            {"sectionName": "TransformUnit", "cycles": "6", "percentage": "2.7%"},
+            {"sectionName": "WeightDecoder", "cycles": "0", "percentage": "0.0%"},
+            {"sectionName": "OutputWriter", "cycles": "12", "percentage": "5.4%"},
         ],
         operators=[
             {"opLocation": ["Identity"], "opType": "identity_op_type"},
             {"opLocation": ["Identity"], "opType": "identity_op_type"},
-            {"opLocation": ["Identity"], "opType": "identity_op_type"},
-            {"opLocation": ["Identity"], "opType": "identity_op_type"},
-            {"opLocation": ["Identity"], "opType": "identity_op_type"},
         ],
     )
-
-    assert performance_stats_per_chain["901"] == performance_stats_chain_901
+    assert performance_stats_per_chain["962"] == performance_stats_chain_962
 
     # One chain shared by two stripes, accumulation of statistics
     # Note: the debug db was edited manually to create this scenario
-    performance_stats_per_chain_907 = NXOperatorPerformanceStats(
-        op_id=["13", "12"],
-        op_cycles=46,
-        total_cycles=474,
+    performance_stats_per_chain_668 = NXOperatorPerformanceStats(
+        op_id=["12", "13"],
+        op_cycles=2080,
+        total_cycles=9678,
         memory={
-            "L1": {
-                "readBytes": 0,
-                "writeBytes": 60,
-                "trafficCycles": 1,
-            },
-            "L2": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "SystemCache": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "DRAM": {
-                "readBytes": 4940,
-                "writeBytes": 60,
-                "trafficCycles": 155,
-            },
+            "L1": {"readBytes": 0, "writeBytes": 17940, "trafficCycles": 111},
+            "L2": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+            "SystemCache": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+            "DRAM": {"readBytes": 412308, "writeBytes": 17940, "trafficCycles": 8838},
         },
         utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": "0.219"},
-            {"sectionName": "VectorEngine", "hwUtil": "0.375"},
-            {"sectionName": "InputReader", "hwUtil": "0.368"},
-            {"sectionName": "ConvolutionEngine", "hwUtil": "0.094"},
-            {"sectionName": "WeightDecoder", "hwUtil": "1.0"},
-        ],
-        operators=[
-            {"opLocation": ["Identity"], "opType": "identity_op_type"},
-        ],
-    )
-
-    assert performance_stats_per_chain["907"] == performance_stats_per_chain_907
-
-    # One chain shared by three stripes, accumulation of statistics
-    # One TOSA op maps to multiple tflite location strings
-    # Note: the debug db was edited manually to create this scenario
-    performance_stats_per_chain_619 = NXOperatorPerformanceStats(
-        op_id=["7", "8", "9"],
-        op_cycles=3042,
-        total_cycles=11822,
-        memory={
-            "L1": {
-                "readBytes": 0,
-                "writeBytes": 53820,
-                "trafficCycles": 336,
-            },
-            "L2": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "SystemCache": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "DRAM": {
-                "readBytes": 409530,
-                "writeBytes": 53820,
-                "trafficCycles": 9518,
-            },
-        },
-        utilization=[
-            {"sectionName": "OutputWriter", "hwUtil": "0.625"},
-            {"sectionName": "VectorEngine", "hwUtil": "0.833"},
-            {"sectionName": "ConvolutionEngine", "hwUtil": "0.575"},
-            {"sectionName": "WeightDecoder", "hwUtil": "1.0"},
-            {"sectionName": "InputReader", "hwUtil": "0.864"},
-        ],
-        operators=[
+            {"sectionName": "InputReader", "cycles": "9260", "percentage": "95.7%"},
             {
-                "opLocation": ["model/re_lu_7/Relu;test_location_string"],
-                "opType": "<unknown>",
+                "sectionName": "ConvolutionEngine",
+                "cycles": "2080",
+                "percentage": "21.5%",
             },
-            {"opLocation": ["model/re_lu_7/Relu"], "opType": "RELU"},
+            {"sectionName": "VectorEngine", "cycles": "624", "percentage": "6.4%"},
+            {"sectionName": "TransformUnit", "cycles": "0", "percentage": "0.0%"},
+            {"sectionName": "WeightDecoder", "cycles": "2144", "percentage": "22.2%"},
+            {"sectionName": "OutputWriter", "cycles": "832", "percentage": "8.6%"},
+        ],
+        operators=[
+            {"opLocation": ["model/re_lu_6/Relu"], "opType": "<unknown>"},
+            {"opLocation": ["model/re_lu_6/Relu"], "opType": "<unknown>"},
         ],
     )
 
-    assert performance_stats_per_chain["619"] == performance_stats_per_chain_619
+    assert performance_stats_per_chain["668"] == performance_stats_per_chain_668
 
 
 def test_track_op(test_resources_path: Path) -> None:
@@ -730,23 +635,17 @@ def test_track_op(test_resources_path: Path) -> None:
 
     chain_op_id, location_strings = performance_stats.track_op("26")
 
-    assert chain_op_id == "901"
+    assert chain_op_id == "962"
     assert location_strings == [
-        ["Identity"],
-        ["Identity"],
-        ["Identity"],
         ["Identity"],
         ["Identity"],
     ]
 
-    chain_op_id, location_strings = performance_stats.track_op("0")
-    assert chain_op_id == "605"
+    chain_op_id, location_strings = performance_stats.track_op("22")
+    assert chain_op_id == "678"
     # pylint: disable=line-too-long
     assert location_strings == [
-        [
-            "deeplabv3plus_mbnV2__1080p/Conv_Relu6/Relu6;deeplabv3plus_mbnV2__1080p/Conv_BN/FusedBatchNormV3;deeplabv3plus_mbnV2__1080p/expanded_conv_5_project/Conv2D;deeplabv3plus_mbnV2__1080p/Conv/Conv2D"
-        ],
-        [
-            "deeplabv3plus_mbnV2__1080p/Conv_Relu6/Relu6;deeplabv3plus_mbnV2__1080p/Conv_BN/FusedBatchNormV3;deeplabv3plus_mbnV2__1080p/expanded_conv_5_project/Conv2D;deeplabv3plus_mbnV2__1080p/Conv/Conv2D"
-        ],
+        ["model/average_pooling2d/AvgPool"],
+        ["model/average_pooling2d/AvgPool"],
+        ["model/dense/BiasAdd"],
     ]

@@ -33,7 +33,7 @@ def test_load(test_resources_path: Path) -> None:
 def test_get_csv_reader() -> None:
     """Read string into csv."""
     contents = """
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;hwUtil"
+    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
     26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
     25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
     """.strip()
@@ -48,7 +48,7 @@ def test_get_csv_reader() -> None:
 def test_get_csv_headers() -> None:
     """Extract the headers from a csv reader."""
     contents = """
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;hwUtil"
+    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
     26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
     25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
     """.strip()
@@ -60,10 +60,11 @@ def test_get_csv_headers() -> None:
         "opCycles",
         "totalCycles",
         "memoryName;readBytes;writeBytes;trafficCycles",
-        "sectionName;hwUtil",
+        "sectionName;cycles",
     ]
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     "variant",
     [
@@ -109,51 +110,27 @@ def test_performance_database_parser_from_file(test_resources_path: Path) -> Non
     )
     parser = NXPerformanceDatabaseParser(db_path=Path(perf_db_file))
     records = parser.parse_performance_database()
-    assert len(records) == 27
+    assert len(records) == 38
+
     assert records[14] == {
         "Memory": {
-            "Undefined": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "Internal": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "L1": {
-                "readBytes": 0,
-                "writeBytes": 69000,
-                "trafficCycles": 269,
-            },
-            "L2": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "SystemCache": {
-                "readBytes": 0,
-                "writeBytes": 0,
-                "trafficCycles": 0,
-            },
-            "DRAM": {
-                "readBytes": 126613,
-                "writeBytes": 69000,
-                "trafficCycles": 4018,
-            },
+            "Internal": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+            "L1": {"readBytes": 0, "writeBytes": 8280, "trafficCycles": 51},
+            "L2": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+            "SystemCache": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+            "DRAM": {"readBytes": 24740, "writeBytes": 8280, "trafficCycles": 678},
         },
         "Utilization": [
-            {"hwUtil": 0.833333, "sectionName": "OutputWriter"},
-            {"hwUtil": 1, "sectionName": "VectorEngine"},
-            {"hwUtil": 0.729167, "sectionName": "ConvolutionEngine"},
-            {"hwUtil": 1, "sectionName": "WeightDecoder"},
-            {"hwUtil": 0.761905, "sectionName": "InputReader"},
-            {"hwUtil": 0.65, "sectionName": "InputReader"},
+            {"cycles": 573, "sectionName": "InputReader"},
+            {"cycles": 247, "sectionName": "ConvolutionEngine"},
+            {"cycles": 288, "sectionName": "VectorEngine"},
+            {"cycles": 0, "sectionName": "TransformUnit"},
+            {"cycles": 68, "sectionName": "WeightDecoder"},
+            {"cycles": 384, "sectionName": "OutputWriter"},
         ],
-        "id": 0,
-        "opCycles": 6912,
-        "totalCycles": 7343,
+        "id": 7,
+        "opCycles": 288,
+        "totalCycles": 1496,
     }
 
 
@@ -170,7 +147,7 @@ def test_parse_performance_database() -> None:
     """Testing with a CDATA xml body."""
     contents = """
     <![CDATA[
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;hwUtil"
+    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
     26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
     25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
     ]]>
@@ -213,15 +190,15 @@ def test_parse_performance_database() -> None:
                 },
             },
             "Utilization": [
-                {"hwUtil": 1, "sectionName": "OutputWriter"},
-                {"hwUtil": 0.25, "sectionName": "VectorEngine"},
-                {"hwUtil": 0.25, "sectionName": "VectorEngine"},
-                {"hwUtil": 0.25, "sectionName": "VectorEngine"},
-                {"hwUtil": 0.25, "sectionName": "TransformUnit"},
-                {"hwUtil": 0.25, "sectionName": "TransformUnit"},
-                {"hwUtil": 0.0625, "sectionName": "InputReader"},
-                {"hwUtil": 0.0625, "sectionName": "InputReader"},
-                {"hwUtil": 0.25, "sectionName": "InputReader"},
+                {"cycles": 1, "sectionName": "OutputWriter"},
+                {"cycles": 0.25, "sectionName": "VectorEngine"},
+                {"cycles": 0.25, "sectionName": "VectorEngine"},
+                {"cycles": 0.25, "sectionName": "VectorEngine"},
+                {"cycles": 0.25, "sectionName": "TransformUnit"},
+                {"cycles": 0.25, "sectionName": "TransformUnit"},
+                {"cycles": 0.0625, "sectionName": "InputReader"},
+                {"cycles": 0.0625, "sectionName": "InputReader"},
+                {"cycles": 0.25, "sectionName": "InputReader"},
             ],
             "id": 26,
             "opCycles": 18,
@@ -261,13 +238,13 @@ def test_parse_performance_database() -> None:
                 },
             },
             "Utilization": [
-                {"hwUtil": 0.0625, "sectionName": "OutputWriter"},
-                {"hwUtil": 0.125, "sectionName": "VectorEngine"},
-                {"hwUtil": 0.125, "sectionName": "VectorEngine"},
-                {"hwUtil": 0.125, "sectionName": "VectorEngine"},
-                {"hwUtil": 0.125, "sectionName": "VectorEngine"},
-                {"hwUtil": 0.0625, "sectionName": "InputReader"},
-                {"hwUtil": 0.0625, "sectionName": "InputReader"},
+                {"cycles": 0.0625, "sectionName": "OutputWriter"},
+                {"cycles": 0.125, "sectionName": "VectorEngine"},
+                {"cycles": 0.125, "sectionName": "VectorEngine"},
+                {"cycles": 0.125, "sectionName": "VectorEngine"},
+                {"cycles": 0.125, "sectionName": "VectorEngine"},
+                {"cycles": 0.0625, "sectionName": "InputReader"},
+                {"cycles": 0.0625, "sectionName": "InputReader"},
             ],
             "id": 25,
             "opCycles": 4,
@@ -281,7 +258,7 @@ def test_make_parsed_db_performance_db() -> None:
     Test the performance_db has the required fields.
     """
     contents = """
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;hwUtil"
+    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
     26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
     25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
     """.strip()
@@ -331,15 +308,15 @@ def test_make_parsed_db_performance_db() -> None:
                 },
             },
             "Utilization": [
-                {"sectionName": "OutputWriter", "hwUtil": 1},
-                {"sectionName": "VectorEngine", "hwUtil": 0.25},
-                {"sectionName": "VectorEngine", "hwUtil": 0.25},
-                {"sectionName": "VectorEngine", "hwUtil": 0.25},
-                {"sectionName": "TransformUnit", "hwUtil": 0.25},
-                {"sectionName": "TransformUnit", "hwUtil": 0.25},
-                {"sectionName": "InputReader", "hwUtil": 0.0625},
-                {"sectionName": "InputReader", "hwUtil": 0.0625},
-                {"sectionName": "InputReader", "hwUtil": 0.25},
+                {"sectionName": "OutputWriter", "cycles": 1},
+                {"sectionName": "VectorEngine", "cycles": 0.25},
+                {"sectionName": "VectorEngine", "cycles": 0.25},
+                {"sectionName": "VectorEngine", "cycles": 0.25},
+                {"sectionName": "TransformUnit", "cycles": 0.25},
+                {"sectionName": "TransformUnit", "cycles": 0.25},
+                {"sectionName": "InputReader", "cycles": 0.0625},
+                {"sectionName": "InputReader", "cycles": 0.0625},
+                {"sectionName": "InputReader", "cycles": 0.25},
             ],
         },
         {
@@ -379,13 +356,13 @@ def test_make_parsed_db_performance_db() -> None:
                 },
             },
             "Utilization": [
-                {"sectionName": "OutputWriter", "hwUtil": 0.0625},
-                {"sectionName": "VectorEngine", "hwUtil": 0.125},
-                {"sectionName": "VectorEngine", "hwUtil": 0.125},
-                {"sectionName": "VectorEngine", "hwUtil": 0.125},
-                {"sectionName": "VectorEngine", "hwUtil": 0.125},
-                {"sectionName": "InputReader", "hwUtil": 0.0625},
-                {"sectionName": "InputReader", "hwUtil": 0.0625},
+                {"sectionName": "OutputWriter", "cycles": 0.0625},
+                {"sectionName": "VectorEngine", "cycles": 0.125},
+                {"sectionName": "VectorEngine", "cycles": 0.125},
+                {"sectionName": "VectorEngine", "cycles": 0.125},
+                {"sectionName": "VectorEngine", "cycles": 0.125},
+                {"sectionName": "InputReader", "cycles": 0.0625},
+                {"sectionName": "InputReader", "cycles": 0.0625},
             ],
         },
     ]
@@ -399,19 +376,17 @@ def test_debug_database_parser_from_file(test_resources_path: Path) -> None:
     parser = NXDebugDatabaseParser(Path(debug_db_file))
     records = parser.parse_debug_database()
     assert len(records) == 9
-    assert records["fused_op_id_to_tosa_op_ids"]["531"] == ["398"]
-    assert records["fused_op_id_to_tosa_op_ids"]["497"] == ["394", "461"]
-    assert records["chain_op_id_to_fused_op_ids"]["639"] == [
-        "591",
-        "593",
-        "511",
-        "513",
-        "517",
+    assert records["fused_op_id_to_tosa_op_ids"]["584"] == ["372"]
+    assert records["fused_op_id_to_tosa_op_ids"]["532"] == ["426", "500"]
+    assert records["chain_op_id_to_fused_op_ids"]["690"] == [
+        "642",
+        "644",
+        "562",
+        "564",
+        "568",
     ]
     # pylint: disable=line-too-long
-    assert records["tosa_op_id_to_api_labels"]["336"] == [
-        "deeplabv3plus_mbnV2__1080p/Conv_Relu6/Relu6;deeplabv3plus_mbnV2__1080p/Conv_BN/FusedBatchNormV3;deeplabv3plus_mbnV2__1080p/expanded_conv_5_project/Conv2D;deeplabv3plus_mbnV2__1080p/Conv/Conv2D"
-    ]
+    assert records["tosa_op_id_to_api_labels"]["372"] == ["model/re_lu/Relu"]
 
 
 def test_parse_debug_database() -> None:
@@ -534,7 +509,7 @@ def test_column_parsers() -> None:
     pdb = NXPerformanceDatabaseParser()
     parsers = pdb.column_parsers  # pylint: disable=protected-access
     col1 = "memoryName;readBytes;writeBytes;trafficCycles"
-    col2 = "sectionName;hwUtil"
+    col2 = "sectionName;cycles"
     assert parsers == {
         col1: SubtableColumnParser("Memory", col1),
         col2: SubtableColumnParser("Utilization", col2),

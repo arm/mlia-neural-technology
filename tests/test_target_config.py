@@ -25,8 +25,8 @@ def test_builtin_supported_profile_names() -> None:
     """Test built-in profile names."""
     assert BUILTIN_SUPPORTED_PROFILE_NAMES == get_builtin_supported_profile_names()
     assert BUILTIN_SUPPORTED_PROFILE_NAMES == [
-        "NX-peak-12SC-8NE-600MHz",
-        "NX-sustained-12SC-8NE-350MHz",
+        "NX-peak-12SC-8NX-600MHz",
+        "NX-sustained-12SC-8NX-350MHz",
         "cortex-a",
         "ethos-u55-128",
         "ethos-u55-256",
@@ -85,6 +85,7 @@ def test_target_profile() -> None:
         profile.verify()
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     ("advice", "check_system", "supported"),
     (

@@ -136,7 +136,7 @@ class NXModelCompatibilityInfo:
             record.placement = "EE"
         else:
             record.compat_level = "TOSA"
-            record.placement = "NE"
+            record.placement = "NX"
 
     def add_lowering_error(self, location: str, error: str) -> None:
         """Add an op to the database, which can't be lowered due to some error."""

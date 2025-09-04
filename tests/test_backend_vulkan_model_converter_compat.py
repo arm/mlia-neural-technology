@@ -239,7 +239,7 @@ def test_nx_compatiblity_info() -> None:
         {
             "compat_level": "TOSA",
             "location": "model/myloc1/op1",
-            "placement": "NE",
+            "placement": "NX",
             "tosa_op": "mytosa_op",
         },
     ]
@@ -253,7 +253,7 @@ def test_nx_compatiblity_info() -> None:
             type=None,
             tosa_op="mytosa_op",
             error=None,
-            placement="NE",
+            placement="NX",
         ),
         NXOperatorCompatibilityInfo(
             location="model/myloc2/op3",
@@ -269,7 +269,7 @@ def test_nx_compatiblity_info() -> None:
             "location": "model/myloc1/op1",
             "compat_level": "TOSA",
             "tosa_op": "mytosa_op",
-            "placement": "NE",
+            "placement": "NX",
         },
         {
             "location": "model/myloc2/op3",
@@ -284,7 +284,7 @@ def test_nx_compatiblity_info() -> None:
             "location": "model/myloc1/op1",
             "compat_level": "TOSA",
             "tosa_op": "mytosa_op",
-            "placement": "NE",
+            "placement": "NX",
         },
         {
             "location": "model/myloc2/op3",
@@ -305,13 +305,13 @@ def test_nx_compatiblity_info() -> None:
             "location": "model/myloc1/op1",
             "compat_level": "TOSA",
             "tosa_op": "mytosa_op",
-            "placement": "NE",
+            "placement": "NX",
         },
         {
             "location": "model/myloc1/op4",
             "compat_level": "TOSA",
             "tosa_op": "mytosa_op4",
-            "placement": "NE",
+            "placement": "NX",
         },
         {
             "location": "model/myloc2/op3",

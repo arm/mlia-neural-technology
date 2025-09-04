@@ -70,7 +70,7 @@ def report_nx_compatibility(comp_info: NXModelCompatibilityInfo) -> Report:
                 Cell(
                     op.placement or ("FAIL" if op.error else "Internal Error"),
                     Format(
-                        style=style_improvement(op.placement == "NE"),
+                        style=style_improvement(op.placement == "NX"),
                     ),
                 ),
                 op.compat_level or "N/A",
@@ -106,7 +106,8 @@ def report_nx_graph_compiler_perf_db(
 
     hwutil_columns = [
         Column("HW Section", alias="hwSection", fmt=Format(wrap_width=25)),
-        Column("HW Utilisation", alias="hwUtil", fmt=Format(wrap_width=25)),
+        Column("Active Cycles", alias="cycles", fmt=Format(wrap_width=25)),
+        Column("HW Utilisation", alias="percentage", fmt=Format(wrap_width=25)),
     ]
 
     mem_column_titles = {
@@ -139,7 +140,8 @@ def report_nx_graph_compiler_perf_db(
             value.op_cycles,
             value.total_cycles,
             sub_table_list_values(hwutil_columns, value.utilization, "sectionName"),
-            sub_table_list_values(hwutil_columns, value.utilization, "hwUtil"),
+            sub_table_list_values(hwutil_columns, value.utilization, "cycles"),
+            sub_table_list_values(hwutil_columns, value.utilization, "percentage"),
             *[
                 sub_table_list_values(
                     mem_columns, dict_to_list(value.memory, "memoryName"), field

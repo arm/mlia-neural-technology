@@ -35,8 +35,7 @@ class NXOperatorPerformanceStats:
         }
 
     def sanitize_memory_fields(self) -> None:
-        """Remove Undefined and Internal memory fields as they are meaningless."""
-        del self.memory["Undefined"]
+        """Remove Internal memory fields as they are meaningless."""
         del self.memory["Internal"]
 
     def sanitize_utilization_fields(self) -> None:
@@ -45,19 +44,21 @@ class NXOperatorPerformanceStats:
         for util in self.utilization:
             try:
                 section_name = util["sectionName"]
-                hw_util = util["hwUtil"]
-                utilization_dict[section_name].append(float(hw_util))
+                hw_util = util["cycles"]
+                utilization_dict[section_name].append(int(hw_util))
             except KeyError as exc:
                 raise KeyError(
-                    "sectionName or hwUtil missing from the utilization statistics."
+                    "sectionName or cycles missing from the utilization statistics."
                 ) from exc
 
         self.utilization = []
 
         for util_k, util_v in utilization_dict.items():
+            sum_v = sum(util_v)
             util = {
                 "sectionName": util_k,
-                "hwUtil": str(round(sum(util_v) / len(util_v), 3)),
+                "cycles": f"{sum_v}",
+                "percentage": f"{round(sum_v / self.total_cycles * 100, 1)}%",
             }
             self.utilization.append(util)
 

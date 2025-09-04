@@ -1,88 +1,88 @@
 <?xml version='1.0' encoding='utf-8' ?>
 <debug_database>
-<regor_version>1.0.0</regor_version>
+<regor_version>6.1.0</regor_version>
 <table name="tosa_op_id">
 <![CDATA[
 "id", "tosa_op", "api_labels"
-336, Conv2D, deeplabv3plus_mbnV2__1080p/Conv_Relu6/Relu6;deeplabv3plus_mbnV2__1080p/Conv_BN/FusedBatchNormV3;deeplabv3plus_mbnV2__1080p/expanded_conv_5_project/Conv2D;deeplabv3plus_mbnV2__1080p/Conv/Conv2D;
-337, Rescale, deeplabv3plus_mbnV2__1080p/Conv_Relu6/Relu6;deeplabv3plus_mbnV2__1080p/Conv_BN/FusedBatchNormV3;deeplabv3plus_mbnV2__1080p/expanded_conv_5_project/Conv2D;deeplabv3plus_mbnV2__1080p/Conv/Conv2D;
-338, DepthwiseConv2D, model/re_lu_1/Relu;
-339, Rescale, model/re_lu_1/Relu;
-340, Conv2D, model/re_lu_2/Relu;
-341, Rescale, model/re_lu_2/Relu;
-342, DepthwiseConv2D, model/re_lu_3/Relu;
-343, Rescale, model/re_lu_3/Relu;
-344, Conv2D, model/re_lu_4/Relu;
-345, Rescale, model/re_lu_4/Relu;
-346, DepthwiseConv2D, model/re_lu_5/Relu;
-347, Rescale, model/re_lu_5/Relu;
-348, Conv2D, model/re_lu_6/Relu;
-349, Rescale, model/re_lu_6/Relu;
-350, DepthwiseConv2D, model/re_lu_7/Relu;test_location_string;
-351, Rescale, model/re_lu_7/Relu;
-352, Conv2D, model/re_lu_8/Relu;
-353, Rescale, model/re_lu_8/Relu;
-354, DepthwiseConv2D, model/re_lu_9/Relu;
-355, Rescale, model/re_lu_9/Relu;
-356, Conv2D, model/re_lu_10/Relu;
-357, Rescale, model/re_lu_10/Relu;
-358, AvgPool, model/average_pooling2d/AvgPool;
-410, Rescale, model/average_pooling2d/AvgPool;
-359, Reshape, model/dense/BiasAdd;
-413, Conv2D, model/dense/BiasAdd;
-361, Rescale, model/dense/BiasAdd;
-362, Rescale, Identity;
-363, ReduceMax, Identity;
-364, Sub, Identity;
-365, Rescale, Identity;
-368, LUT, Identity;
-372, SHL, Identity;
-366, LUT, Identity;
-367, LUT, Identity;
-370, SHL, Identity;
-371, SHL, Identity;
-374, Add, Identity;
-369, LUT, Identity;
-373, Asr, Identity;
-440, Rescale, Identity;
-375, Add, Identity;
-376, Add, Identity;
-377, Asr, Identity;
-443, Rescale, Identity;
-378, ReduceSum, Identity;
-379, CLZ, Identity;
-400, Sub, Identity;
-380, Sub, Identity;
-381, SHL, Identity;
-382, Mul, Identity;
-446, Rescale, Identity;
-383, Add, Identity;
-384, Mul, Identity;
-449, Rescale, Identity;
-385, Sub, Identity;
-386, Mul, Identity;
-452, Rescale, Identity;
-387, Mul, Identity;
-388, Add, Identity;
-389, Mul, Identity;
-455, Rescale, Identity;
-390, Sub, Identity;
-391, Mul, Identity;
-458, Rescale, Identity;
-392, Mul, Identity;
-393, Add, Identity;
-394, Mul, Identity;
-461, Rescale, Identity;
-395, Sub, Identity;
-396, Mul, Identity;
-464, Rescale, Identity;
-397, Mul, Identity;
-398, Add, Identity;
-399, Mul, Identity;
-467, Rescale, Identity;
-401, Asr, Identity;
-470, Rescale, Identity;
-402, Rescale, Identity;
+372, Conv2D, model/re_lu/Relu;
+373, Rescale, model/re_lu/Relu;
+375, DepthwiseConv2D, model/re_lu_1/Relu;
+376, Rescale, model/re_lu_1/Relu;
+377, Conv2D, model/re_lu_2/Relu;
+378, Rescale, model/re_lu_2/Relu;
+380, DepthwiseConv2D, model/re_lu_3/Relu;
+381, Rescale, model/re_lu_3/Relu;
+382, Conv2D, model/re_lu_4/Relu;
+383, Rescale, model/re_lu_4/Relu;
+385, DepthwiseConv2D, model/re_lu_5/Relu;
+386, Rescale, model/re_lu_5/Relu;
+387, Conv2D, model/re_lu_6/Relu;
+388, Rescale, model/re_lu_6/Relu;
+390, DepthwiseConv2D, model/re_lu_7/Relu;
+391, Rescale, model/re_lu_7/Relu;
+392, Conv2D, model/re_lu_8/Relu;
+393, Rescale, model/re_lu_8/Relu;
+395, DepthwiseConv2D, model/re_lu_9/Relu;
+396, Rescale, model/re_lu_9/Relu;
+397, Conv2D, model/re_lu_10/Relu;
+398, Rescale, model/re_lu_10/Relu;
+399, AvgPool, model/average_pooling2d/AvgPool;
+452, Rescale, model/average_pooling2d/AvgPool;
+455, Reshape, model/dense/BiasAdd;
+401, Conv2D, model/dense/BiasAdd;
+402, Rescale, model/dense/BiasAdd;
+404, Rescale, Identity;
+405, ReduceMax, Identity;
+406, Sub, Identity;
+407, Rescale, Identity;
+410, LUT, Identity;
+414, SHL, Identity;
+408, LUT, Identity;
+409, LUT, Identity;
+412, SHL, Identity;
+413, SHL, Identity;
+416, Add, Identity;
+411, LUT, Identity;
+415, Asr, Identity;
+491, Rescale, Identity;
+417, Add, Identity;
+418, Add, Identity;
+419, Asr, Identity;
+494, Rescale, Identity;
+420, ReduceSum, Identity;
+421, CLZ, Identity;
+442, Sub, Identity;
+422, Sub, Identity;
+423, SHL, Identity;
+424, Mul, Identity;
+497, Rescale, Identity;
+425, Add, Identity;
+426, Mul, Identity;
+500, Rescale, Identity;
+427, Sub, Identity;
+428, Mul, Identity;
+503, Rescale, Identity;
+429, Mul, Identity;
+430, Add, Identity;
+431, Mul, Identity;
+506, Rescale, Identity;
+432, Sub, Identity;
+433, Mul, Identity;
+509, Rescale, Identity;
+434, Mul, Identity;
+435, Add, Identity;
+436, Mul, Identity;
+512, Rescale, Identity;
+437, Sub, Identity;
+438, Mul, Identity;
+515, Rescale, Identity;
+439, Mul, Identity;
+440, Add, Identity;
+441, Mul, Identity;
+518, Rescale, Identity;
+443, Asr, Identity;
+521, Rescale, Identity;
+444, Rescale, Identity;
 ]]>
 </table>
 <table name="shader_op_id">
@@ -93,201 +93,212 @@
 <table name="fused_op_id">
 <![CDATA[
 "id", "tosa_op_ids"
-533, 336;
-559, 337;
-535, 338;
-561, 339;
-537, 340;
-563, 341;
-539, 342;
-565, 343;
-541, 344;
-567, 345;
-543, 346;
-569, 347;
-545, 348;
-571, 349;
-547, 350;
-573, 351;
-549, 352;
-575, 353;
-551, 354;
-577, 355;
-553, 356;
-579, 357;
-555, 358;
-581, 410;
-583, 359;
-557, 413;
-585, 361;
-587, 362;
-589, 363;
-471, 364;365;
-595, 368;
-515, 372;
-591, 366;
-593, 367;
-511, 370;
-513, 371;
-517, 374;
-597, 369;
-473, 373;440;
-519, 375;
-521, 376;
-475, 377;443;
-599, 378;
-601, 379;
-507, 400;
-477, 380;
-523, 381;
-479, 382;446;
-525, 383;
-481, 384;449;
-483, 385;
-485, 386;452;
-487, 387;
-527, 388;
-489, 389;455;
-491, 390;
-493, 391;458;
-495, 392;
-529, 393;
-497, 394;461;
-499, 395;
-501, 396;464;
-503, 397;
-531, 398;
-505, 399;467;
-509, 401;470;
-603, 402;
+584, 372;
+610, 373;
+586, 375;
+612, 376;
+588, 377;
+614, 378;
+590, 380;
+616, 381;
+592, 382;
+618, 383;
+594, 385;
+620, 386;
+596, 387;
+622, 388;
+598, 390;
+624, 391;
+600, 392;
+626, 393;
+602, 395;
+628, 396;
+604, 397;
+630, 398;
+606, 399;
+632, 452;
+634, 455;
+608, 401;
+636, 402;
+638, 404;
+640, 405;
+522, 406;407;
+646, 410;
+566, 414;
+642, 408;
+644, 409;
+562, 412;
+564, 413;
+568, 416;
+648, 411;
+524, 415;491;
+570, 417;
+572, 418;
+526, 419;494;
+650, 420;
+652, 421;
+558, 442;
+528, 422;
+574, 423;
+530, 424;497;
+576, 425;
+532, 426;500;
+534, 427;
+536, 428;503;
+538, 429;
+578, 430;
+540, 431;506;
+542, 432;
+544, 433;509;
+546, 434;
+580, 435;
+548, 436;512;
+550, 437;
+552, 438;515;
+554, 439;
+582, 440;
+556, 441;518;
+560, 443;521;
+654, 444;
 ]]>
 </table>
 <table name="chain_op_id">
 <![CDATA[
 "id", "fused_op_ids"
-605, 533;559;
-607, 535;561;
-609, 537;563;
-611, 539;565;
-613, 541;567;
-615, 543;569;
-617, 545;571;
-619, 547;573;
-621, 549;575;
-623, 551;577;
-625, 553;579;
-627, 555;581;583;
-629, 557;585;
-907, 587;
-909, 589;
-911, 471;
-661, 595;515;
-639, 591;593;511;513;517;
-677, 597;473;519;521;
-749, 475;599;601;507;
-771, 477;523;
-787, 479;525;481;
-813, 483;485;487;527;
-839, 489;491;493;
-861, 495;529;497;
-885, 499;501;503;531;
-901, 505;509;603;
+656, 584;610;
+658, 586;612;
+660, 588;614;
+662, 590;616;
+664, 592;618;
+666, 594;620;
+668, 596;622;
+670, 598;624;
+672, 600;626;
+674, 602;628;
+676, 604;630;
+678, 606;632;634;
+680, 608;636;
+958, 638;
+960, 640;
+962, 522;
+712, 646;566;
+690, 642;644;562;564;568;
+728, 648;524;570;572;
+800, 526;650;652;558;
+822, 528;574;
+838, 530;576;532;
+864, 534;536;538;578;
+890, 540;542;544;
+912, 546;580;548;
+936, 550;552;554;582;
+952, 556;560;654;
 ]]>
 </table>
 <table name="cascade_op_id">
 <![CDATA[
-"id", "chain_op_ids"
-1695, 605;
-1693, 607;
-1691, 609;
-1689, 611;
-1687, 613;
-1685, 615;
-1683, 617;
-1681, 619;
-1679, 621;
-1677, 623;
-1675, 625;
-1673, 627;
-1671, 907;
-1669, 907;
-1667, 909;
-1665, 911;
-1661, 661;
-1663, 639;
-1659, 677;
-1657, 749;
-1655, 771;
-1653, 787;
-1651, 813;
-1649, 839;
-1647, 861;
-1645, 885;
-1643, 901;
+"id", "op_ids"
+2823, 656;
+2821, 658;
+2819, 660;
+2817, 662;
+2815, 664;
+2813, 666;
+2811, 668;
+2809, 670;
+2807, 672;
+2805, 674;
+2803, 676;
+2801, 678;
+2799, 680;
+2797, 958;
+2795, 960;
+2793, 962;
+2789, 712;
+2791, 690;
+2787, 728;
+2785, 800;
+2783, 822;
+2781, 838;
+2779, 864;
+2777, 890;
+2775, 912;
+2773, 936;
+2771, 952;
 ]]>
 </table>
 <table name="stripe_op_id">
 <![CDATA[
 "id", "op_id", "cascade_op_id"
-0, 605, 1695
-1, 607, 1693
-2, 609, 1691
-3, 611, 1689
-4, 613, 1687
-5, 615, 1685
-6, 617, 1683
-7, 619, 1681
-8, 619, 1679
-9, 619, 1677
-10, 625, 1675
-11, 627, 1673
-12, 907, 1671
-13, 907, 1669
-14, 909, 1667
-15, 911, 1665
-16, 661, 1661
-17, 639, 1663
-18, 677, 1659
-19, 749, 1657
-20, 771, 1655
-21, 787, 1653
-22, 813, 1651
-23, 839, 1649
-24, 861, 1647
-25, 885, 1645
-26, 901, 1643
+0, 656, 2823
+1, 656, 2823
+2, 658, 2821
+3, 658, 2821
+4, 660, 2819
+5, 660, 2819
+6, 662, 2817
+7, 662, 2817
+8, 664, 2815
+9, 664, 2815
+10, 666, 2813
+11, 666, 2813
+12, 668, 2811
+13, 668, 2811
+14, 670, 2809
+15, 670, 2809
+16, 672, 2807
+17, 672, 2807
+18, 674, 2805
+19, 674, 2805
+20, 676, 2803
+21, 676, 2803
+22, 678, 2801
+23, 680, 2799
+24, 958, 2797
+25, 960, 2795
+26, 962, 2793
+27, 712, 2789
+28, 690, 2791
+29, 728, 2787
+30, 800, 2785
+31, 822, 2783
+32, 838, 2781
+33, 864, 2779
+34, 890, 2777
+35, 912, 2775
+36, 936, 2773
+37, 952, 2771
 ]]>
 </table>
 <table name="command_streams_id">
 <![CDATA[
 "id", "stripe_op_indexs"
-1695, 0;
-1693, 1;
-1691, 2;
-1689, 3;
-1687, 4;
-1685, 5;
-1683, 6;
-1681, 7;
-1679, 8;
-1677, 9;
-1675, 10;
-1673, 11;
-1671, 12;
-1669, 13;
-1667, 14;
-1665, 15;
-1661, 16;
-1663, 17;
-1659, 18;
-1657, 19;
-1655, 20;
-1653, 21;
-1651, 22;
-1649, 23;
-1647, 24;
-1645, 25;
-1643, 26;
+2823, 0;1;
+2821, 2;3;
+2819, 4;5;
+2817, 6;7;
+2815, 8;9;
+2813, 10;11;
+2811, 12;13;
+2809, 14;15;
+2807, 16;17;
+2805, 18;19;
+2803, 20;21;
+2801, 22;
+2799, 23;
+2797, 24;
+2795, 25;
+2793, 26;
+2789, 27;
+2791, 28;
+2787, 29;
+2785, 30;
+2783, 31;
+2781, 32;
+2779, 33;
+2777, 34;
+2775, 35;
+2773, 36;
+2771, 37;
 ]]>
 </table>
 </debug_database>
