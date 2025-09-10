@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
+from mlia.utils.filesystem import is_tosa_file
 from mlia.utils.logging import log_action
 from mlia.utils.proc import Command
 from mlia.utils.proc import OutputConsumer
@@ -56,7 +57,12 @@ class VulkanModelConverterBase:
 
     def _run_front_end(self, tflite_file: Path, output_dir: Path) -> Path:
         """Run the TosaConverterForTflite frontend."""
-        tosa_file = self._convert_file(tflite_file, output_dir)
+        # Check the file extension to see if we've been given a tosa file
+        if is_tosa_file(tflite_file):
+            tosa_file = tflite_file
+        # Otherwise try to convert the file to tosa
+        else:
+            tosa_file = self._convert_file(tflite_file, output_dir)
 
         if not tosa_file.is_file():
             raise FileNotFoundError(

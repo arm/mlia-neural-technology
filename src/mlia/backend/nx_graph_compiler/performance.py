@@ -19,6 +19,7 @@ from mlia.backend.vulkan_model_converter.conversion import VulkanModelConverter
 from mlia.core.performance import PerformanceEstimator
 from mlia.nn.tensorflow.config import ModelConfiguration
 from mlia.utils.filesystem import get_mlia_resources
+from mlia.utils.filesystem import is_vgf_file
 from mlia.utils.logging import log_action
 from mlia.utils.proc import Command
 from mlia.utils.proc import OutputLogger
@@ -105,7 +106,13 @@ class NXGraphCompilerPerformanceEstimator(
                 else model
             )
 
-            vgf_file = self._run_vulkan_model_converter(model_path)
+            # Check the file extension to see if we've been given a vgf file
+            if is_vgf_file(model_path):
+                vgf_file = model_path
+            # Otherwise try to convert the file to vgf
+            else:
+                vgf_file = self._run_vulkan_model_converter(model_path)
+
             output = self._run_nx_graph_compiler(vgf_file, model_path.stem)
 
             perf_db_parser = NXPerformanceDatabaseParser(

@@ -19,6 +19,8 @@ from mlia.core.errors import ConfigurationError
 from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
 from mlia.nn.tensorflow.utils import is_tflite_model
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
+from mlia.utils.filesystem import is_tosa_file
+from mlia.utils.filesystem import is_vgf_file
 from mlia.utils.logging import log_action
 
 
@@ -40,10 +42,20 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
         self,
     ) -> NXGraphCompilerPerformanceMetrics:
         """Run performance estimator."""
-        if not is_tflite_model(self.model):
-            raise ConfigurationError("Input must be a tflite file.")
+        if not any(
+            [
+                is_tflite_model(self.model),
+                is_tosa_file(self.model),
+                is_vgf_file(self.model),
+            ]
+        ):
+            raise ConfigurationError("Input must be a TFLite, TOSA or VGF file.")
 
-        operator_types_mapping = operator_names_to_types(model_path=self.model)
+        if is_tflite_model(self.model):
+            operator_types_mapping = operator_names_to_types(model_path=self.model)
+        else:
+            operator_types_mapping = {}
+
         estimator: NXGraphCompilerPerformanceEstimator
         if self.backend == "nx-graph-compiler":
             estimator = NXGraphCompilerPerformanceEstimator(
@@ -78,8 +90,14 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         self,
     ) -> NXModelCompatibilityInfo:
         """Run performance estimator."""
-        if not is_tflite_model(self.model):
-            raise ConfigurationError("Input must be a tflite file.")
+        if not any(
+            [
+                is_tflite_model(self.model),
+                is_tosa_file(self.model),
+                is_vgf_file(self.model),
+            ]
+        ):
+            raise ConfigurationError("Input must be a TFLite, TOSA or VGF file.")
 
         checker = NXCompatibilityChecker(self.context.output_dir)
 

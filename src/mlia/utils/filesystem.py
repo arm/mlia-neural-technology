@@ -130,3 +130,17 @@ def working_directory(
         yield working_dir
     finally:
         os.chdir(current_working_dir)
+
+
+def is_tosa_file(model: str | Path) -> bool:
+    """Check if path contains tosa file."""
+    model_path = Path(model)
+
+    return model_path.suffix in {".tosamlir", ".tosa"}
+
+
+def is_vgf_file(model: str | Path) -> bool:
+    """Check if path contains vgf file."""
+    model_path = Path(model)
+
+    return model_path.suffix == ".vgf"

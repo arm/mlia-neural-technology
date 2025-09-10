@@ -13,6 +13,8 @@ from mlia.utils.filesystem import get_mlia_resources
 from mlia.utils.filesystem import get_mlia_target_optimization_dir
 from mlia.utils.filesystem import get_mlia_target_profiles_dir
 from mlia.utils.filesystem import get_vela_config
+from mlia.utils.filesystem import is_tosa_file
+from mlia.utils.filesystem import is_vgf_file
 from mlia.utils.filesystem import recreate_directory
 from mlia.utils.filesystem import sha256
 from mlia.utils.filesystem import temp_directory
@@ -43,6 +45,7 @@ def test_get_mlia_target_optimizations() -> None:
     assert get_mlia_target_optimization_dir().is_dir()
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize("raise_exception", [True, False])
 def test_temp_file(raise_exception: bool) -> None:
     """Test temp_file context manager."""
@@ -122,6 +125,7 @@ def test_copy_all(tmp_path: Path) -> None:
     assert (dest_dir / sample_nested_file.name).is_file()
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     "should_exist, create_dir",
     [
@@ -179,3 +183,36 @@ def test_recreate_directory_wrong_path(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match=rf"Path {sample_file} is not a directory."):
         recreate_directory(sample_file)
+
+
+# mypy: disable-error-code=misc
+@pytest.mark.parametrize(
+    "model_path, expected_result",
+    [
+        [Path("sample_model.tosa"), True],
+        [Path("sample_tosamlir.tosamlir"), True],
+        [Path("strange_model.tflite.tfl"), False],
+        [Path("sample_model.h5"), False],
+        [Path("sample_model"), False],
+    ],
+)
+def test_is_tosa_file(model_path: Path, expected_result: bool) -> None:
+    """Test function is_tflite_model."""
+    result = is_tosa_file(model_path)
+    assert result == expected_result
+
+
+# mypy: disable-error-code=misc
+@pytest.mark.parametrize(
+    "model_path, expected_result",
+    [
+        [Path("sample_model.vgf"), True],
+        [Path("strange_model.tflite.tfl"), False],
+        [Path("sample_model.h5"), False],
+        [Path("sample_model"), False],
+    ],
+)
+def test_is_vgf_file(model_path: Path, expected_result: bool) -> None:
+    """Test function is_tflite_model."""
+    result = is_vgf_file(model_path)
+    assert result == expected_result
