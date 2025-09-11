@@ -22,7 +22,7 @@ def get_vulkan_model_converter_installation() -> BackendInstallation:
                 # pylint: enable=line-too-long
             ),
             sha256_hash=(
-                "8c6802107a478fc2ccd4a208776401663a167e472aa3c738a90bcf4121b08d34"
+                "56d4c226d94e0aaa079bd4ea6d6b0c1951a615506ae9820942d53f9560be1677"
             ),
             header_gen_fn=artifactory_credential_headers,
         ),
