@@ -87,7 +87,7 @@ class VMCCompatbilityChecker(VulkanModelConverterBase):
 
     def _extra_back_end_arguments(self) -> list[str]:
         """Return any extra arguments to be used with the VMC back-end."""
-        return ["--experimental-analysis"]
+        return ["--emit-debug-info", "--experimental-analysis"]
 
     @property
     def compatibility_log_reader(self) -> VMCCompatibilityLogReader:

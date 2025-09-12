@@ -90,14 +90,8 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         self,
     ) -> NXModelCompatibilityInfo:
         """Run performance estimator."""
-        if not any(
-            [
-                is_tflite_model(self.model),
-                is_tosa_file(self.model),
-                is_vgf_file(self.model),
-            ]
-        ):
-            raise ConfigurationError("Input must be a TFLite, TOSA or VGF file.")
+        if not is_tflite_model(self.model):
+            raise ConfigurationError("Input must be a TFLite file.")
 
         checker = NXCompatibilityChecker(self.context.output_dir)
 
