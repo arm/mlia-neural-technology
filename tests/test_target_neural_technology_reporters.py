@@ -155,7 +155,6 @@ def test_nx_graph_compiler_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
             # pylint: disable=C0301
             "Neural Accelerator raw performance report:",
             "┌────┬──────┬──────┬──────┬──────┬──────┬──────┬─────┬──────┬─────┬──────┬─────┐",
-            "│    │ TFL… │ TFL… │      │      │      │      │     │      │     │      │     │",
             "│    │ Ope… │ Ope… │ Ope… │ Tot… │ HW   │ Act… │ HW  │ Mem… │ Re… │ Wri… │ Tr… │",
             "│ ID │ Loc… │ Type │ Cyc… │ Cyc… │ Sec… │ Cyc… │ Ut… │ Name │ by… │ byt… │ cy… │",
             "╞════╪══════╪══════╪══════╪══════╪══════╪══════╪═════╪══════╪═════╪══════╪═════╡",

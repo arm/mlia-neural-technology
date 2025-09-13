@@ -91,8 +91,8 @@ def report_nx_graph_compiler_perf_db(
     general_column = [Column("ID", alias="id", fmt=Format(wrap_width=25))]
 
     op_columns_titles = {
-        "opLocation": "TFLite Operator Location",
-        "opType": "TFLite Operator Type",
+        "opLocation": "Operator Location",
+        "opType": "Operator Type",
     }
     op_columns = [
         Column(title, alias=key, fmt=Format(wrap_width=25))
