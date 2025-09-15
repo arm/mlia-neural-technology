@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022, 2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Util functions for managing python packages."""
 from __future__ import annotations
@@ -73,7 +73,9 @@ class PyPackageManager:
             logger.debug(line.rstrip())
 
         if returncode != 0:
-            raise InternalError("Unable to install python package")
+            raise InternalError(
+                f"Unable to execute pip {subcommand} {params}."
+            )
 
 
 def get_package_manager() -> PyPackageManager:

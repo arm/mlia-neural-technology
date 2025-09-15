@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for installation process."""
 from __future__ import annotations
@@ -356,15 +356,17 @@ class PyPackageBackendInstallation(Installation):
 
     def __init__(
         self,
-        name: str,
         description: str,
+        name: str,
         packages_to_install: list[str],
         packages_to_uninstall: list[str],
         expected_packages: list[str],
+        download_config: DownloadConfig | None = None,
     ) -> None:
         """Init the backend installation."""
         super().__init__(name, description)
 
+        self.download_config = download_config
         self._packages_to_install = packages_to_install
         self._packages_to_uninstall = packages_to_uninstall
         self._expected_packages = expected_packages
@@ -383,18 +385,45 @@ class PyPackageBackendInstallation(Installation):
 
     def supports(self, install_type: InstallationType) -> bool:
         """Return true if installation supports requested installation type."""
-        return isinstance(install_type, DownloadAndInstall)
+        return isinstance(install_type, (DownloadAndInstall, InstallFromPath))
 
     def install(self, install_type: InstallationType) -> None:
         """Install the backend."""
         if not self.supports(install_type):
             raise ValueError(f"Unsupported installation type {install_type}.")
 
-        self.package_manager.install(self._packages_to_install)
+        if self.download_config and isinstance(install_type, DownloadAndInstall):
+            self._download_and_install(self.download_config)
+        elif isinstance(install_type, (DownloadAndInstall, InstallFromPath)):
+            self.package_manager.install(self._packages_to_install)
+        else:
+            raise RuntimeError(f"Unable to install {install_type}.")
 
     def uninstall(self) -> None:
         """Uninstall the backend."""
         self.package_manager.uninstall(self._packages_to_uninstall)
+
+    def _download_and_install(self, cfg: DownloadConfig) -> None:
+        """Download the wheel file."""
+        with temp_directory() as tmpdir:
+            current: DownloadConfig | None = cfg
+            while current:
+                assert current.url.endswith(".whl"), "Only wheel files are supported."
+                try:
+                    dest = tmpdir / current.filename
+                    download(
+                        dest=dest,
+                        cfg=current,
+                        show_progress=True,
+                    )
+                except Exception as err:
+                    raise RuntimeError(
+                        "Unable to download wheel."
+                    ) from err
+                current = current.chained_download
+
+            self._packages_to_install.append(dest)
+            self.install(InstallFromPath(dest))
 
 
 ARTIFACTORY_USERNAME_ENV_VAR = "MLIA_ARTIFACTORY_USERNAME"
