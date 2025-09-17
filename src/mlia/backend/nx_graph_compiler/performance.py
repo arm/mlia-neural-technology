@@ -157,8 +157,9 @@ class NXGraphCompilerPerformanceEstimator(
         gc_path, _ = backend_repo.get_backend_settings("nx-graph-compiler")
         output_dir = self.output_dir / "nx-graph-compiler"
         output_dir.mkdir()
-        # We need to specify the stem of the output files here, i.e. neither
+        # We need to specify the basename for the output files here, i.e. neither
         # the output directory or the specific output file.
+        output_name = output_name.replace(".", "_")
         output = output_dir / output_name
         system_config = self.backend_config.system_config
         compiler_config = self.backend_config.compiler_config
@@ -185,7 +186,7 @@ class NXGraphCompilerPerformanceEstimator(
                 "-i",
                 str(vgf_file),
                 "-o",
-                str(output.stem),
+                str(output.name),
                 "--enable-config-file-dump",
                 *system_config_args,
                 *compiler_config_args,
