@@ -20,7 +20,8 @@ markers = [
     "e2e",  # e2e tests
     "install",  # installation tests
     "command",  # command tests
-    "model_gen"  # model generation tests
+    "model_gen",  # model generation tests
+    "slow"  # slow tests
 ]
 junit_logging = "all"
 

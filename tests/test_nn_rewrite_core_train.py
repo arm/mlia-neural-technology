@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for module mlia.nn.rewrite.core.train."""
 # pylint: disable=too-many-arguments
@@ -87,6 +87,7 @@ def check_train(
             assert all(np.issubdtype(dtype, np.integer) for dtype in dtypes)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     (
         "batch_size",
@@ -135,6 +136,7 @@ def test_train_fp32(
     )
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     (
         "batch_size",
@@ -239,6 +241,7 @@ def test_augment_fn_twins(augmentations: tuple, expected_error: Any) -> None:
         assert len(fn_twins) == 2
 
 
+@pytest.mark.slow
 def test_train_checkpoint(
     test_tflite_model: Path,
     test_tfrecord: Path,
@@ -291,6 +294,7 @@ def test_detect_activation_from_rewrite_function_relu_activation(
     )
 
 
+@pytest.mark.slow
 def test_train_none_tf_record(
     test_tflite_model: Path,
 ) -> None:

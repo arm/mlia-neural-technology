@@ -239,16 +239,10 @@ class BackendInstallation(Installation):
                         ) from err
 
                     with tarfile.open(dest) as archive:
-                        # Filter files from the tarfile to avoid traversal attacks.
-                        # Note: bandit is still putting out a low severity /
-                        # low confidence warning despite the check
-                        # From Python 3.9.17 on there is a built-in feature to fix
-                        # this using the new argument filter="data", see
-                        # https://docs.python.org/3.9/library/tarfile.html#tarfile.TarFile.extractall
                         logger.debug(
                             "Extracting downloaded artifact %s to %s.", dest, dist_dir
                         )
-                        archive.extractall(  # nosec
+                        archive.extractall(
                             dist_dir,
                             members=self._filter_tar_members(
                                 archive.getmembers(), dist_dir

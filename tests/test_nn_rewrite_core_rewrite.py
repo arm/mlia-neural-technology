@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for module mlia.nn.rewrite.core.rewrite."""
 from __future__ import annotations
@@ -59,6 +59,7 @@ def test_rewrite() -> None:
         rewrite((1, 2), (1, 2))
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "rewrite_name, callbacks_length, instance",
     [
@@ -83,6 +84,7 @@ def test_rewrite_selection(
     assert len(rewrite.training_callbacks()) == callbacks_length
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "rewrite_name, expected_error",
     [
@@ -140,6 +142,7 @@ def train_rewrite_model(
     return rewrite_model
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "rewrite_name, input_shape, output_shape, layer_type",
     [
@@ -180,6 +183,7 @@ def test_rewrite_clustering(
     )
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "rewrite_name, input_shape, output_shape, layer_type",
     [
@@ -245,6 +249,7 @@ def test_rewrite_sparsity(
     assert rewrite.check_optimization(model)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "rewrite_name, input_shape, output_shape, layer_type",
     [
@@ -311,6 +316,7 @@ def test_rewrite_unstructured_sparsity(
     assert rewrite.check_optimization(model)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "rewrite_type, expected_layers, quant",
     [
@@ -434,6 +440,7 @@ def test_rewriting_optimizer(  # pylint: disable=too-many-locals
     assert cfg
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "rewrite_type, rewrite_params, expected_error",
     [
@@ -564,6 +571,7 @@ def test_rewriting_optimizer_rewrite_params(  # pylint: disable=too-many-locals
         test_obj.apply_optimization()
 
 
+@pytest.mark.slow
 def test_register_rewrite_function() -> None:
     """Test adding rewrite functions and verify they are reported via the registry."""
     registry = RewriteRegistry()
@@ -582,6 +590,7 @@ def test_register_rewrite_function() -> None:
     assert registry.names() == ["r1", "r2"]
 
 
+@pytest.mark.slow
 def test_builtin_rewrite_names() -> None:
     """Test if all builtin rewrites are properly registered and returned."""
     assert set(RewritingOptimizer.builtin_rewrite_names()) == {
@@ -600,6 +609,7 @@ def test_builtin_rewrite_names() -> None:
     }
 
 
+@pytest.mark.slow
 def test_rewrite_configuration_train_params(
     test_tflite_model_fp32: Path,
     test_tfrecord_fp32: Path,

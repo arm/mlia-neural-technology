@@ -17,7 +17,7 @@ from mlia.utils.proc import OutputConsumer
 
 
 # pylint: disable=line-too-long
-@pytest.mark.parametrize(  # type: ignore[misc]
+@pytest.mark.parametrize(
     "vmc_log, expected_ops, expected_errors",
     [
         (
@@ -157,7 +157,7 @@ def test_parse_nested() -> None:
     )
 
 
-@pytest.mark.parametrize(  # type: ignore[misc]
+@pytest.mark.parametrize(
     "line",
     ["loc(unmatched", "loc(noquotes)", 'loc(fused["op1", "op2")', "foo", 'loc("a b")'],
 )
