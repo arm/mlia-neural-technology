@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022, 2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 *.pyc
 *~
@@ -14,3 +14,4 @@ mlia-output
 report
 .ipynb_checkpoints
 .tox
+src/mlia/_vendor/artifacts/*
