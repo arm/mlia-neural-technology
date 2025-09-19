@@ -417,12 +417,10 @@ class PyPackageBackendInstallation(Installation):
                         show_progress=True,
                     )
                 except Exception as err:
-                    raise RuntimeError(
-                        "Unable to download wheel."
-                    ) from err
+                    raise RuntimeError("Unable to download wheel.") from err
                 current = current.chained_download
 
-            self._packages_to_install.append(dest)
+            self._packages_to_install.append(str(dest))
             self.install(InstallFromPath(dest))
 
 
