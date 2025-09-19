@@ -4,7 +4,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict
-from typing import Union
 
 from mlia.backend.nx_graph_compiler.output_parsing import DebugDatabaseContentsType
 from mlia.backend.nx_graph_compiler.output_parsing import (
@@ -96,14 +95,10 @@ class NXPerformanceStats:
         self,
         debug_db: DebugDatabaseContentsType,
         performance_db: PerformanceDatabaseContentsType,
-        operator_types_mapping: Union[Dict[str, str], None],
     ) -> None:
         """Initialize the class with the debug and performance database dictionaries."""
         self.debug_db: DebugDatabaseContentsType = debug_db
         self.performance_db: PerformanceDatabaseContentsType = performance_db
-        self.operator_types_mapping: Union[
-            Dict[str, str], None
-        ] = operator_types_mapping
         self.performance_stats_per_chain: Dict[str, NXOperatorPerformanceStats] = {}
 
     def process_stats_per_chain(
@@ -122,36 +117,16 @@ class NXPerformanceStats:
         for _, row in enumerate(self.performance_db):
             operators = []
 
-            if self.operator_types_mapping:
-                # We have operator_types_mapping from TFLite so get the Operator Types
-                # and Locations from that data
-                # find the chain ID and TF location strings
-                chain_op_id, location_strings = self.track_op(
-                    stripe_op_id=str(row["id"])
-                )
+            # We don't have operator_types_mapping from TFLite so use the Operator
+            # Types and Locations from the debug data
+            # find the chain ID and TF location strings
+            chain_op_id, api_labels, operator_types = self.track_op(
+                stripe_op_id=str(row["id"])
+            )
 
-                for loc_str in location_strings:
-                    loc_str_key = loc_str[0]
-                    if self.operator_types_mapping:
-                        op_type = self.operator_types_mapping.get(
-                            loc_str_key, "<unknown>"
-                        )
-                    else:
-                        op_type = "<unknown>"
-
-                    op_location_type = {"opLocation": loc_str, "opType": op_type}
-                    operators.append(op_location_type)
-            else:
-                # We don't have operator_types_mapping from TFLite so use the Operator
-                # Types and Locations from the debug data
-                # find the chain ID and TF location strings
-                chain_op_id, api_labels, operator_types = self.track_debug_op(
-                    stripe_op_id=str(row["id"])
-                )
-
-                for api_str, operator_str in zip(api_labels, operator_types):
-                    op_location_type = {"opLocation": api_str, "opType": operator_str}
-                    operators.append(op_location_type)
+            for api_str, operator_str in zip(api_labels, operator_types):
+                op_location_type = {"opLocation": api_str, "opType": operator_str}
+                operators.append(op_location_type)
 
             # create the Operator Performance Stats object and sanitize its fields
             operator_stats = NXOperatorPerformanceStats(
@@ -174,28 +149,7 @@ class NXPerformanceStats:
 
         return self.performance_stats_per_chain
 
-    def track_op(self, stripe_op_id: str) -> tuple[str, list]:
-        """Track the ID of a stripe to the location string."""
-        chain_op_id = self.debug_db["stripe_op_id_to_op_id"][stripe_op_id]
-
-        if len(chain_op_id) > 1:
-            raise ValueError("There should be only one chain per stripe, found more!")
-
-        fused_op_ids = self.debug_db["chain_op_id_to_fused_op_ids"][chain_op_id[0]]
-
-        tosa_op_ids = []
-        for fused_op_id in fused_op_ids:
-            tosa_op_ids.extend(self.debug_db["fused_op_id_to_tosa_op_ids"][fused_op_id])
-
-        location_strings = []
-        for tosa_op_id in tosa_op_ids:
-            location_strings.append(
-                self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id]
-            )
-
-        return chain_op_id[0], location_strings
-
-    def track_debug_op(self, stripe_op_id: str) -> tuple[str, list, list]:
+    def track_op(self, stripe_op_id: str) -> tuple[str, list, list]:
         """Track the ID of a stripe to the location string."""
         chain_op_id = self.debug_db["stripe_op_id_to_op_id"][stripe_op_id]
 

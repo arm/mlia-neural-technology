@@ -126,7 +126,6 @@ class NXGraphCompilerPerformanceEstimator(
             perf_stats = NXPerformanceStats(
                 debug_db=debug_db,
                 performance_db=performance_db,
-                operator_types_mapping=self.operator_types_mapping,
             )
             stats_per_chain = perf_stats.process_stats_per_chain()
             output_file_path = self.output_dir / "nx_performance_statistics.json"

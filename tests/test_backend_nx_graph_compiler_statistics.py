@@ -545,14 +545,7 @@ def test_process_stats_per_chain(test_resources_path: Path) -> None:
     pdb_parser = NXPerformanceDatabaseParser(Path(perf_db_file))
     performance_db = pdb_parser.parse_performance_database()
 
-    operator_types_mapping = {
-        "Identity": "identity_op_type",
-        "model/re_lu_7/Relu": "RELU",
-    }
-
-    performance_stats = NXPerformanceStats(
-        debug_db, performance_db, operator_types_mapping
-    )
+    performance_stats = NXPerformanceStats(debug_db, performance_db)
     performance_stats_per_chain = performance_stats.process_stats_per_chain()
 
     # One chain per stripe, no accumulation of statistics
@@ -575,8 +568,8 @@ def test_process_stats_per_chain(test_resources_path: Path) -> None:
             {"sectionName": "OutputWriter", "cycles": "12", "percentage": "5.4%"},
         ],
         operators=[
-            {"opLocation": ["Identity"], "opType": "identity_op_type"},
-            {"opLocation": ["Identity"], "opType": "identity_op_type"},
+            {"opLocation": ["Identity"], "opType": ["Sub"]},
+            {"opLocation": ["Identity"], "opType": ["Rescale"]},
         ],
     )
 
@@ -607,8 +600,8 @@ def test_process_stats_per_chain(test_resources_path: Path) -> None:
             {"sectionName": "OutputWriter", "cycles": "832", "percentage": "8.6%"},
         ],
         operators=[
-            {"opLocation": ["model/re_lu_6/Relu"], "opType": "<unknown>"},
-            {"opLocation": ["model/re_lu_6/Relu"], "opType": "<unknown>"},
+            {"opLocation": ["model/re_lu_6/Relu"], "opType": ["Conv2D"]},
+            {"opLocation": ["model/re_lu_6/Relu"], "opType": ["Rescale"]},
         ],
     )
 
@@ -631,59 +624,22 @@ def test_track_op(test_resources_path: Path) -> None:
     pdb_parser = NXPerformanceDatabaseParser(Path(perf_db_file))
     performance_db = pdb_parser.parse_performance_database()
     performance_stats = NXPerformanceStats(
-        debug_db=debug_db, performance_db=performance_db, operator_types_mapping={}
+        debug_db=debug_db, performance_db=performance_db
     )
 
-    chain_op_id, location_strings = performance_stats.track_op("26")
-
-    assert chain_op_id == "962"
-    assert location_strings == [
-        ["Identity"],
-        ["Identity"],
-    ]
-
-    chain_op_id, location_strings = performance_stats.track_op("22")
-    assert chain_op_id == "678"
-    # pylint: disable=line-too-long
-    assert location_strings == [
-        ["model/average_pooling2d/AvgPool"],
-        ["model/average_pooling2d/AvgPool"],
-        ["model/dense/BiasAdd"],
-    ]
-
-
-def test_track_debug_op(test_resources_path: Path) -> None:
-    """Test that we can track location strings from a chain id."""
-    debug_db_file = str(
-        test_resources_path / "nx/ds_cnn_large_fully_quantized_int8_debug_database.dat"
-    )
-    ddb_parser = NXDebugDatabaseParser(Path(debug_db_file))
-    debug_db = ddb_parser.parse_debug_database()
-
-    perf_db_file = str(
-        test_resources_path
-        / "nx/ds_cnn_large_fully_quantized_int8_performance_database.dat"
-    )
-
-    pdb_parser = NXPerformanceDatabaseParser(Path(perf_db_file))
-    performance_db = pdb_parser.parse_performance_database()
-    performance_stats = NXPerformanceStats(
-        debug_db=debug_db, performance_db=performance_db, operator_types_mapping={}
-    )
-
-    chain_op_id, api_labels, location_strings = performance_stats.track_debug_op("26")
+    chain_op_id, api_labels, operator_types = performance_stats.track_op("26")
 
     assert chain_op_id == "962"
     assert api_labels == [
         ["Identity"],
         ["Identity"],
     ]
-    assert location_strings == [
+    assert operator_types == [
         ["Sub"],
         ["Rescale"],
     ]
 
-    chain_op_id, api_labels, operator_types = performance_stats.track_debug_op("22")
+    chain_op_id, api_labels, operator_types = performance_stats.track_op("22")
     assert chain_op_id == "678"
     assert api_labels == [
         ["model/average_pooling2d/AvgPool"],

@@ -110,13 +110,6 @@ def test_nx_graph_compiler_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
 ]]>
 </table>
 """.strip()
-    # pylint: disable=line-too-long
-    operator_types_mapping = {
-        "deeplabv3plus_mbnV2__1080p/expanded_conv_8_depthwise_relu/Relu6;deeplabv3plus_mbnV2__1080p/expanded_conv_8_depthwise_BN/FusedBatchNormV3;deeplabv3plus_mbnV2__1080p/expanded_conv_10_depthwise/depthwise;deeplabv3plus_mbnV2__1080p/expanded_conv_8_depthwise/depthwise": "type1",
-        "deeplabv3plus_mbnV2__1080p/expanded_conv_8_project_BN/FusedBatchNormV3;deeplabv3plus_mbnV2__1080p/expanded_conv_9_project/Conv2D;deeplabv3plus_mbnV2__1080p/expanded_conv_8_project/Conv2D": "type_2",
-        "deeplabv3plus_mbnV2__1080p/expanded_conv_8_add/add": "type_3",
-    }
-
     performance_db_parser = NXPerformanceDatabaseParser()
     performance_db_parser.raw_xmlish = performance_contents
     performance_db = performance_db_parser.parse_performance_database()
@@ -139,7 +132,6 @@ def test_nx_graph_compiler_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
         performance_metrics=NXPerformanceStats(
             debug_db=debug_db,
             performance_db=performance_db,
-            operator_types_mapping=operator_types_mapping,
         ).process_stats_per_chain(),
     )
 
@@ -158,8 +150,8 @@ def test_nx_graph_compiler_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
             "│    │ Ope… │ Ope… │ Ope… │ Tot… │ HW   │ Act… │ HW  │ Mem… │ Re… │ Wri… │ Tr… │",
             "│ ID │ Loc… │ Type │ Cyc… │ Cyc… │ Sec… │ Cyc… │ Ut… │ Name │ by… │ byt… │ cy… │",
             "╞════╪══════╪══════╪══════╪══════╪══════╪══════╪═════╪══════╪═════╪══════╪═════╡",
-            "│ 25 │ dee… │ typ… │ 4    │ 13   │ Out… │ 625  │ 48… │ L1   │ 0   │ 4    │ 0   │",
-            "│    │ p/e… │ typ… │      │      │ Vec… │ 0    │ 0.… │ L2   │ 0   │ 0    │ 0   │",
+            "│ 25 │ dee… │ Dep… │ 4    │ 13   │ Out… │ 625  │ 48… │ L1   │ 0   │ 4    │ 0   │",
+            "│    │ p/e… │ Res… │      │      │ Vec… │ 0    │ 0.… │ L2   │ 0   │ 0    │ 0   │",
             "│    │ se_… │      │      │      │ Inp… │ 0    │ 0.… │ Sys… │ 0   │ 0    │ 0   │",
             "│    │ us_… │      │      │      │      │      │     │ DRAM │ 128 │ 4    │ 4   │",
             "│    │ con… │      │      │      │      │      │     │      │     │      │     │",
@@ -181,12 +173,12 @@ def test_nx_graph_compiler_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
             "│    │ 0p/… │      │      │      │      │      │     │      │     │      │     │",
             "│    │ ise… │      │      │      │      │      │     │      │     │      │     │",
             "├────┼──────┼──────┼──────┼──────┼──────┼──────┼─────┼──────┼─────┼──────┼─────┤",
-            "│ 26 │ dee… │ typ… │ 1800 │ 212  │ Out… │ 100  │ 47… │ L1   │ 0   │ 0    │ 0   │",
-            "│    │ p/e… │ typ… │      │      │ Vec… │ 75   │ 35… │ L2   │ 0   │ 0    │ 0   │",
-            "│    │ _BN… │ typ… │      │      │ Tra… │ 50   │ 23… │ Sys… │ 0   │ 0    │ 0   │",
-            "│    │ lab… │ typ… │      │      │ Inp… │ 1500 │ 70… │ DRAM │ 320 │ 12   │ 10  │",
-            "│    │ pan… │ typ… │      │      │      │      │     │      │     │      │     │",
-            "│    │ v2D… │ typ… │      │      │      │      │     │      │     │      │     │",
+            "│ 26 │ dee… │ Con… │ 1800 │ 212  │ Out… │ 100  │ 47… │ L1   │ 0   │ 0    │ 0   │",
+            "│    │ p/e… │ Res… │      │      │ Vec… │ 75   │ 35… │ L2   │ 0   │ 0    │ 0   │",
+            "│    │ _BN… │ Res… │      │      │ Tra… │ 50   │ 23… │ Sys… │ 0   │ 0    │ 0   │",
+            "│    │ lab… │ Res… │      │      │ Inp… │ 1500 │ 70… │ DRAM │ 320 │ 12   │ 10  │",
+            "│    │ pan… │ Add  │      │      │      │      │     │      │     │      │     │",
+            "│    │ v2D… │ Res… │      │      │      │      │     │      │     │      │     │",
             "│    │ 108… │      │      │      │      │      │     │      │     │      │     │",
             "│    │ jec… │      │      │      │      │      │     │      │     │      │     │",
             "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
