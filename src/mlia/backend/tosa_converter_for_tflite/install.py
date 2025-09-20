@@ -14,14 +14,14 @@ def get_tosa_converter_for_tflite_backend_installation() -> Installation:
     return PyPackageBackendInstallation(
         name="tosa-converter-for-tflite",
         description="Tool to convert a tflite file to TOSA",
-        download_config = DownloadConfig(
+        download_config=DownloadConfig(
             url=(
                 # pylint: disable=line-too-long
-                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/tosa_converter_for_tflite/tosa_converter_for_tflite-2025.7.0-cp39-cp39-linux_x86_64.whl"
+                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/tosa_converter_for_tflite/tosa_converter_for_tflite-2025.11.0.dev0-cp39-cp39-linux_x86_64.whl"
                 # pylint: enable=line-too-long
             ),
             sha256_hash=(
-                'a2f0afa1ca01ec591dc58b8e6e8aaa1eaffe2200541daa46bcc21d4446d63537'
+                "6470f98d50d30c91ac9b8dbc9c6cf67f1262755fbce97f135593088c0b4786fb"
             ),
             header_gen_fn=artifactory_credential_headers,
         ),
