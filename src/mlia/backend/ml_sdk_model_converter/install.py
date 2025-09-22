@@ -3,6 +3,8 @@
 """Module for the installation of ML SDK Model Converter."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from mlia.backend.install import artifactory_credential_headers
 from mlia.backend.install import BackendInstallation
 from mlia.backend.install import PackagePathChecker
@@ -34,6 +36,7 @@ def get_ml_sdk_model_converter_installation() -> BackendInstallation:
         ),
         backend_installer=None,
         dependencies=["tosa-converter-for-tflite"],
+        vendor_path=str(Path("ml-sdk-model-converter") / "model-converter"),
     )
 
     return nx_graph_compiler_installation

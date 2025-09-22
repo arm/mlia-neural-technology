@@ -3,6 +3,8 @@
 """Module for the installation of the Neural Accelerator Graph Compiler."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from mlia.backend.install import artifactory_credential_headers
 from mlia.backend.install import BackendInstallation
 from mlia.backend.install import PackagePathChecker
@@ -31,10 +33,10 @@ def get_nx_graph_compiler_installation() -> BackendInstallation:
             expected_files=[
                 "Graph_compiler_performance_estimator_r55p0_00eac0_mlia_3",
             ],
-            backend_subfolder="graph-compiler",
         ),
         backend_installer=None,
         dependencies=["ml-sdk-model-converter"],
+        vendor_path=str(Path("nx-graph-compiler") / "graph-compiler"),
     )
 
     return nx_graph_compiler_installation

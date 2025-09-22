@@ -28,4 +28,5 @@ def get_tosa_converter_for_tflite_backend_installation() -> Installation:
         packages_to_install=[],
         packages_to_uninstall=["tosa-converter-for-tflite"],
         expected_packages=["tosa-converter-for-tflite"],
+        vendor_path="tosa-converter-for-tflite",
     )

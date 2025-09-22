@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for installation process."""
 from __future__ import annotations
@@ -14,6 +14,7 @@ from mlia.backend.install import DownloadAndInstall
 from mlia.backend.install import Installation
 from mlia.backend.install import InstallationType
 from mlia.backend.install import InstallFromPath
+from mlia.backend.install import InstallFromVendorPackage
 from mlia.backend.registry import registry as backend_registry
 from mlia.core.errors import ConfigurationError
 from mlia.core.errors import InternalError
@@ -80,6 +81,12 @@ class InstallationManager(ABC):
         self, backend_name: str, eula_agreement: bool, force: bool
     ) -> None:
         """Download and install backends."""
+
+    @abstractmethod
+    def install_from_default(
+        self, backend_name: str, eula_agreement: bool, force: bool
+    ) -> None:
+        """Either install from vendor package or download and install backends."""
 
     @abstractmethod
     def show_env_details(self) -> None:
@@ -156,21 +163,7 @@ class DefaultInstallationManager(InstallationManager, InstallationFiltersMixin):
             raise InternalError(f"More than one backend with name {backend_name} found")
 
         installation = installs[0]
-        if not installation.supports(install_type):
-            if isinstance(install_type, InstallFromPath):
-                logger.info(
-                    "Backend '%s' could not be installed using path '%s'. "
-                    "Please check that it is a valid path to the backend.",
-                    installation.name,
-                    install_type.backend_path,
-                )
-            else:
-                logger.info(
-                    "Backend '%s' could not be downloaded for installation. "
-                    "Installation using '--path' might be an alternative."
-                    "Please refer to the project's documentation for more details.",
-                    installation.name,
-                )
+        if not self._installation_supported(installation, install_type):
             return
 
         if installation.already_installed and not force:
@@ -222,6 +215,32 @@ class DefaultInstallationManager(InstallationManager, InstallationFiltersMixin):
         installation.install(install_type)
         logger.info("%s successfully installed.", installation.name)
 
+    def _installation_supported(
+        self, installation: Installation, install_type: InstallationType
+    ) -> bool:
+        if not installation.supports(install_type):
+            if isinstance(install_type, InstallFromPath):
+                logger.info(
+                    "Backend '%s' could not be installed using path '%s'. "
+                    "Please check that it is a valid path to the backend.",
+                    installation.name,
+                    install_type.backend_path,
+                )
+            elif isinstance(install_type, InstallFromVendorPackage):
+                logger.info(
+                    "Backend '%s' could not be installed from vendor package. ",
+                    installation.name,
+                )
+            else:
+                logger.info(
+                    "Backend '%s' could not be downloaded for installation. "
+                    "Installation using '--path' might be an alternative."
+                    "Please refer to the project's documentation for more details.",
+                    installation.name,
+                )
+            return False
+        return True
+
     def install_from(
         self, backend_path: Path, backend_name: str, force: bool = False
     ) -> None:
@@ -246,6 +265,23 @@ class DefaultInstallationManager(InstallationManager, InstallationFiltersMixin):
 
         install_type = DownloadAndInstall(eula_agreement=eula_agreement)
         self._install(backend_name, install_type, prompt, force)
+
+    def install_from_default(
+        self, backend_name: str, eula_agreement: bool = True, force: bool = False
+    ) -> None:
+        """Install using per-backend default local path, else download."""
+        installations = self.find_by_name(backend_name)
+        if not installations:
+            raise ValueError(f"Unknown backend '{backend_name}'.")
+        installation = installations[0]
+        if installation.supports(InstallFromVendorPackage()):
+
+            def prompt(install: Installation) -> str:
+                return f"Would you like to install {install.name} from vendor package?"
+
+            self._install(backend_name, InstallFromVendorPackage(), prompt, force)
+        else:
+            self.download_and_install(backend_name, eula_agreement, force)
 
     def show_env_details(self) -> None:
         """Print current state of the execution environment."""

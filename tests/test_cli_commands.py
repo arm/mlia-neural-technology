@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for cli.commands module."""
 from __future__ import annotations
@@ -445,7 +445,7 @@ def test_backend_command_action_add_download(
         force=force,
     )
 
-    assert installation_manager_mock.download_and_install.mock_calls == expected_calls
+    assert installation_manager_mock.install_from_default.mock_calls == expected_calls
 
 
 @pytest.mark.parametrize(

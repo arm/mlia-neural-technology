@@ -18,6 +18,7 @@ from typing import Optional
 from typing import Union
 
 from mlia.backend.repo import get_backend_repository
+from mlia.backend.vendor import vendor_artifact_path
 from mlia.utils.download import download
 from mlia.utils.download import DownloadConfig
 from mlia.utils.filesystem import all_files_exist
@@ -42,7 +43,12 @@ class DownloadAndInstall:
     eula_agreement: bool = True
 
 
-InstallationType = Union[InstallFromPath, DownloadAndInstall]
+@dataclass
+class InstallFromVendorPackage:
+    """Installation from a vendor package."""
+
+
+InstallationType = Union[InstallFromPath, DownloadAndInstall, InstallFromVendorPackage]
 
 
 class Installation(ABC):
@@ -110,6 +116,7 @@ class BackendInstallation(Installation):
         path_checker: PathChecker,
         backend_installer: BackendInstaller | None,
         dependencies: list[str] | None = None,
+        vendor_path: str | None = None,
     ) -> None:
         """Init the backend installation."""
         super().__init__(name, description, dependencies)
@@ -119,6 +126,16 @@ class BackendInstallation(Installation):
         self.supported_platforms = supported_platforms
         self.path_checker = path_checker
         self.backend_installer = backend_installer
+        self._vendor_path = vendor_path
+
+    @property
+    def vendor_path(self) -> Path | None:
+        """Dynamically resolve the vendor path when accessed."""
+        return (
+            vendor_artifact_path(self._vendor_path)
+            if self._vendor_path is not None
+            else None
+        )
 
     @property
     def already_installed(self) -> bool:
@@ -142,11 +159,16 @@ class BackendInstallation(Installation):
         if isinstance(install_type, InstallFromPath):
             return self.path_checker(install_type.backend_path) is not None
 
-        return False  # type: ignore
+        if isinstance(install_type, InstallFromVendorPackage):
+            return self.vendor_path is not None
+        return False  # type: ignore[unreachable]
 
     def install(self, install_type: InstallationType) -> None:
         """Install the backend."""
-        if isinstance(install_type, DownloadAndInstall):
+        if isinstance(install_type, InstallFromVendorPackage):
+            self._install_from(BackendInfo(self.vendor_path))  # type: ignore[arg-type]
+
+        elif isinstance(install_type, DownloadAndInstall):
             assert self.download_config is not None, "No artifact provided"
 
             self._download_and_install(
@@ -219,7 +241,7 @@ class BackendInstallation(Installation):
                     ex,
                 )
 
-    def _download_and_install(self, cfg: DownloadConfig, eula_agrement: bool) -> None:
+    def _download_and_install(self, cfg: DownloadConfig, eula_agreement: bool) -> None:
         """Download and install the backend."""
         with temp_directory() as tmpdir:
             with working_directory(tmpdir / "dist", create_dir=True) as dist_dir:
@@ -252,7 +274,7 @@ class BackendInstallation(Installation):
 
                 backend_path = dist_dir
                 if self.backend_installer:
-                    backend_path = self.backend_installer(eula_agrement, dist_dir)
+                    backend_path = self.backend_installer(eula_agreement, dist_dir)
 
                 if self.path_checker(backend_path) is None:
                     raise ValueError("Downloaded artifact has invalid structure.")
@@ -356,6 +378,7 @@ class PyPackageBackendInstallation(Installation):
         packages_to_uninstall: list[str],
         expected_packages: list[str],
         download_config: DownloadConfig | None = None,
+        vendor_path: str | None = None,
     ) -> None:
         """Init the backend installation."""
         super().__init__(name, description)
@@ -364,8 +387,19 @@ class PyPackageBackendInstallation(Installation):
         self._packages_to_install = packages_to_install
         self._packages_to_uninstall = packages_to_uninstall
         self._expected_packages = expected_packages
+        self._vendor_path = vendor_path
 
         self.package_manager = get_package_manager()
+
+    @property
+    def vendor_path(self) -> str | None:
+        """Dynamically resolve the vendor path when accessed."""
+        if self._vendor_path is None:
+            return None
+        resolved_path = vendor_artifact_path(self._vendor_path)
+        if resolved_path is None:
+            return None
+        return " ".join(str(p) for p in resolved_path.glob("*.whl"))
 
     @property
     def could_be_installed(self) -> bool:
@@ -379,19 +413,34 @@ class PyPackageBackendInstallation(Installation):
 
     def supports(self, install_type: InstallationType) -> bool:
         """Return true if installation supports requested installation type."""
-        return isinstance(install_type, (DownloadAndInstall, InstallFromPath))
+        if isinstance(install_type, (DownloadAndInstall, InstallFromPath)):
+            return True
+        if isinstance(install_type, InstallFromVendorPackage):
+            return self.vendor_path is not None
+        return False  # type: ignore[unreachable]
 
     def install(self, install_type: InstallationType) -> None:
         """Install the backend."""
         if not self.supports(install_type):
-            raise ValueError(f"Unsupported installation type {install_type}.")
+            raise ValueError(
+                f"Insufficient configuration for installation type {install_type}."
+            )
 
-        if self.download_config and isinstance(install_type, DownloadAndInstall):
+        if self.download_config is not None and isinstance(
+            install_type, DownloadAndInstall
+        ):
             self._download_and_install(self.download_config)
+
         elif isinstance(install_type, (DownloadAndInstall, InstallFromPath)):
             self.package_manager.install(self._packages_to_install)
+
+        elif isinstance(install_type, InstallFromVendorPackage):
+            if self.vendor_path is None:
+                raise ValueError("No default path provider for PyPackage backend.")
+            self._packages_to_install.append(self.vendor_path)
+            self.install(InstallFromPath(Path(self.vendor_path)))
         else:
-            raise RuntimeError(f"Unable to install {install_type}.")
+            raise ValueError(f"Unsupported installation type {install_type}.")
 
     def uninstall(self) -> None:
         """Uninstall the backend."""

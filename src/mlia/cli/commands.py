@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """CLI commands module.
 
@@ -189,7 +189,7 @@ def backend_install(
         manager.install_from(path, name, force)
     else:
         eula_agreement = not i_agree_to_the_contained_eula
-        manager.download_and_install(name, eula_agreement, force)
+        manager.install_from_default(name, eula_agreement, force)
 
 
 def backend_uninstall(name: str) -> None:

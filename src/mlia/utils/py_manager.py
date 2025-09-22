@@ -73,7 +73,9 @@ class PyPackageManager:
             logger.debug(line.rstrip())
 
         if returncode != 0:
-            raise InternalError(f"Unable to execute pip {subcommand} {params}.")
+            raise InternalError(
+                f"Unable to execute pip {subcommand} {params}: {output}"
+            )
 
 
 def get_package_manager() -> PyPackageManager:
