@@ -181,7 +181,7 @@ class NXGraphCompilerPerformanceEstimator(
         cmd = Command(
             cmd=[
                 str(
-                    gc_path / "graph_compiler_performance_estimator_r55p0_00eac0_mlia_2"
+                    gc_path / "Graph_compiler_performance_estimator_r55p0_00eac0_mlia_3"
                 ),
                 "-i",
                 str(vgf_file),
