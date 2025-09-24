@@ -16,6 +16,30 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
+## 0.9.0 (2025-09-30)
+
+### Feature Changes
+
+* The Neural Accelerator Graph Compiler now accepts TOSA, TOSA MLIR and VGF files as inputs
+  (MLIA-1360)
+
+### Internal Changes
+
+* Replaced the Vulkan Model Converter Frontend with [TOSA converter for TFLite](https://gitlab.arm.com/tosa/tosa-converter-for-tflite)
+  (MLIA-1348)
+* Updated the Neural Accelerator Graph Compiler version (MLIA-1349)
+* Updated the Vulkan Model Converter version (MLIA-1310)
+* MLIA wheels can now be built to include and install multiple backends (MLIA-1356)
+* MLIA can now install backends from local files (MLIA-1357)
+
+### Issues Fixed
+
+* Fixed an issue where the Neural Accelerator Graph Compiler could not handle filenames containing
+  more than one period (MLIA-1369)
+* Fixed an issue where the Neural Accelerator Graph Compiler could output incorrect operator types
+  (MLIA-1370)
+* MLIA can now use Artifactory credentials when downloading wheels (MLIA-1312)
+
 ## 0.8.0 (2024-02-09)
 
 ### Bug fix
