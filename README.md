@@ -214,10 +214,10 @@ The following rewrites are supported:
 * conv2d-sparsity - replaces a subgraph with a pruned M:N sparse conv2d layer
 * conv2d-unstructured-sparsity - replaces a subgraph with an unstructured pruned conv2d layer
 * conv2d-clustering  - replaces a subgraph with a clustered conv2d layer
-* depthwise-separable-conv2d - replaces a subgraph with a depthwise seperable conv2d layer
-* depthwise-separable-conv2d-sparsity - replaces a subgraph with a pruned M:N sparse depthwise seperable conv2d layer
-* depthwise-separable-conv2d-unstructured-sparsity - replaces a subgraph with an unstructured pruned depthwise seperable conv2d layer
-* depthwise-separable-conv2d-clustering - replaces a subgraph with a clustered depthwise seperable conv2d layer
+* depthwise-separable-conv2d - replaces a subgraph with a depthwise separable conv2d layer
+* depthwise-separable-conv2d-sparsity - replaces a subgraph with a pruned M:N sparse depthwise separable conv2d layer
+* depthwise-separable-conv2d-unstructured-sparsity - replaces a subgraph with an unstructured pruned depthwise separable conv2d layer
+* depthwise-separable-conv2d-clustering - replaces a subgraph with a clustered depthwise separable conv2d layer
 
 **Note:** A ***TensorFlow Lite model*** is required as input
 to perform a rewrite.
@@ -362,7 +362,7 @@ mlia optimize ~/models/ds_cnn_large_fp32.tflite \
 
 #### Custom optimization Profiles
 
-For the _custom optimization profiles_, the configuration file for a custom
+For the *custom optimization profiles*, the configuration file for a custom
 optimization profile is passed as path and needs to conform to the TOML file format.
 Each optimization in MLIA has a pre-defined set of parameters which can be present
 in the config file. When using the built-in optimization profiles, the appropriate
@@ -436,8 +436,8 @@ the target using the following parameters in the .toml files:
 * memory_mode: [SRAM Only, Shared SRAM, Dedicated SRAM]
 * system_config: name of the system configuration. For Vela backend, it's defined in `vela.ini`.
 * config: for the Vela backend - the path to Vela configuration file,
-          passed in the `--config` argument.
-          If not given, uses the builtin path: `mlia/resources/vela/vela.ini`
+  passed in the `--config` argument.
+  If not given, uses the builtin path: `mlia/resources/vela/vela.ini`
 
 ## Cortex-A
 
@@ -450,8 +450,15 @@ Please, find more details in the section for the
 
 The profile *neural-technology* is supported by the following backends:
 
+* [TOSA Converter for TFLite](#tosa-converter-for-tflite)
 * [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler)
-* [Vulkan Model Converter](#vulkan-model-converter)
+* [ML SDK Model Converter](#ml-sdk-model-converter)
+
+The profile *neural-technology* is accepts as input:
+
+* TFLite FlatBuffer
+* TOSA ML files
+* VGF files
 
 ## TOSA
 
@@ -466,7 +473,7 @@ For more information, see TOSA Checker's:
 
 ## Custom target profiles
 
-For the _custom target profiles_, the configuration file for a custom
+For the *custom target profiles*, the configuration file for a custom
 target profile is passed as path and needs to conform to the TOML file format.
 Each target in MLIA has a pre-defined set of parameters which need to be present
 in the config file. When using the built-in target profiles, the appropriate
@@ -476,7 +483,7 @@ apply for each target.
 *Example:*
 
 ``` bash
-# for custom profiles
+# For custom profiles
 mlia ops --target-profile ~/my_custom_profile.toml sample_model.tflite
 ```
 
@@ -516,21 +523,26 @@ This section lists available backends. As not all backends work on any platform
 the following table shows some compatibility information:
 
 ```table
-+----------------------------------------------------------------------------+
-| Backend       | Linux                  | Windows        | Python           |
-+=============================================================================
-| Arm NN        |                        |                |                  |
-| TensorFlow    | x86_64 and AArch64     | Windows 10     | Python>=3.8      |
-| Lite Delegate |                        |                |                  |
-+-----------------------------------------------------------------------------
-| Corstone-300  | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-+-----------------------------------------------------------------------------
-| Corstone-310  | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-+-----------------------------------------------------------------------------
-| TOSA checker  | x86_64 (manylinux2014) | Not compatible | 3.7<=Python<=3.9 |
-+-----------------------------------------------------------------------------
-| Vela          | x86_64 and  AArch64    | Windows 10     | Python~=3.7      |
-+----------------------------------------------------------------------------+
++---------------------------------------------------------------------------------+
+| Backend            | Linux                  | Windows        | Python           |
++==================================================================================
+| Arm NN             |                        |                |                  |
+| TensorFlow         | x86_64 and AArch64     | Windows 10     | Python>=3.8      |
+| Lite Delegate      |                        |                |                  |
++----------------------------------------------------------------------------------
+| Corstone-300       | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
++----------------------------------------------------------------------------------
+| Corstone-310       | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
++----------------------------------------------------------------------------------
+| NX Graph Compiler  | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
++----------------------------------------------------------------------------------
+| Tosa converter     |                        |                |                  |
+| for tflite         | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
++----------------------------------------------------------------------------------
+| TOSA checker       | x86_64 (manylinux2014) | Not compatible | 3.7<=Python<=3.9 |
++----------------------------------------------------------------------------------
+| Vela               | x86_64 and  AArch64    | Windows 10     | Python~=3.7      |
++---------------------------------------------------------------------------------+
 ```
 
 ### Arm NN TensorFlow Lite Delegate
@@ -547,8 +559,8 @@ For more information see:
 ### Corstone-300
 
 Corstone-300 is a backend that provides performance metrics for systems based
-on Cortex-M55 and Ethos-U. It is only available on the Linux platform.
-
+on [Arm® Cortex™-M55 processor](https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m55) and Arm® Ethos™-U NPU ([Arm® Ethos™-U55 NPU](https://www.arm.com/products/silicon-ip-cpu/ethos/ethos-u55)
+or [Arm® Ethos™-U65 NPU](https://www.arm.com/products/silicon-ip-cpu/ethos/ethos-u65)). It is only available on the Linux platform.
 *Examples:*
 
 ```bash
@@ -564,7 +576,8 @@ For further information about Corstone-300 please refer to:
 ### Corstone-310
 
 Corstone-310 is a backend that provides performance metrics for systems based
-on Cortex-M85 and Ethos-U.
+on [Arm® Cortex™-M85 processor](https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m85) and Ethos-U ([Arm® Ethos™-U55 NPU](https://www.arm.com/products/silicon-ip-cpu/ethos/ethos-u55)
+or [Arm® Ethos™-U65 NPU](https://www.arm.com/products/silicon-ip-cpu/ethos/ethos-u65)).
 
 * For access to AVH for Corstone-310 please refer to:
   <https://developer.arm.com/Processors/Corstone-310>
@@ -576,23 +589,28 @@ on Cortex-M85 and Ethos-U.
 The Neural Accelerator (NX) Graph Compiler provides detailed performance information about the input
 model (in TensorFlow Lite format).
 
-It can be installed via
+It can be installed via:
 
-* download: from the internal Artifactory or
-* path: pointing to the extracted package locally
+* path: pointing to the extracted package locally  or
+* default local path: whether the package is bundled with MLIA wheel or
+* download: from the internal Artifactory.
 
-To download from the internal Artifactory use the following steps:
+  To download from the internal Artifactory use the following steps:
 
-1. You have to provide your credentials as env vars. This means  \
-  1.1 Go to
-  [Artifactory](https://artifactory.eu02.arm.com/ui/repos/tree/General)  \
-  1.2 Login via Azure (SSO)  \
-  1.3 Go to *"Edit profile"*  \
-  1.4 Create an API Key or copy an existing one  \
-  1.5 Assign the API Key to the env var MLIA_ARTIFACTORY_PASSWORD  \
-  1.6 Assign your email address to MLIA_ARTIFACTORY_USERNAME  \
+  1. You have to provide your credentials as env vars. This means  \
+    1.1 Go to
+    [Artifactory](https://artifactory.eu02.arm.com/ui/repos/tree/General)  \
+    1.2 Login via Azure (SSO)  \
+    1.3 Go to *"Edit profile"*  \
+    1.4 Create an API Key or copy an existing one  \
+    1.5 Assign the API Key to the env var MLIA_ARTIFACTORY_PASSWORD  \
+    1.6 Assign your email address to MLIA_ARTIFACTORY_USERNAME
 
-1. Run this command: `mlia-backend install nx-graph-compiler`
+In order to install the backend, use this command:
+
+```bash
+mlia-backend install nx-graph-compiler
+```
 
 After the installation was successful you can get a performance report as shown
 in the following example. The raw report will be available as a json file
@@ -608,6 +626,25 @@ mlia check --performance -t neural-technology -b nx-graph-compiler ~/model_file.
 # Get a Neural Accelerator compatibility report for the same model.
 mlia check --compatibility -t neural-technology -b nx-graph-compiler ~/model_file.tflite
 ```
+
+### TOSA Converter for TFLite
+
+The TOSA Converter for TFLite backend legalizes TFLite FlatBuffer to TOSA MLIR Bytecode or Text.
+This backend is currently required by the Neural Accelerator Graph Compiler.
+
+Please, install it into the same environment as MLIA using this command:
+
+```bash
+mlia-backend install tosa-converter-for-tflite
+```
+
+*Note*: the installation options are the same
+as for the [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler)
+(please see detailed information there).
+
+Additional resources:
+
+* <https://gitlab.arm.com/tosa/tosa-converter-for-tflite>
 
 ### TOSA Checker
 
@@ -634,9 +671,23 @@ Additional resources:
 
 * <https://pypi.org/project/ethos-u-vela/>
 
-### Vulkan Model Converter
+### ML SDK Model Converter
 
-The Vulkan Model Converter is currently required by the Neural Accelerator Graph Compiler to
-convert the input model from TensorFlow Lite to SPIR-V. The installation works
-as for the [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler) (please detailed
-information there).
+The ML SDK Model Converter is a command line application that translate TOSA ML Models to VGF files.
+
+It is currently required by the Neural Accelerator Graph Compiler to
+convert the input model from Tosa MLIR to SPIR-V.
+
+Please, install it into the same environment as MLIA using this command:
+
+```bash
+mlia-backend install ml-sdk-model-converter
+```
+
+*Note*: the installation options are the same
+as for the [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler)
+(please see detailed information there).
+
+Additional resources:
+
+* <https://github.com/arm/ai-ml-sdk-model-converter>
