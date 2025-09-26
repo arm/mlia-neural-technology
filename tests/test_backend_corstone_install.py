@@ -3,6 +3,8 @@
 """Tests for Corstone related installation functions.."""
 from __future__ import annotations
 
+import subprocess  # nosec
+from contextlib import ExitStack as does_not_raise
 from pathlib import Path
 from typing import Any
 from unittest.mock import call
@@ -10,6 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from mlia.backend.config import System
 from mlia.backend.corstone.install import CorstoneFVP
 from mlia.backend.corstone.install import CorstoneInstaller
 from mlia.backend.corstone.install import get_corstone_installation
@@ -91,11 +94,36 @@ def test_coverstone_fvp_no_version_found() -> None:
         corestone_fvp.get_fvp_version()
 
 
-@pytest.mark.parametrize("corstone_name", ["corstone-300", "corstone-310"])
-def test_get_corstone_installation(corstone_name: str) -> None:
+@pytest.mark.parametrize(
+    "corstone_name, machine, expected_error",
+    [
+        ["corstone-300", System.LINUX_AMD64, does_not_raise()],
+        ["corstone-310", System.LINUX_AMD64, does_not_raise()],
+        ["corstone-320", System.LINUX_AMD64, does_not_raise()],
+        ["corstone-300", System.LINUX_AARCH64, does_not_raise()],
+        ["corstone-310", System.LINUX_AARCH64, does_not_raise()],
+        ["corstone-320", System.LINUX_AARCH64, does_not_raise()],
+        [
+            "corstone-310",
+            System.WINDOWS_AARCH64,
+            pytest.raises(RuntimeError, match="is not compatible with this platform"),
+        ],
+    ],
+)
+def test_get_corstone_installation(
+    corstone_name: str, machine: Any, expected_error: Any
+) -> None:
     """Test Corstone installation"""
-    installation = get_corstone_installation(corstone_name)
-    assert isinstance(installation, Installation)
+    current_machine = System.CURRENT
+
+    # Override immutability for testing purposes
+    type.__setattr__(System, "CURRENT", machine)
+    with expected_error:
+        installation = get_corstone_installation(corstone_name)
+        assert isinstance(installation, Installation)
+
+    # Restore old attribute
+    type.__setattr__(System, "CURRENT", current_machine)
 
 
 @pytest.mark.parametrize(
@@ -145,6 +173,11 @@ def test_get_corstone_installation(corstone_name: str) -> None:
         ],
         [
             "corstone-320",
+            True,
+            [call(["./FVP_Corstone_SSE-320.sh", "-q", "-d", "corstone-320"])],
+        ],
+        [
+            "corstone-320",
             False,
             [
                 call(
@@ -178,8 +211,37 @@ def test_corstone_installer(
     installer = CorstoneInstaller(name=corstone_name)
     installer(eula_agreement, tmp_path)
 
-    # Incorrect installer name
-    with pytest.raises(RuntimeError):
-        CorstoneInstaller(name="bad_name")(eula_agreement, tmp_path)
-
     assert mock_check_call.mock_calls == expected_calls
+
+
+def test_corestone_installer_bad_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    "Test if RuntimeError is raised if an unsupported name is provided"
+    mock_check_call = MagicMock()
+
+    monkeypatch.setattr(
+        "mlia.backend.corstone.install.subprocess.check_call", mock_check_call
+    )
+
+    # Incorrect installer name
+    with pytest.raises(RuntimeError, match="Couldn't find fvp file during"):
+        CorstoneInstaller(name="bad_name")(True, tmp_path)
+
+
+def test_corestone_installer_install_cmd_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    "Test if RuntimeError is raised if the installation command fails"
+    mock_check_call = MagicMock(
+        side_effect=subprocess.CalledProcessError(returncode=1, cmd="fvp")
+    )
+
+    monkeypatch.setattr(
+        "mlia.backend.corstone.install.subprocess.check_call", mock_check_call
+    )
+
+    with pytest.raises(RuntimeError, match="Error occurred during"):
+        CorstoneInstaller(name="corstone-300")(True, tmp_path)

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import subprocess  # nosec
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator
@@ -50,6 +51,27 @@ def valid_fvp_output() -> list[str]:
     ]
 
 
+def duplicate_key_output() -> list[str]:
+    """Return FVP output with duplicate keys."""
+    json_data = """[
+    {
+        "profiling_group": "Inference",
+        "count": 1,
+        "samples": [
+            {"name": "NPU IDLE", "value": [2]},
+            {"name": "NPU IDLE", "value": [2]},
+            {"name": "NPU AXI0_RD_DATA_BEAT_RECEIVED", "value": [4]},
+            {"name": "NPU AXI0_WR_DATA_BEAT_WRITTEN", "value": [5]},
+            {"name": "NPU AXI1_RD_DATA_BEAT_RECEIVED", "value": [6]}
+        ]
+    }
+]"""
+
+    return [
+        f"<metrics>{encode_b64(json_data)}</metrics>",
+    ]
+
+
 def test_generic_inference_output_parser_success() -> None:
     """Test successful generic inference output parsing."""
     output_parser = GenericInferenceOutputParser()
@@ -61,11 +83,7 @@ def test_generic_inference_output_parser_success() -> None:
 
 @pytest.mark.parametrize(
     "wrong_fvp_output",
-    [
-        [],
-        ["NPU IDLE: 123"],
-        ["<metrics>123</metrics>"],
-    ],
+    [[], ["NPU IDLE: 123"], ["<metrics>123</metrics>"], duplicate_key_output()],
 )
 def test_generic_inference_output_parser_failure(wrong_fvp_output: list[str]) -> None:
     """Test unsuccessful generic inference output parsing."""
@@ -220,3 +238,26 @@ def test_estimate_performance(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result == PerformanceMetrics(1, 2, 3, 4, 5, 6)
 
     mock_repository.get_backend_settings.assert_called_once()
+
+    # Check if BackendExecutionFailed is raised if the corstone command fails
+    mock_check_call = MagicMock(
+        side_effect=subprocess.CalledProcessError(returncode=1, cmd="fvp")
+    )
+
+    monkeypatch.setattr("mlia.utils.proc.command_output", mock_check_call)
+
+    with pytest.raises(BackendExecutionFailed, match="Backend execution failed."):
+        _ = estimate_performance("ethos-u55", 256, Path("model.tflite"), "corstone-300")
+
+    # Check if BackendExecutionFailed is raised if get_backend_settings
+    # returns invalid results
+    mock_backend_repo = MagicMock()
+    mock_backend_repo.get_backend_settings.return_value = (None, None)
+
+    monkeypatch.setattr(
+        "mlia.backend.corstone.performance.get_backend_repository",
+        MagicMock(return_value=mock_backend_repo),
+    )
+
+    with pytest.raises(BackendExecutionFailed, match="Unable to configure backend"):
+        _ = estimate_performance("ethos-u55", 256, Path("model.tflite"), "corstone-300")
