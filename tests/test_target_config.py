@@ -108,6 +108,7 @@ def test_target_info(
         CortexAInferenceAdvisor,
         CortexAConfiguration,
     )
+    assert str(info) == "backend"
 
     backend_registry = Registry[BackendConfiguration]()
     backend_registry.register(

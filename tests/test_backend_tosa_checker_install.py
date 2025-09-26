@@ -9,6 +9,7 @@ import pytest
 
 from mlia.backend.install import DownloadAndInstall
 from mlia.backend.install import InstallFromPath
+from mlia.backend.install import InstallFromVendorPackage
 from mlia.backend.install import PyPackageBackendInstallation
 from mlia.backend.tosa_checker.install import get_tosa_backend_installation
 
@@ -26,6 +27,7 @@ def test_get_tosa_backend_installation(
     tosa_installation = get_tosa_backend_installation()
 
     assert isinstance(tosa_installation, PyPackageBackendInstallation)
+    assert tosa_installation.vendor_path is None
     assert tosa_installation.name == "tosa-checker"
     assert (
         tosa_installation.description
@@ -34,6 +36,7 @@ def test_get_tosa_backend_installation(
     assert tosa_installation.could_be_installed
     assert tosa_installation.supports(DownloadAndInstall())
     assert tosa_installation.supports(InstallFromPath(tmp_path))
+    assert not tosa_installation.supports(InstallFromVendorPackage())
 
     mock_package_manager.packages_installed.return_value = True
     assert tosa_installation.already_installed
@@ -43,6 +46,12 @@ def test_get_tosa_backend_installation(
 
     tosa_installation.install(DownloadAndInstall())
     tosa_installation.install(InstallFromPath(tmp_path))
+
+    with pytest.raises(
+        ValueError, match="Insufficient configuration for installation type"
+    ):
+        tosa_installation.install(None)  # type: ignore
+
     mock_package_manager.install.assert_has_calls(
         [call(["tosa-checker"]), call(["tosa-checker"])]
     )

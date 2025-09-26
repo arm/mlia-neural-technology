@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for common management functionality."""
 from __future__ import annotations
@@ -12,11 +12,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from mlia.backend.install import artifactory_credential_headers
 from mlia.backend.install import BackendInfo
 from mlia.backend.install import BackendInstallation
 from mlia.backend.install import CompoundPathChecker
 from mlia.backend.install import DownloadAndInstall
 from mlia.backend.install import InstallFromPath
+from mlia.backend.install import InstallFromVendorPackage
 from mlia.backend.install import PackagePathChecker
 from mlia.backend.install import StaticPathChecker
 from mlia.backend.repo import BackendRepository
@@ -44,6 +46,8 @@ def test_wrong_install_type() -> None:
         None,
     )
 
+    assert installation.vendor_path is None
+    assert installation.already_installed is False
     assert not installation.supports("some_path")  # type: ignore
 
     with pytest.raises(Exception):
@@ -91,6 +95,7 @@ def test_backend_installation_from_path(
 
     assert installation.supports(InstallFromPath(tmp_path))
     assert not installation.supports(DownloadAndInstall())
+    assert not installation.supports(InstallFromVendorPackage())
 
     installation.install(InstallFromPath(tmp_path))
 
@@ -135,6 +140,9 @@ def test_backend_installation_download_and_install(
     installation.install(DownloadAndInstall())
 
     backend_repo.add_backend.assert_called_with("sample_backend", ANY, None)
+    installation.path_checker = lambda _: None
+    with pytest.raises(ValueError, match="Downloaded artifact has invalid structure."):
+        installation.install(DownloadAndInstall())
 
 
 def test_backend_installation_unable_to_download() -> None:
@@ -286,3 +294,22 @@ def test_filter_tar_members(
                 BackendInstallation._filter_tar_members(orig_members, tmp_path)
             )
             assert len(filtered_members) == num_members_out
+
+
+def test_artifactory_credentials_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test function mlia.backend.install.artifactory_credentials_header"""
+    username = "user.name@arm.com"
+    password = "passwd"  # nosec
+    monkeypatch.setenv("MLIA_ARTIFACTORY_USERNAME", username)
+    monkeypatch.setenv("MLIA_ARTIFACTORY_PASSWORD", password)
+    header = artifactory_credential_headers()
+    assert header["Username"] == username
+    assert header["X-JFrog-Art-Api"] == password
+
+    monkeypatch.delenv("MLIA_ARTIFACTORY_USERNAME")
+    monkeypatch.delenv("MLIA_ARTIFACTORY_PASSWORD")
+    with pytest.raises(
+        RuntimeError,
+        match="Failed to retrieve the credentials from environment variables.",
+    ):
+        artifactory_credential_headers()
