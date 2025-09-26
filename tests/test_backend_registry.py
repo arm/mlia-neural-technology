@@ -100,7 +100,7 @@ SUPPORTED_BACKENDS = {
     "tosa-checker",
     "tosa-converter-for-tflite",
     "vela",
-    "vulkan-model-converter",
+    "ml-sdk-model-converter",
 }
 
 

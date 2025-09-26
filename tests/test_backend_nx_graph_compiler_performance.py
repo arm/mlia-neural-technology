@@ -43,7 +43,7 @@ def test_nx_graph_compiler_performance_estimator(
         MagicMock(return_value=mock_repo),
     )
     monkeypatch.setattr(
-        "mlia.backend.nx_graph_compiler.performance.VulkanModelConverter",
+        "mlia.backend.nx_graph_compiler.performance.MLSDKModelConverter",
         MagicMock(return_value=MagicMock(return_value=tmp_path / "vgf_file")),
     )
     monkeypatch.setattr(

@@ -6,14 +6,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
+from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.nx_graph_compiler.performance import (
     NXGraphCompilerPerformanceEstimator,
 )
 from mlia.backend.nx_graph_compiler.performance import (
     NXGraphCompilerPerformanceMetrics,
 )
-from mlia.backend.vulkan_model_converter.compat import NXCompatibilityChecker
-from mlia.backend.vulkan_model_converter.compat import NXModelCompatibilityInfo
 from mlia.core.data_collection import ContextAwareDataCollector
 from mlia.core.errors import ConfigurationError
 from mlia.nn.tensorflow.tflite_graph import operator_names_to_types

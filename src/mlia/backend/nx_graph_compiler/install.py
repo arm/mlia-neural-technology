@@ -34,7 +34,7 @@ def get_nx_graph_compiler_installation() -> BackendInstallation:
             backend_subfolder="graph-compiler",
         ),
         backend_installer=None,
-        dependencies=["vulkan-model-converter"],
+        dependencies=["ml-sdk-model-converter"],
     )
 
     return nx_graph_compiler_installation

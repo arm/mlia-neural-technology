@@ -25,10 +25,10 @@ scheme.
 
 ### Internal Changes
 
-* Replaced the Vulkan Model Converter Frontend with [TOSA converter for TFLite](https://gitlab.arm.com/tosa/tosa-converter-for-tflite)
+* Replaced the ML SDK Model Converter Frontend with [TOSA converter for TFLite](https://gitlab.arm.com/tosa/tosa-converter-for-tflite)
   (MLIA-1348)
 * Updated the Neural Accelerator Graph Compiler version (MLIA-1349)
-* Updated the Vulkan Model Converter version (MLIA-1310)
+* Updated the ML SDK Model Converter version (MLIA-1310)
 * MLIA wheels can now be built to include and install multiple backends (MLIA-1356)
 * MLIA can now install backends from local files (MLIA-1357)
 
@@ -68,7 +68,7 @@ scheme.
 
 ### Feature changes
 
-* Neural Accelerator Graph Compiler as performance backend: Integrate Vulkan Model Converter
+* Neural Accelerator Graph Compiler as performance backend: Integrate ML SDK Model Converter
   and Neural Accelerator Graph Compiler as backends to enable per-layer performance estimations
   for Neural Technology (MLIA-916)
 

@@ -8,11 +8,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
+from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.compat import NXOperatorCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.compat import VMCCompatibilityLogReader
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
-from mlia.backend.vulkan_model_converter.compat import NXCompatibilityChecker
-from mlia.backend.vulkan_model_converter.compat import NXModelCompatibilityInfo
-from mlia.backend.vulkan_model_converter.compat import NXOperatorCompatibilityInfo
-from mlia.backend.vulkan_model_converter.compat import VMCCompatibilityLogReader
 from mlia.utils.proc import OutputConsumer
 
 
@@ -199,19 +199,19 @@ def test_checker_calls_vmc_correctly(
     monkeypatch.setattr(TosaConverterForTflite, "__call__", fake_tosa_converter_call)
 
     monkeypatch.setattr(
-        "mlia.backend.vulkan_model_converter.conversion.process_command_output",
+        "mlia.backend.ml_sdk_model_converter.conversion.process_command_output",
         lambda cmd, consumers: back_end_call(consumers[1], *cmd.cmd),
     )
 
     mock_repo = MagicMock()
     mock_repo.get_backend_settings = MagicMock(return_value=(tmp_path / "backend", {}))
     monkeypatch.setattr(
-        "mlia.backend.vulkan_model_converter.compat.get_backend_repository",
+        "mlia.backend.ml_sdk_model_converter.compat.get_backend_repository",
         MagicMock(return_value=mock_repo),
     )
 
     monkeypatch.setattr(
-        "mlia.backend.vulkan_model_converter.compat.operator_names_to_types",
+        "mlia.backend.ml_sdk_model_converter.compat.operator_names_to_types",
         MagicMock(return_value={"model/tf.math.multiply_75/Mul1": "MUL"}),
     )
 

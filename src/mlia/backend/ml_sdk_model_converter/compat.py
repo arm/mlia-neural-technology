@@ -9,8 +9,8 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverterBase
 from mlia.backend.repo import get_backend_repository
-from mlia.backend.vulkan_model_converter.conversion import VulkanModelConverterBase
 from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
 
 logger = logging.getLogger(__name__)
@@ -76,11 +76,11 @@ class VMCCompatibilityLogReader:
         raise RuntimeError(f"Can't find a valid location string in {line}")
 
 
-class VMCCompatbilityChecker(VulkanModelConverterBase):
-    """Run the Vulkan Model Converter to check for NX compatibility."""
+class VMCCompatbilityChecker(MLSDKModelConverterBase):
+    """Run the ML SDK Model Converter to check for NX compatibility."""
 
     def __init__(self, converter_path: Path) -> None:
-        """Set up compatilibity checking for Vulkan Model Converter."""
+        """Set up compatilibity checking for ML SDK Model Converter."""
         super().__init__(converter_path)
         self._compatibility_log_reader = VMCCompatibilityLogReader()
         self.output_consumers.append(self._compatibility_log_reader)
@@ -170,10 +170,10 @@ class NXCompatibilityChecker:
         self.output_dir = output_dir
 
     def check_compatibility(self, tflite_model_path: Path) -> NXModelCompatibilityInfo:
-        """Run compabitlity check using Vulkan Model Converter."""
+        """Run compabitlity check using ML SDK Model Converter."""
         backend_repo = get_backend_repository()
-        vmc_path, _ = backend_repo.get_backend_settings("vulkan-model-converter")
-        output_dir = self.output_dir / "vulkan-model-converter"
+        vmc_path, _ = backend_repo.get_backend_settings("ml-sdk-model-converter")
+        output_dir = self.output_dir / "ml-sdk-model-converter"
         output_dir.mkdir()
 
         vmc = VMCCompatbilityChecker(vmc_path)

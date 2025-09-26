@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-"""Module for the installation of Vulkan Model Converter."""
+"""Module for the installation of ML SDK Model Converter."""
 from __future__ import annotations
 
 from mlia.backend.install import artifactory_credential_headers
@@ -9,12 +9,12 @@ from mlia.backend.install import PackagePathChecker
 from mlia.utils.download import DownloadConfig
 
 
-def get_vulkan_model_converter_installation() -> BackendInstallation:
-    """Get all information to install Vulkan Model Converter."""
+def get_ml_sdk_model_converter_installation() -> BackendInstallation:
+    """Get all information to install ML SDK Model Converter."""
     nx_graph_compiler_installation = BackendInstallation(
-        name="vulkan-model-converter",
-        description="Vulkan Model Converter",
-        fvp_dir_name="vulkan-model-converter",
+        name="ml-sdk-model-converter",
+        description="ML SDK Model Converter",
+        fvp_dir_name="ml-sdk-model-converter",
         download_config=DownloadConfig(
             url=(
                 # pylint: disable=line-too-long

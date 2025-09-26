@@ -9,13 +9,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
 
+from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverter
 from mlia.backend.nx_graph_compiler.config import NXGraphCompilerConfig
 from mlia.backend.nx_graph_compiler.output_parsing import NXDebugDatabaseParser
 from mlia.backend.nx_graph_compiler.output_parsing import NXPerformanceDatabaseParser
 from mlia.backend.nx_graph_compiler.statistics import NXOperatorPerformanceStats
 from mlia.backend.nx_graph_compiler.statistics import NXPerformanceStats
 from mlia.backend.repo import get_backend_repository
-from mlia.backend.vulkan_model_converter.conversion import VulkanModelConverter
 from mlia.core.performance import PerformanceEstimator
 from mlia.nn.tensorflow.config import ModelConfiguration
 from mlia.utils.filesystem import get_mlia_resources
@@ -111,7 +111,7 @@ class NXGraphCompilerPerformanceEstimator(
                 vgf_file = model_path
             # Otherwise try to convert the file to vgf
             else:
-                vgf_file = self._run_vulkan_model_converter(model_path)
+                vgf_file = self._run_ml_sdk_model_converter(model_path)
 
             output = self._run_nx_graph_compiler(vgf_file, model_path.stem)
 
@@ -138,14 +138,14 @@ class NXGraphCompilerPerformanceEstimator(
                 stats_per_chain,
             )
 
-    def _run_vulkan_model_converter(self, model_path: Path) -> Path:
-        """Run the Vulkan Model Converter and return the path to the SPIR-V file."""
+    def _run_ml_sdk_model_converter(self, model_path: Path) -> Path:
+        """Run the ML SDK Model Converter and return the path to the SPIR-V file."""
         backend_repo = get_backend_repository()
-        vmc_path, _ = backend_repo.get_backend_settings("vulkan-model-converter")
-        output_dir = self.output_dir / "vulkan-model-converter"
+        vmc_path, _ = backend_repo.get_backend_settings("ml-sdk-model-converter")
+        output_dir = self.output_dir / "ml-sdk-model-converter"
         output_dir.mkdir()
 
-        model_converter = VulkanModelConverter(vmc_path)
+        model_converter = MLSDKModelConverter(vmc_path)
         vgf_file = model_converter(model_path, output_dir)
         return vgf_file
 

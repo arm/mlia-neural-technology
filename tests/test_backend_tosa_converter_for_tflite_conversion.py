@@ -18,7 +18,7 @@ from mlia.utils.proc import Command
 def fixture_tosa_converter_for_tflite() -> (
     Generator[TosaConverterForTflite, None, None]
 ):
-    """Create a mock instance of the Vulkan Model Converter for testing."""
+    """Create a mock instance of the ML SDK Model Converter for testing."""
     vmc = TosaConverterForTflite()
     yield vmc
 
@@ -48,7 +48,7 @@ def test_tosa_converter_for_tflite_front_end_fail(
             return_value=Command(
                 [
                     "echo",
-                    '"Faking a run of Vulkan Model Converter front end..."',
+                    '"Faking a run of ML SDK Model Converter front end..."',
                 ]
             )
         ),

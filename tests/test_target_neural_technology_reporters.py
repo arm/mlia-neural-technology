@@ -8,6 +8,7 @@ from typing import List
 import pytest
 from rich.console import Console
 
+from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.nx_graph_compiler.config import NXGraphCompilerConfig
 from mlia.backend.nx_graph_compiler.output_parsing import NXDebugDatabaseParser
 from mlia.backend.nx_graph_compiler.output_parsing import NXPerformanceDatabaseParser
@@ -16,7 +17,6 @@ from mlia.backend.nx_graph_compiler.performance import (
     NXGraphCompilerPerformanceMetrics,
 )
 from mlia.backend.nx_graph_compiler.statistics import NXPerformanceStats
-from mlia.backend.vulkan_model_converter.compat import NXModelCompatibilityInfo
 from mlia.core.reporting import Table
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.reporters import neural_technology_formatters
