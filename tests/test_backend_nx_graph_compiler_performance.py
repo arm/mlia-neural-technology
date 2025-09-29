@@ -9,7 +9,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from mlia.backend.nx_graph_compiler.config import NXGraphCompilerConfig
-from mlia.backend.nx_graph_compiler.performance import GC_OUTPUT_CONTROL_PARAMS
 from mlia.backend.nx_graph_compiler.performance import NXGraphCompilerOutputFiles
 from mlia.backend.nx_graph_compiler.performance import (
     NXGraphCompilerPerformanceEstimator,
@@ -74,10 +73,6 @@ def test_nx_graph_compiler_performance_estimator(
     metrics = estimator.estimate(tmp_path / "model.tflite")
     assert isinstance(metrics.backend_config, NXGraphCompilerConfig)
     assert all(isinstance(file, Path) for file in vars(metrics.output_files).values())
-
-    assert pco_mock.called
-    cmd = pco_mock.call_args[0][0].cmd
-    assert any(argument in cmd for argument in GC_OUTPUT_CONTROL_PARAMS)
 
     json_dump_path = Path(tmp_path / "nx_performance_statistics.json")
     assert json_dump_path.exists()

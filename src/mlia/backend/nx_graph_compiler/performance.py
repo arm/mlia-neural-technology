@@ -27,10 +27,6 @@ from mlia.utils.proc import process_command_output
 
 logger = logging.getLogger(__name__)
 
-GC_OUTPUT_CONTROL_PARAMS = [  # #               | Corresponding option in the .ini file
-    "--enable-debug-database-dump",  # #        | debugDatabase
-]
-
 
 @dataclass
 class NXGraphCompilerOutputFiles:
@@ -180,17 +176,13 @@ class NXGraphCompilerPerformanceEstimator(
 
         cmd = Command(
             cmd=[
-                str(
-                    gc_path / "Graph_compiler_performance_estimator_r55p0_00eac0_mlia_3"
-                ),
+                str(gc_path / "graph-compiler-performance-estimator"),
                 "-i",
                 str(vgf_file),
                 "-o",
                 str(output.name),
-                "--enable-config-file-dump",
                 *system_config_args,
                 *compiler_config_args,
-                *GC_OUTPUT_CONTROL_PARAMS,
             ],
             cwd=output_dir,
         )
