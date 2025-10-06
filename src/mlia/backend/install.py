@@ -413,15 +413,17 @@ class PyPackageBackendInstallation(Installation):
 
     def supports(self, install_type: InstallationType) -> bool:
         """Return true if installation supports requested installation type."""
-        if isinstance(install_type, (DownloadAndInstall, InstallFromPath)):
+        if isinstance(install_type, DownloadAndInstall):
             return True
         if isinstance(install_type, InstallFromVendorPackage):
             return self.vendor_path is not None
-        return False  # type: ignore[unreachable]
+        return False
 
     def install(self, install_type: InstallationType) -> None:
         """Install the backend."""
         if not self.supports(install_type):
+            if isinstance(install_type, InstallFromPath):
+                raise ValueError(f"Unsupported installation type {install_type}.")
             raise ValueError(
                 f"Insufficient configuration for installation type {install_type}."
             )
@@ -431,14 +433,14 @@ class PyPackageBackendInstallation(Installation):
         ):
             self._download_and_install(self.download_config)
 
-        elif isinstance(install_type, (DownloadAndInstall, InstallFromPath)):
+        elif isinstance(install_type, DownloadAndInstall):
             self.package_manager.install(self._packages_to_install)
 
         elif isinstance(install_type, InstallFromVendorPackage):
             if self.vendor_path is None:
                 raise ValueError("No default path provider for PyPackage backend.")
-            self._packages_to_install.append(self.vendor_path)
-            self.install(InstallFromPath(Path(self.vendor_path)))
+            # Use wheel files directly without path-based installation
+            self.package_manager.install([self.vendor_path])
         else:
             raise ValueError(f"Unsupported installation type {install_type}.")
 

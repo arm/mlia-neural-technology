@@ -233,11 +233,11 @@ def test_mixup() -> None:
         ((None,) * 3, pytest.raises(AssertionError)),
     ],
 )
-def test_augment_fn_twins(augmentations: tuple, expected_error: Any) -> None:
+def test_augment_fn_twins(augmentations: Any, expected_error: Any) -> None:
     """Test function augment_fn()."""
     dataset = tf.data.Dataset.from_tensor_slices({"a": [1, 2, 3], "b": [4, 5, 6]})
     with expected_error:
-        fn_twins = augment_fn_twins(dataset, augmentations)  # type: ignore
+        fn_twins = augment_fn_twins(dataset, augmentations)
         assert len(fn_twins) == 2
 
 

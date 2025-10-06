@@ -386,6 +386,12 @@ def mock_performance_estimation(monkeypatch: pytest.MonkeyPatch) -> None:
         MagicMock(return_value=metrics),
     )
 
+    # Mock get_available_backends to include vela so tests pass
+    monkeypatch.setattr(
+        "mlia.cli.command_validators.get_available_backends",
+        MagicMock(return_value=["vela"]),
+    )
+
 
 @pytest.fixture(name="installation_manager_mock")
 def fixture_mock_installation_manager(monkeypatch: pytest.MonkeyPatch) -> MagicMock:

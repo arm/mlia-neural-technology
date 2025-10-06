@@ -64,7 +64,7 @@ from mlia.core.common import AdviceCategory
                 System.WINDOWS_AMD64,
                 System.WINDOWS_AARCH64,
             ],
-            BackendType.BUILTIN,
+            BackendType.WHEEL,
         ),
     ),
 )

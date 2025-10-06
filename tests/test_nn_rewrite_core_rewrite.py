@@ -83,12 +83,12 @@ def test_rewrite() -> None:
     ],
 )
 def test_rewrite_selection(
-    rewrite_name: str, callbacks_length: int, instance: Rewrite
+    rewrite_name: str, callbacks_length: int, instance: type[Rewrite]
 ) -> None:
     """Test that the correct rewrite class is instantiated."""
     rewrite = RewritingOptimizer.registry.items[rewrite_name]
     assert rewrite.name == rewrite_name
-    assert isinstance(rewrite, instance)  # type: ignore
+    assert isinstance(rewrite, instance)
     assert len(rewrite.training_callbacks()) == callbacks_length
 
 

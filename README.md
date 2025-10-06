@@ -71,10 +71,6 @@ typical setup requires:
 * Ubuntu® 20.04.03 LTS (other OSs may work, the ML Inference Advisor has been
   tested on this one specifically)
 * Python® >= 3.8.1
-* Ethos™-U Vela dependencies (Linux® only)
-
-  For more details, please refer to the
-  [prerequisites of Vela](https://pypi.org/project/ethos-u-vela/).
 
 ## Installation
 
@@ -644,8 +640,12 @@ Additional resources:
 
 ### Vela
 
-The Vela backend provides performance metrics for Ethos-U based systems. It
-comes pre-installed.
+The Vela backend provides performance metrics for Ethos-U based systems.
+Please, install it into the same environment as MLIA using this command:
+
+```bash
+mlia-backend install vela
+```
 
 Additional resources:
 
