@@ -279,31 +279,31 @@ Training parameters for rewrites can be specified.
 There are a number of predefined profiles for rewrites. Some examples of these are shown below:
 
 |    Name      | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints |
-| :----------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: |
+| ------------ | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- |
 | optimization |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |
 
 |    Name                                 | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints | Num Clusters | Cluster Centroids Init             |
-| :-------------------------------------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: | :----------: | :--------------------------------: |
+| --------------------------------------- | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- | ------------ | ---------------------------------- |
 | optimization-fully-connected-clustering |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |      16      |    "CentroidInitialization.LINEAR" |
 
 |    Name                               | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints | Sparsity M | Sparsity N |
-| :-----------------------------------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: | :--------: | :--------: |
+| ------------------------------------- | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- | ---------- | ---------- |
 | optimization-fully-connected-pruning  |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |     2      |      4     |
 
 |    Name                                           | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints | Initial Sparsity | End Sparsity | End Step   |
-| :-----------------------------------------------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: | :--------------: | :----------: | :--------: |
+| ------------------------------------------------- | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- | ---------------- | ------------ | ---------- |
 | optimization-fully-connected-unstructured-pruning |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |     0.25         |      0.5     | 48000      |
 
 |    Name                        | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints | Num Clusters | Cluster Centroids Init             | Activation | Kernel Size |
-| :----------------------------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: | :----------: | :--------------------------------: | :--------: | :---------: |
+| ------------------------------ | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- | ------------ | ---------------------------------- | ---------- | ----------- |
 | optimization-conv2d-clustering |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |      16      |    "CentroidInitialization.LINEAR" | "relu"     | 3x3         |
 
 |    Name                     | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints | Sparsity M | Sparsity N | Activation | Kernel Size |
-| :-------------------------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: | :--------: | :--------: | :--------: | :---------: |
+| --------------------------- | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- | ---------- | ---------- | ---------- | ----------- |
 | optimization-conv2d-pruning |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |     2      |      4     | "relu"     | 3x3         |
 
 |    Name                                  | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints | Initial Sparsity | End Sparsity | End Step   | Activation | Kernel Size |
-| :--------------------------------------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: | :--------------: | :----------: | :--------: | :---------:| :---------: |
+| ---------------------------------------- | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- | ---------------- | ------------ | ---------- | -----------| ----------- |
 | optimization-conv2d-unstructured-pruning |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |     0.25         |      0.5     |     48000  |    "relu"  |         3x3 |
 
 The complete list of built in optimization profiles is shown below. Each profile provides training parameters and parameters specific to the rewrite.
@@ -330,7 +330,7 @@ The complete list of built in optimization profiles is shown below. Each profile
 The user can also specify custom augmentations as part of the training parameters. An example of this can be found in the following optimization profile:
 
 |               Name               | Batch Size |  LR  | Show Progress | Steps | LR Schedule | Num Procs | Num Threads | Checkpoints | Augmentations - gaussian_strength | Augmentations - mixup_strength |
-| :------------------------------: | :--------: | :--: | :-----------: | :---: | :---------: | :-------: | :---------: | :---------: | :-------------------------------: | :----------------------------: |
+| -------------------------------- | ---------- | ---- | ------------- | ----- | ----------- | --------- | ----------- | ----------- | --------------------------------- | ------------------------------ |
 | optimization-custom-augmentation |     32     | 1e-3 |      True     | 48000 |   "cosine"  |     1     |      0      |     None    |               0.1                 |                0.1             |
 
 The augmentations consist of 2 parameters: mixup strength and gaussian strength.
@@ -338,7 +338,7 @@ The augmentations consist of 2 parameters: mixup strength and gaussian strength.
 Augmentations can be selected from a number of pre-defined profiles (see the table below) or each individual parameter can be chosen (see optimization_custom_augmentation above for an example):
 
 |         Name         | MixUp Strength | Gaussian Strength |
-| :------------------: | :------------: | :---------------: |
+| -------------------- | -------------- | ----------------- |
 |         "none"       |       None     |        None       |
 |         "gaussian"   |       None     |        1.0        |
 |         "mixup"      |       1.0      |        None       |
@@ -403,19 +403,12 @@ backends that need to be installed separately, see
 There are a number of predefined profiles for Ethos-U with the following
 attributes:
 
-```table
-+--------------------------------------------------------------------+
 | Profile name  | MAC | System config               | Memory mode    |
-+=====================================================================
+|---------------|-----|-----------------------------|----------------|
 | ethos-u55-256 | 256 | Ethos_U55_High_End_Embedded | Shared_Sram    |
-+---------------------------------------------------------------------
 | ethos-u55-128 | 128 | Ethos_U55_High_End_Embedded | Shared_Sram    |
-+---------------------------------------------------------------------
 | ethos-u65-512 | 512 | Ethos_U65_High_End          | Dedicated_Sram |
-+---------------------------------------------------------------------
 | ethos-u65-256 | 256 | Ethos_U65_High_End          | Dedicated_Sram |
-+--------------------------------------------------------------------+
-```
 
 Example:
 
@@ -468,7 +461,7 @@ TOSA is currently only available for x86 architecture.
 
 For more information, see TOSA Checker's:
 
-* [repository](https://review.mlplatform.org/plugins/gitiles/tosa/tosa_checker/+/refs/heads/main)
+* [repository](https://gitlab.arm.com/tosa/tosa-checker)
 * [pypi.org page](https://pypi.org/project/tosa-checker/)
 
 ## Custom target profiles
@@ -522,28 +515,15 @@ path is provided.
 This section lists available backends. As not all backends work on any platform
 the following table shows some compatibility information:
 
-```table
-+---------------------------------------------------------------------------------+
-| Backend            | Linux                  | Windows        | Python           |
-+==================================================================================
-| Arm NN             |                        |                |                  |
-| TensorFlow         | x86_64 and AArch64     | Windows 10     | Python>=3.8      |
-| Lite Delegate      |                        |                |                  |
-+----------------------------------------------------------------------------------
-| Corstone-300       | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-+----------------------------------------------------------------------------------
-| Corstone-310       | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-+----------------------------------------------------------------------------------
-| NX Graph Compiler  | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-+----------------------------------------------------------------------------------
-| Tosa converter     |                        |                |                  |
-| for tflite         | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-+----------------------------------------------------------------------------------
-| TOSA checker       | x86_64 (manylinux2014) | Not compatible | 3.7<=Python<=3.9 |
-+----------------------------------------------------------------------------------
-| Vela               | x86_64 and  AArch64    | Windows 10     | Python~=3.7      |
-+---------------------------------------------------------------------------------+
-```
+| Backend                           | Linux                  | Windows        | Python           |
+|-----------------------------------|------------------------|----------------|------------------|
+| Arm NN TensorFlow  Lite Delegate  | x86_64 and AArch64     | Windows 10     | Python>=3.8      |
+| Corstone-300                      | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
+| Corstone-310                      | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
+| NX Graph Compiler                 | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
+| Tosa converter  for tflite        | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
+| TOSA checker                      | x86_64 (manylinux2014) | Not compatible | 3.7<=Python<=3.9 |
+| Vela                              | x86_64 and  AArch64    | Windows 10     | Python~=3.7      |
 
 ### Arm NN TensorFlow Lite Delegate
 
