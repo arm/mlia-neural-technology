@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from functools import wraps
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,7 @@ def wrap_mock_command(mock: MagicMock, command: Callable) -> Callable:
     return mock_command
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     "params, expected_call",
     [
@@ -323,6 +325,31 @@ def test_passing_output_directory_parameter(
     assert passed_context.output_dir == output_dir / "mlia-output"
 
 
+def test_passing_relative_output_directory_parameter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test passing parameter --output-dir."""
+    passed_context: ExecutionContext | None = None
+
+    def sample_command(ctx: ExecutionContext) -> None:
+        """Sample command."""
+        nonlocal passed_context
+        passed_context = ctx
+
+    monkeypatch.setattr(
+        "mlia.cli.main.get_commands",
+        lambda: [CommandInfo(sample_command, [], [add_output_directory])],
+    )
+
+    cwd = os.getcwd()
+    output_dir = "output"
+    main(["sample_command", "--output-dir", output_dir])
+
+    assert passed_context is not None
+    assert passed_context.output_dir == Path(f"{cwd}/{output_dir}/mlia-output")
+
+
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     "params, expected_call",
     [
@@ -350,6 +377,7 @@ def test_commands_execution_backend_main(
     mock.assert_called_once_with(*expected_call.args, **expected_call.kwargs)
 
 
+# mypy: disable-error-code=misc
 @pytest.mark.parametrize(
     "debug, exc_mock, expected_output",
     [

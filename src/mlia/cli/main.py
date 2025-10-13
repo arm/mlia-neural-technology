@@ -8,6 +8,7 @@ import logging
 import sys
 from functools import partial
 from inspect import signature
+from pathlib import Path
 
 from mlia import __version__
 from mlia.backend.errors import BackendUnavailableError
@@ -171,11 +172,17 @@ def setup_context(
 ) -> tuple[ExecutionContext, dict]:
     """Set up context and resolve function parameters."""
     try:
+        output_dir = (
+            Path(args.output_dir).resolve()
+            if getattr(args, "output_dir", None)
+            else None
+        )
+
         ctx = ExecutionContext(
             verbose="debug" in args and args.debug,
             action_resolver=CLIActionResolver(vars(args)),
             output_format=get_output_format(args),
-            output_dir=args.output_dir if "output_dir" in args else None,
+            output_dir=output_dir,
         )
     except Exception as err:  # pylint: disable=broad-except
         print(f"Error: {err}", file=sys.stderr)
