@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 
-target = "neural_technology"
+target = "neural-technology"
 
 [backend.nx-graph-compiler]
 system_config = "sustained-12SC-8NX-350MHz.ini"
