@@ -27,6 +27,7 @@ from mlia.backend.repo import BackendRepository
 from mlia.backend.tosa_checker.install import get_tosa_backend_installation
 from mlia.backend.vela.install import get_vela_installation
 from mlia.utils.download import DownloadConfig
+from mlia.utils.py_manager import PyPackageManager
 
 
 @pytest.fixture(name="backend_repo")
@@ -34,6 +35,15 @@ def mock_backend_repo(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Mock backend repository."""
     mock = MagicMock(spec=BackendRepository)
     monkeypatch.setattr("mlia.backend.install.get_backend_repository", lambda: mock)
+
+    return mock
+
+
+@pytest.fixture(name="py_package_manager")
+def mock_py_package_manager(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Mock py package manager."""
+    mock = MagicMock(spec=PyPackageManager)
+    monkeypatch.setattr("mlia.backend.install.get_package_manager", lambda: mock)
 
     return mock
 
@@ -88,7 +98,7 @@ def test_backend_could_be_installed(
 def test_backend_installation_from_path(
     tmp_path: Path, backend_repo: MagicMock, copy_source: bool
 ) -> None:
-    """Test methods of backend installation."""
+    """Test InstallFromPath backend installation method."""
     installation = BackendInstallation(
         "sample_backend",
         "Sample backend",
@@ -118,7 +128,7 @@ def test_backend_installation_from_path(
 def test_backend_installation_download_and_install(
     tmp_path: Path, backend_repo: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test methods of backend installation."""
+    """Test DownloadAndInstall backend installation method."""
     tmp_archive = tmp_path.joinpath("sample.tgz")
     sample_file = tmp_path.joinpath("sample.txt")
     sample_file.touch()
@@ -149,6 +159,51 @@ def test_backend_installation_download_and_install(
     installation.path_checker = lambda _: None
     with pytest.raises(ValueError, match="Downloaded artifact has invalid structure."):
         installation.install(DownloadAndInstall())
+
+
+def test_backend_installation_from_vendor_package(
+    tmp_path: Path, backend_repo: MagicMock
+) -> None:
+    """Test InstallFromVendorPackage installation method"""
+    installation = BackendInstallation(
+        "sample_backend",
+        "Sample backend",
+        "sample_backend",
+        None,
+        None,
+        BackendInfo,
+        lambda eula_agreement, path: path,
+        None,
+        tmp_path.as_posix(),
+    )
+
+    assert installation.supports(InstallFromVendorPackage())
+    installation.install(InstallFromVendorPackage())
+
+    backend_repo.copy_backend.assert_called_with(
+        "sample_backend", tmp_path, "sample_backend", None
+    )
+    backend_repo.add_backend.assert_not_called()
+
+
+def test_backend_installation_bad_install_type(
+    tmp_path: Path,
+) -> None:
+    """Test bad installation type"""
+    installation = BackendInstallation(
+        "sample_backend",
+        "Sample backend",
+        "sample_backend",
+        None,
+        None,
+        BackendInfo,
+        lambda eula_agreement, path: path,
+        None,
+        tmp_path.as_posix(),
+    )
+    assert not installation.supports(None)  # type: ignore[arg-type]
+    with pytest.raises(RuntimeError, match="Unable to install"):
+        installation.install(None)  # type: ignore[arg-type]
 
 
 def test_backend_installation_unable_to_download() -> None:
@@ -222,6 +277,133 @@ def test_backend_installation_uninstall(backend_repo: MagicMock) -> None:
 
     installation.uninstall()
     backend_repo.remove_backend.assert_called_with("sample_backend")
+
+
+def test_py_package_backend_installation_download_and_install(
+    tmp_path: Path, py_package_manager: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test DownloadAndInstall backend installation method."""
+    sample_file = tmp_path.joinpath("sample.whl")
+    sample_file.touch()
+
+    monkeypatch.setattr("mlia.backend.install.download", MagicMock())
+    monkeypatch.setattr(
+        "mlia.utils.download.DownloadConfig.filename",
+        sample_file,
+    )
+    installation = PyPackageBackendInstallation(
+        "sample_backend",
+        "sample_backend",
+        ["sample_package"],
+        ["sample_package"],
+        ["sample_package"],
+        DownloadConfig(url="NOT_USED.whl", sha256_hash="NOT_USED"),
+        None,
+    )
+    assert installation.vendor_path is None
+    assert installation.supports(DownloadAndInstall())
+    assert not installation.supports(InstallFromVendorPackage())
+
+    installation.install(DownloadAndInstall())
+    py_package_manager.install.assert_called_once_with(
+        ["sample_package", sample_file.as_posix()]
+    )
+
+
+def test_py_package_backend_installation_from_vendor_package(
+    tmp_path: Path, py_package_manager: MagicMock
+) -> None:
+    """Test InstallFromVendorPackage installation method"""
+    sample_file = tmp_path.joinpath("sample.whl")
+    sample_file.touch()
+
+    installation = PyPackageBackendInstallation(
+        "sample_backend",
+        "sample_backend",
+        ["sample_package"],
+        ["sample_package"],
+        ["sample_package"],
+        vendor_path=tmp_path.as_posix(),
+    )
+    assert installation.supports(InstallFromVendorPackage())
+    assert installation.vendor_path
+
+    installation.install(InstallFromVendorPackage())
+    py_package_manager.install.assert_called_once_with([installation.vendor_path])
+
+
+def test_py_package_backend_installation_from_path(
+    tmp_path: Path, py_package_manager: MagicMock
+) -> None:
+    """Test InstallFromPath installation method"""
+    sample_file = tmp_path.joinpath("sample.whl")
+    sample_file.touch()
+    installation = PyPackageBackendInstallation(
+        "sample_backend",
+        "sample_backend",
+        ["sample_package"],
+        ["sample_package"],
+        ["sample_package"],
+    )
+    assert installation.supports(InstallFromPath(sample_file))
+
+    installation.install(InstallFromPath(sample_file))
+    py_package_manager.install.assert_called_once_with(["sample_package"])
+
+
+def test_py_package_backend_installation_unable_to_download(
+    py_package_manager: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that installation should fail when downloading fails."""
+    monkeypatch.setattr(
+        "mlia.backend.install.download",
+        MagicMock(side_effect=Exception("Unable to download")),
+    )
+    installation = PyPackageBackendInstallation(
+        "sample_backend",
+        "sample_backend",
+        ["sample_package"],
+        ["sample_package"],
+        ["sample_package"],
+        DownloadConfig(url="NOT_USED.whl", sha256_hash="NOT_USED"),
+        None,
+    )
+    with pytest.raises(RuntimeError, match="Unable to download wheel."):
+        installation.install(DownloadAndInstall())
+    py_package_manager.install.assert_not_called()
+
+
+def test_py_package_backend_installation_bad_vendor_path() -> None:
+    """Test installation with bad vendor path."""
+    installation = PyPackageBackendInstallation(
+        "sample_backend",
+        "sample_backend",
+        ["sample_package"],
+        ["sample_package"],
+        ["sample_package"],
+        vendor_path="bad_path",
+    )
+    assert not installation.vendor_path
+    assert not installation.supports(InstallFromVendorPackage())
+
+
+def test_py_package_backend_installation_bad_install_type() -> None:
+    """Test bad installation type"""
+    installation = PyPackageBackendInstallation(
+        "sample_backend",
+        "sample_backend",
+        ["sample_package"],
+        ["sample_package"],
+        ["sample_package"],
+        DownloadConfig(url="NOT_USED.whl", sha256_hash="NOT_USED"),
+        None,
+    )
+    assert not installation.supports(None)  # type: ignore[arg-type]
+
+    with pytest.raises(
+        ValueError, match="Insufficient configuration for installation type"
+    ):
+        installation.install(None)  # type: ignore[arg-type]
 
 
 def _gen_rel_file(dir_path: Path) -> Path:
