@@ -1,12 +1,13 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for Corstone related installation functions.."""
 from __future__ import annotations
 
 import subprocess  # nosec
-from contextlib import ExitStack as does_not_raise
 from pathlib import Path
 from typing import Any
+from typing import Callable
+from typing import Generator
 from unittest.mock import call
 from unittest.mock import MagicMock
 
@@ -17,6 +18,20 @@ from mlia.backend.corstone.install import CorstoneFVP
 from mlia.backend.corstone.install import CorstoneInstaller
 from mlia.backend.corstone.install import get_corstone_installation
 from mlia.backend.install import Installation
+
+
+@pytest.fixture(name="system_setter")
+def fixture_system_setter() -> Generator[Callable[[str], None], None, None]:
+    """Generates a function to temporarily override System.CURRENT for testing"""
+    current_machine = System.CURRENT
+
+    def _system_setter(machine: str) -> None:
+        # Override immutability for testing purposes
+        type.__setattr__(System, "CURRENT", machine)
+
+    yield _system_setter
+
+    type.__setattr__(System, "CURRENT", current_machine)
 
 
 @pytest.mark.parametrize(
@@ -95,35 +110,43 @@ def test_coverstone_fvp_no_version_found() -> None:
 
 
 @pytest.mark.parametrize(
-    "corstone_name, machine, expected_error",
+    "corstone_name, machine",
     [
-        ["corstone-300", System.LINUX_AMD64, does_not_raise()],
-        ["corstone-310", System.LINUX_AMD64, does_not_raise()],
-        ["corstone-320", System.LINUX_AMD64, does_not_raise()],
-        ["corstone-300", System.LINUX_AARCH64, does_not_raise()],
-        ["corstone-310", System.LINUX_AARCH64, does_not_raise()],
-        ["corstone-320", System.LINUX_AARCH64, does_not_raise()],
-        [
-            "corstone-310",
-            System.WINDOWS_AARCH64,
-            pytest.raises(RuntimeError, match="is not compatible with this platform"),
-        ],
+        ["corstone-300", System.LINUX_AMD64],
+        ["corstone-310", System.LINUX_AMD64],
+        ["corstone-320", System.LINUX_AMD64],
+        ["corstone-300", System.LINUX_AARCH64],
+        ["corstone-310", System.LINUX_AARCH64],
+        ["corstone-320", System.LINUX_AARCH64],
     ],
 )
 def test_get_corstone_installation(
-    corstone_name: str, machine: Any, expected_error: Any
+    corstone_name: str, machine: Any, system_setter: Callable[[str], None]
 ) -> None:
     """Test Corstone installation"""
-    current_machine = System.CURRENT
+    system_setter(machine)
 
-    # Override immutability for testing purposes
-    type.__setattr__(System, "CURRENT", machine)
-    with expected_error:
-        installation = get_corstone_installation(corstone_name)
-        assert isinstance(installation, Installation)
+    installation = get_corstone_installation(corstone_name)
+    assert isinstance(installation, Installation)
 
-    # Restore old attribute
-    type.__setattr__(System, "CURRENT", current_machine)
+
+@pytest.mark.parametrize(
+    "corstone_name, machine",
+    [
+        [
+            "corstone-310",
+            System.WINDOWS_AARCH64,
+        ],
+    ],
+)
+def test_get_corstone_installation_not_found(
+    corstone_name: str, machine: Any, system_setter: Callable[[str], None]
+) -> None:
+    """Test Corstone installation not found behaviour"""
+    system_setter(machine)
+
+    installation = get_corstone_installation(corstone_name)
+    assert installation is None
 
 
 @pytest.mark.parametrize(
