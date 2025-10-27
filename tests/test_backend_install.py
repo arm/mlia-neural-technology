@@ -363,16 +363,15 @@ def test_get_backend_installation(
     assert isinstance(installation_func, PyPackageBackendInstallation)
     assert installation_func.could_be_installed
     assert installation_func.supports(DownloadAndInstall())
-    assert not installation_func.supports(InstallFromPath(tmp_path))
+    assert installation_func.supports(InstallFromPath(tmp_path))
 
     mock_package_manager.packages_installed.return_value = True
     assert installation_func.already_installed
     mock_package_manager.packages_installed.assert_called_once_with([backend])
 
-    with pytest.raises(Exception, match=r"Unsupported installation type.*"):
-        installation_func.install(InstallFromPath(tmp_path))
-
-    mock_package_manager.install.assert_not_called()
+    installation_func.install(InstallFromPath(tmp_path))
+    mock_package_manager.install.assert_called_once()
+    mock_package_manager.install.reset_mock()
 
     installation_func.install(DownloadAndInstall())
     mock_package_manager.install.assert_called_once_with([installation_name])
