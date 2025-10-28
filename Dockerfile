@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y \
     ruby-dev \
     shellcheck \
     cmake \
+    gawk \
     # Dependencies required by pyenv to build Python
     make \
     build-essential \
