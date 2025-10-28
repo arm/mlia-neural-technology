@@ -16,6 +16,15 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
+## 0.9.2 (2025-10-31)
+
+### Deprecations
+
+* **ArmNN TensorFlow Lite Delegate backend deprecation**: The ArmNN TensorFlow Lite
+  Delegate backend (`armnn-tflite-delegate`) is now deprecated and will be removed
+  in the next major release. This backend relies on an unmaintained project and is
+  no longer actively supported. Deprecation warnings will be displayed when using this backend.
+
 ## 0.9.1 (2025-09-30)
 
 ### Issues Fixed
