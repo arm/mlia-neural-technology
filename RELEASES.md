@@ -87,6 +87,11 @@ scheme.
   (MLIA-1370)
 * MLIA can now use Artifactory credentials when downloading wheels (MLIA-1312)
 
+* **TOSA Checker backend deprecation**: The TOSA Checker
+  Backend (`tosa-checker`) is now deprecated.
+  This backend relies on an unmaintained project and is
+  no longer actively supported. Deprecation warnings will be displayed when using this backend.
+
 ## 0.8.0 (2024-02-09)
 
 ### Bug fix
