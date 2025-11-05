@@ -185,6 +185,9 @@ class BackendInstallation(Installation):
     def _install_from(self, backend_info: BackendInfo) -> None:
         """Install backend from the directory."""
         backend_repo = get_backend_repository()
+        logger.debug(
+            "Installing %s in %s", backend_info.backend_path, backend_repo.repository
+        )
 
         if backend_info.copy_source:
             backend_repo.copy_backend(
