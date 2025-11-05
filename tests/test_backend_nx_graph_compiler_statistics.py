@@ -651,3 +651,17 @@ def test_track_op(test_resources_path: Path) -> None:
         ["Rescale"],
         ["Reshape"],
     ]
+
+
+def test_track_op_multiple_chains_per_stripe() -> None:
+    """Test if ValueError is raised for multiple chains per stripe."""
+    debug_db = {"stripe_op_id_to_op_id": {"26": ["123", "456"]}}
+    performance_db = [{"key": None}]
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db, performance_db=performance_db
+    )
+
+    with pytest.raises(
+        ValueError, match="There should be only one chain per stripe, " "found more!"
+    ):
+        _ = performance_stats.track_op("26")

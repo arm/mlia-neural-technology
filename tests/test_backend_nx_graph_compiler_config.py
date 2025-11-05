@@ -17,3 +17,35 @@ def test_nx_graph_compiler_config() -> None:
     assert cfg.system_config == sys_cfg
 
     assert set(CONFIG_TO_CLI_OPTION) == set(vars(cfg))
+
+
+def test_nx_graph_compiler_set_config_dir_abs_path(tmp_path: Path) -> None:
+    """Test for set_config_dir method."""
+    sys_cfg, compiler_cfg = Path(tmp_path), Path(tmp_path)
+    cfg = NXGraphCompilerConfig(sys_cfg, compiler_cfg)
+
+    cfg.set_config_dir(tmp_path)  # absoulte path
+    assert cfg.system_config == tmp_path
+    assert cfg.compiler_config == tmp_path
+
+
+def test_nx_graph_compiler_set_config_dir_relative() -> None:
+    """Test for set_config_dir method."""
+    sys_cfg, compiler_cfg = Path("system-config"), Path("compiler-config")
+    cfg = NXGraphCompilerConfig(sys_cfg, compiler_cfg)
+
+    config_dir = Path("config-dir")
+    cfg.set_config_dir(config_dir)  # relative path
+    assert cfg.system_config == config_dir.joinpath("system-config")
+    assert cfg.compiler_config == config_dir.joinpath("compiler-config")
+
+
+def test_nx_graph_compiler_set_config_dir_default() -> None:
+    """Test for set_config_dir method."""
+    sys_cfg, compiler_cfg = "default", "default"
+    cfg = NXGraphCompilerConfig(sys_cfg, compiler_cfg)
+
+    config_dir = Path("config-dir")
+    cfg.set_config_dir(config_dir)  # relative path
+    assert cfg.system_config == NXGraphCompilerConfig.DEFAULT
+    assert cfg.compiler_config == NXGraphCompilerConfig.DEFAULT

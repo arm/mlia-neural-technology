@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import csv
+from contextlib import ExitStack as does_not_raise
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -83,13 +85,12 @@ def test_extract_field(variant: str) -> None:
 def test_extract_cdata() -> None:
     """Test util method to extract cdata."""
     parser = NXOutputParser()
-    with pytest.raises(Exception) as exc_info:
-        parser.extract_cdata("<![CDATA[a]]>....<![CDATA[b]]>")
-        assert str(exc_info.value) == "No single CDATA section"
 
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(RuntimeError, match="No single CDATA section"):
+        parser.extract_cdata("<![CDATA[a]]>....<![CDATA[b]]>")
+
+    with pytest.raises(RuntimeError, match="No single CDATA section"):
         parser.extract_cdata("foo")
-        assert str(exc_info.value) == "No single CDATA section"
 
     assert "abc" == parser.extract_cdata(
         """line1
@@ -253,15 +254,141 @@ def test_parse_performance_database() -> None:
     ]
 
 
-def test_make_parsed_db_performance_db() -> None:
+@pytest.mark.parametrize(
+    "contents, expected_result",
+    [
+        (
+            (
+                '"id", "opCycles", "totalCycles", '
+                '"memoryName;readBytes;writeBytes;trafficCycles", '
+                '"sectionName;cycles"\n'
+                "26, 18, 212, "
+                "Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;"
+                "SystemCache;0;0;0;DRAM;320;12;10;, "
+                "OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;"
+                "VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;"
+                "InputReader;0.0625;InputReader;0.0625;InputReader;0.25;\n"
+                "25, 4, 13, "
+                "Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;"
+                "SystemCache;0;0;0;DRAM;128;4;4;, "
+                "OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;"
+                "VectorEngine;0.125;VectorEngine;0.125;"
+                "InputReader;0.0625;InputReader;0.0625;\n"
+            ).strip(),
+            [
+                {
+                    "id": 26,
+                    "opCycles": 18,
+                    "totalCycles": 212,
+                    "Memory": {
+                        "Undefined": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "Internal": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "L1": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "L2": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "SystemCache": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "DRAM": {
+                            "readBytes": 320,
+                            "writeBytes": 12,
+                            "trafficCycles": 10,
+                        },
+                    },
+                    "Utilization": [
+                        {"sectionName": "OutputWriter", "cycles": 1},
+                        {"sectionName": "VectorEngine", "cycles": 0.25},
+                        {"sectionName": "VectorEngine", "cycles": 0.25},
+                        {"sectionName": "VectorEngine", "cycles": 0.25},
+                        {"sectionName": "TransformUnit", "cycles": 0.25},
+                        {"sectionName": "TransformUnit", "cycles": 0.25},
+                        {"sectionName": "InputReader", "cycles": 0.0625},
+                        {"sectionName": "InputReader", "cycles": 0.0625},
+                        {"sectionName": "InputReader", "cycles": 0.25},
+                    ],
+                },
+                {
+                    "id": 25,
+                    "opCycles": 4,
+                    "totalCycles": 13,
+                    "Memory": {
+                        "Undefined": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "Internal": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "L1": {
+                            "readBytes": 0,
+                            "writeBytes": 4,
+                            "trafficCycles": 0,
+                        },
+                        "L2": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "SystemCache": {
+                            "readBytes": 0,
+                            "writeBytes": 0,
+                            "trafficCycles": 0,
+                        },
+                        "DRAM": {
+                            "readBytes": 128,
+                            "writeBytes": 4,
+                            "trafficCycles": 4,
+                        },
+                    },
+                    "Utilization": [
+                        {"sectionName": "OutputWriter", "cycles": 0.0625},
+                        {"sectionName": "VectorEngine", "cycles": 0.125},
+                        {"sectionName": "VectorEngine", "cycles": 0.125},
+                        {"sectionName": "VectorEngine", "cycles": 0.125},
+                        {"sectionName": "VectorEngine", "cycles": 0.125},
+                        {"sectionName": "InputReader", "cycles": 0.0625},
+                        {"sectionName": "InputReader", "cycles": 0.0625},
+                    ],
+                },
+            ],
+        ),
+        (
+            """
+            "id", "opCycles"
+            26, "text"
+            25, 4;
+            """.strip(),
+            [
+                {"id": 26, "opCycles": "Invalid:text"},
+                {"id": 25, "opCycles": "Invalid:4;"},
+            ],
+        ),
+    ],
+)
+def test_make_parsed_db_performance_db(contents: str, expected_result: Any) -> None:
     """
     Test the performance_db has the required fields.
     """
-    contents = """
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
-    26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
-    25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-    """.strip()
     parser = NXPerformanceDatabaseParser()
     reader = parser.get_csv_reader(table_data=contents)
     headers = parser.get_csv_headers(csv_reader=reader)
@@ -270,102 +397,7 @@ def test_make_parsed_db_performance_db() -> None:
         csv_reader=reader, headers=headers, column_parsers=int_column_parsers
     )
 
-    assert parser.performance_db == [
-        {
-            "id": 26,
-            "opCycles": 18,
-            "totalCycles": 212,
-            "Memory": {
-                "Undefined": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "Internal": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "L1": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "L2": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "SystemCache": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "DRAM": {
-                    "readBytes": 320,
-                    "writeBytes": 12,
-                    "trafficCycles": 10,
-                },
-            },
-            "Utilization": [
-                {"sectionName": "OutputWriter", "cycles": 1},
-                {"sectionName": "VectorEngine", "cycles": 0.25},
-                {"sectionName": "VectorEngine", "cycles": 0.25},
-                {"sectionName": "VectorEngine", "cycles": 0.25},
-                {"sectionName": "TransformUnit", "cycles": 0.25},
-                {"sectionName": "TransformUnit", "cycles": 0.25},
-                {"sectionName": "InputReader", "cycles": 0.0625},
-                {"sectionName": "InputReader", "cycles": 0.0625},
-                {"sectionName": "InputReader", "cycles": 0.25},
-            ],
-        },
-        {
-            "id": 25,
-            "opCycles": 4,
-            "totalCycles": 13,
-            "Memory": {
-                "Undefined": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "Internal": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "L1": {
-                    "readBytes": 0,
-                    "writeBytes": 4,
-                    "trafficCycles": 0,
-                },
-                "L2": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "SystemCache": {
-                    "readBytes": 0,
-                    "writeBytes": 0,
-                    "trafficCycles": 0,
-                },
-                "DRAM": {
-                    "readBytes": 128,
-                    "writeBytes": 4,
-                    "trafficCycles": 4,
-                },
-            },
-            "Utilization": [
-                {"sectionName": "OutputWriter", "cycles": 0.0625},
-                {"sectionName": "VectorEngine", "cycles": 0.125},
-                {"sectionName": "VectorEngine", "cycles": 0.125},
-                {"sectionName": "VectorEngine", "cycles": 0.125},
-                {"sectionName": "VectorEngine", "cycles": 0.125},
-                {"sectionName": "InputReader", "cycles": 0.0625},
-                {"sectionName": "InputReader", "cycles": 0.0625},
-            ],
-        },
-    ]
+    assert parser.performance_db == expected_result
 
 
 def test_debug_database_parser_from_file(test_resources_path: Path) -> None:
@@ -419,14 +451,12 @@ def test_parse_debug_database_invalid_num_db_headers() -> None:
     """Test error is raised if the debug database has too many headers."""
     contents = """<?xml version='1.0' encoding='utf-8' ?>
     <![CDATA[\n"id", "api_id"\n]]>\n</table>\n<table name="fused_op_id">
-    <![CDATA[\n"id", "chain_op_id", "cascade_op_id", "foo"\n0, 603, 1693, 100\n1, 605, 1691, 200\n<table name="chain_op_id">
-    <![CDATA[\n"id", "fused_op_ids"\n603, 531;557;\n605, 533;559;\n607, 535;561;\n637, 589;591;509;511;515;\n]]>
+    <![CDATA[\n"id", "api_id", "tosa_op_ids", "fused_op_ids"\n531, 334;\n557, 335;\n499, 394;462;;\n]]>\n</table>\n<table name="chain_op_id">
     </table>\n</debug>"""
     parser = NXDebugDatabaseParser()
     parser.raw_xmlish = contents
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(RuntimeError, match="Unsupported number of headers"):
         parser.parse_debug_database()
-        assert str(exc_info.value) == "Unsupported number of headers."
 
 
 def test_make_parsed_db_debug_db() -> None:
@@ -460,7 +490,80 @@ def test_make_parsed_db_debug_db() -> None:
     assert parser.debug_db["stripe_op_id_to_chain_op_id"]["0"] == ["603"]
 
 
-def test_subtable_column() -> None:
+def test_make_parsed_db_debug_db_invalid_num_headers() -> None:
+    """Test error is raised if the debug database has too many headers."""
+    contents = """<?xml version='1.0' encoding='utf-8' ?>
+    <![CDATA[\n"id", "api_id"\n]]>\n</table>\n<table name="fused_op_id">
+    <![CDATA[\n"id", "api_id", "tosa_op_ids", "fused_op_ids"\n531, 334;\n557, 335;\n499, 394;462;;\n]]>\n</table>\n<table name="chain_op_id">
+    </table>\n</debug>"""
+    parser = NXDebugDatabaseParser()
+    table_elements = contents.split('<table name="')[1:]
+
+    with pytest.raises(RuntimeError, match="Unsupported number of headers"):
+        for table_element in table_elements:
+            table_name = table_element.split('">')[0]
+            table_data = parser.extract_cdata(table_element)
+            reader = parser.get_csv_reader(table_data=table_data)
+            headers = parser.get_csv_headers(csv_reader=reader)
+            headers[0] = table_name + "_to_" + headers[1]
+            parser.make_parsed_db(csv_reader=reader, headers=headers)
+
+
+@pytest.mark.parametrize(
+    "cell, expected_err, expected_result",
+    [
+        (
+            "Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;"
+            "DRAM;320;12;10;",
+            does_not_raise(),
+            [
+                {
+                    "memoryName": "Undefined",
+                    "readBytes": 0,
+                    "writeBytes": 0,
+                    "trafficCycles": 0,
+                },
+                {
+                    "memoryName": "Internal",
+                    "readBytes": 0,
+                    "writeBytes": 0,
+                    "trafficCycles": 0,
+                },
+                {
+                    "memoryName": "L1",
+                    "readBytes": 0,
+                    "writeBytes": 0,
+                    "trafficCycles": 0,
+                },
+                {
+                    "memoryName": "L2",
+                    "readBytes": 0,
+                    "writeBytes": 0,
+                    "trafficCycles": 0,
+                },
+                {
+                    "memoryName": "SystemCache",
+                    "readBytes": 0,
+                    "writeBytes": 0,
+                    "trafficCycles": 0,
+                },
+                {
+                    "memoryName": "DRAM",
+                    "readBytes": 320,
+                    "writeBytes": 12,
+                    "trafficCycles": 10,
+                },
+            ],
+        ),
+        (
+            "Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;"
+            "DRAM;320;12;10;extra_val",
+            pytest.raises(RuntimeError, match="Unmatched column entries"),
+            None,
+        ),
+    ],
+)
+def test_subtable_column(cell: str, expected_err: Any, expected_result: Any) -> None:
     """Test the subtable columns have the expected labels."""
     parser = SubtableColumnParser(
         "Meminfo", "memoryName;readBytes;writeBytes;trafficCycles"
@@ -471,37 +574,9 @@ def test_subtable_column() -> None:
         "writeBytes",
         "trafficCycles",
     ]
-    result = parser(
-        "Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;"  # pylint: disable=line-too-long
-    )
-    assert result == [
-        {
-            "memoryName": "Undefined",
-            "readBytes": 0,
-            "writeBytes": 0,
-            "trafficCycles": 0,
-        },
-        {
-            "memoryName": "Internal",
-            "readBytes": 0,
-            "writeBytes": 0,
-            "trafficCycles": 0,
-        },
-        {"memoryName": "L1", "readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
-        {"memoryName": "L2", "readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
-        {
-            "memoryName": "SystemCache",
-            "readBytes": 0,
-            "writeBytes": 0,
-            "trafficCycles": 0,
-        },
-        {
-            "memoryName": "DRAM",
-            "readBytes": 320,
-            "writeBytes": 12,
-            "trafficCycles": 10,
-        },
-    ]
+    with expected_err:
+        result = parser(cell)
+        assert result == expected_result
 
 
 def test_column_parsers() -> None:
@@ -513,4 +588,8 @@ def test_column_parsers() -> None:
     assert parsers == {
         col1: SubtableColumnParser("Memory", col1),
         col2: SubtableColumnParser("Utilization", col2),
+    }
+    assert parsers != {  # type mismatch
+        col1: 1,
+        col2: "string",
     }

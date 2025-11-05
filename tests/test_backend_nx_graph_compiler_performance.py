@@ -27,8 +27,9 @@ def test_nx_graph_compiler_output_files(tmp_path: Path) -> None:
     output_files.check_exists()
 
 
+@pytest.mark.parametrize("model_file", ("model.tflite", "model.vgf"))
 def test_nx_graph_compiler_performance_estimator(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, model_file: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test class NXGraphCompilerPerformanceEstimator."""
     neural_technology_cfg = NeuralTechnologyConfiguration.load_profile(
@@ -70,7 +71,8 @@ def test_nx_graph_compiler_performance_estimator(
     estimator = NXGraphCompilerPerformanceEstimator(
         tmp_path, neural_technology_cfg.backend_config, operator_types_mapping
     )
-    metrics = estimator.estimate(tmp_path / "model.tflite")
+
+    metrics = estimator.estimate(tmp_path / model_file)
     assert isinstance(metrics.backend_config, NXGraphCompilerConfig)
     assert all(isinstance(file, Path) for file in vars(metrics.output_files).values())
 
