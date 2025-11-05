@@ -88,6 +88,23 @@ def test_ml_sdk_model_converter_back_end_fail(
         ml_sdk_model_converter(tmp_path / "model.tflite", output_dir)
 
 
+def test_ml_sdk_model_converter_tosa_file_not_found(
+    ml_sdk_model_converter: MLSDKModelConverter,
+    tmp_path: Path,
+) -> None:
+    """Test for class MLSDKModelConverter throwing a FileNotFoundError."""
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    tosa_file = "model2.tosamlir"
+    with pytest.raises(
+        FileNotFoundError,
+        match="No output from the TosaConverterForTflite frontend found. "
+        + f"File [A-Za-z0-9_/-]+{tosa_file} does not exist.",
+    ):
+        ml_sdk_model_converter(tmp_path / tosa_file, output_dir)
+
+
 def test_ml_sdk_model_converter_create_back_end_command(
     ml_sdk_model_converter: MLSDKModelConverter,
     tmp_path: Path,

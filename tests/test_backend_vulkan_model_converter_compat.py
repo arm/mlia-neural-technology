@@ -3,6 +3,7 @@
 """Tests for tflite_compat module."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -175,9 +176,10 @@ def test_checker_calls_vmc_correctly(
     """Test VMC compatibity check."""
 
     back_end_output = [
+        """Successfully lowered: tosa.rescale at loc("arm_nss_clampnet_v4/quant_conv2d_7/Relu"("model.tflite":0:0))""",
         """<unknown>:0: error: loc("model/tf.math.multiply_75/Mul1"): failed to materialize conversion for result #0 of"""
         + """operation 'tfl.broadcast_to' that remained live after conversion"""
-        ""
+        "",
     ]
 
     def back_end_call(consumer: OutputConsumer, program: str, *args: list[str]) -> None:
@@ -220,6 +222,12 @@ def test_checker_calls_vmc_correctly(
     result = checker.check_compatibility(Path("model.tflite"))
 
     assert result.dump() == [
+        {
+            "compat_level": "TOSA",
+            "location": "arm_nss_clampnet_v4/quant_conv2d_7/Relu",
+            "placement": "NX",
+            "tosa_op": "tosa.rescale",
+        },
         {
             "compat_level": "Non-NX",
             "error": "failed to materialize conversion for result #0 ofoperation "
@@ -325,3 +333,19 @@ def test_nx_compatiblity_info() -> None:
             "placement": "EE",
         },
     ]
+
+
+def test_unrecognized_log_line() -> None:
+    """Test raising errors for unrecognized log lines."""
+
+    line = "Successfully lowered: tosa.rescale  loc(unknown)"
+    with pytest.raises(
+        RuntimeError, match=f"Unrecognized log line: '{re.escape(line)}'"
+    ):
+        VMCCompatibilityLogReader()(line)
+
+
+def test_handling_unknowns() -> None:
+    """Test that unknowns are handled gracefully when parsing loc() expressions."""
+
+    assert VMCCompatibilityLogReader().parse_loc("loc(unknown)") == "unknown"

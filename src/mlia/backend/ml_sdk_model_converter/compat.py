@@ -40,7 +40,7 @@ class VMCCompatibilityLogReader:
         if match := self._success_pattern.match(line):
             lowered_op, filling, rest = match.group(1, 2, 3)
             if filling != "at":
-                raise RuntimeError("Unrecognized log line: '{line}'")
+                raise RuntimeError(f"Unrecognized log line: '{line}'")
 
             loc_string = self.parse_loc(rest)
             self._lowered_ops[loc_string] = lowered_op
