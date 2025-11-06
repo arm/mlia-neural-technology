@@ -1,9 +1,11 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025 Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for TOSA compatibility."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -97,3 +99,61 @@ def test_get_tosa_compatibility_info(
         returned_compatibility_info.tosa_compatible == expected_result.tosa_compatible
     )
     assert returned_compatibility_info.operators == expected_result.operators
+
+
+def test_get_tosa_compatibility_info_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test getting an exception from a failed get_tosa_checker call."""
+
+    exc = Exception()
+    monkeypatch.setattr(
+        "mlia.backend.tosa_checker.compat.get_tosa_checker",
+        MagicMock(side_effect=exc),
+    )
+
+    assert get_tosa_compatibility_info("model.tflite") == TOSACompatibilityInfo(
+        tosa_compatible=False,
+        operators=[],
+        exception=exc,
+        errors=None,
+        std_out=None,
+    )
+
+
+def test_get_tosa_compatibility_info_tosa_checker() -> None:
+    """Test getting an exception from a failed get_tosa_checker call."""
+
+    # pylint: disable=missing-class-docstring
+    class TOSAChecker:
+        def __init__(self, inp: str):
+            pass
+
+        def _get_tosa_compatibility_for_ops(self) -> list[Any]:
+            return []
+
+        # pylint: disable=missing-function-docstring
+        def is_tosa_compatible(self) -> bool:
+            return True
+
+    tosa_checker = ModuleType("tosa_checker")
+    setattr(tosa_checker, "TOSAChecker", TOSAChecker)
+    sys.modules["tosa_checker"] = tosa_checker
+
+    assert get_tosa_compatibility_info("model.tflite") == TOSACompatibilityInfo(
+        tosa_compatible=True,
+        operators=[],
+        exception=None,
+        errors=[],
+        std_out=[],
+    )
+
+    del tosa_checker
+    del sys.modules["tosa_checker"]
+
+
+def test_get_tosa_compatibility_info_tosa_checker_import_error() -> None:
+    """Test getting an exception being unable to import tosa_checker."""
+
+    with pytest.raises(
+        BackendUnavailableError, match="Backend tosa-checker is not available"
+    ):
+        get_tosa_compatibility_info("model.tflite")
