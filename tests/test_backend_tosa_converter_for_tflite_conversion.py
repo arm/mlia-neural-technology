@@ -10,7 +10,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
-from mlia.utils.proc import Command
 
 
 # mypy: disable-error-code=misc
@@ -19,8 +18,30 @@ def fixture_tosa_converter_for_tflite() -> (
     Generator[TosaConverterForTflite, None, None]
 ):
     """Create a mock instance of the ML SDK Model Converter for testing."""
-    vmc = TosaConverterForTflite()
-    yield vmc
+    tosa_converter_for_tflite = TosaConverterForTflite()
+    yield tosa_converter_for_tflite
+
+
+def test_tosa_converter_for_tflite(
+    tosa_converter_for_tflite: TosaConverterForTflite,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test for class TosaConverterForTflite."""
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    model_file = tmp_path / "model.tflite"
+    model_file.touch()
+
+    monkeypatch.setattr(
+        "mlia.backend.tosa_converter_for_tflite.conversion.process_command_output",
+        MagicMock(
+            side_effect=lambda *args: (
+                output_dir / f"{model_file.stem}.tosamlir"
+            ).touch()
+        ),
+    )
+    tosa_converter_for_tflite(model_file, output_dir)
 
 
 def test_tosa_converter_for_tflite_no_output_dir(
@@ -35,24 +56,10 @@ def test_tosa_converter_for_tflite_no_output_dir(
 def test_tosa_converter_for_tflite_front_end_fail(
     tosa_converter_for_tflite: TosaConverterForTflite,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test for class TosaConverterForTflite when the front end execution fails."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
-
-    monkeypatch.setattr(
-        "mlia.backend.tosa_converter_for_tflite.conversion.TosaConverterForTflite."
-        "_create_converter_command",
-        MagicMock(
-            return_value=Command(
-                [
-                    "echo",
-                    '"Faking a run of ML SDK Model Converter front end..."',
-                ]
-            )
-        ),
-    )
 
     with pytest.raises(FileNotFoundError):
         tosa_converter_for_tflite(tmp_path / "model.tflite", output_dir)

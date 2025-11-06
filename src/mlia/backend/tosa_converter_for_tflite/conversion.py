@@ -15,7 +15,7 @@ from mlia.utils.proc import process_command_output
 logger = logging.getLogger(__name__)
 
 
-class TosaConverterForTfliteBase:
+class TosaConverterForTflite:
     """Wrapper class to run the TOSA Converter For Tflite."""
 
     CONVERTER_EXE = "tosa-converter-for-tflite"
@@ -80,24 +80,3 @@ class TosaConverterForTfliteBase:
     def _extra_arguments(self) -> list[str]:
         """Return any extra arguments to be used with the TCFT."""
         return ["--text"]
-
-
-# pylint: disable=too-few-public-methods
-class TosaConverterForTflite(TosaConverterForTfliteBase):
-    """Run the TOSA Converter For Tflite to produce a SPIR-v file."""
-
-    def _run_back_end(self, tosa_file: Path, output_dir: Path) -> Path:
-        """Run the backend and return the SPIR-V output archive."""
-        vgf_file = super()._run_converter(tosa_file, output_dir)
-
-        if not vgf_file.is_file():
-            raise FileNotFoundError(
-                "No output from the TOSA Converter For Tflite backend found. "
-                f"File {vgf_file} does not exist."
-            )
-        logger.debug(
-            "Back end of TOSA Converter For Tflite run successfully. See output: %s",
-            vgf_file,
-        )
-
-        return vgf_file
