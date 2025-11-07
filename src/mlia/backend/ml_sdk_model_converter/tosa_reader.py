@@ -122,7 +122,13 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
             block = reg.Blocks(j)
             for k in range(block.OperatorsLength()):
                 operation = block.Operators(k)
-                op_loc = operation.Location().Text().decode("utf-8")
+                # Try to read location if available (added in ExecutorCh 1.0.0+)
+                try:
+                    op_loc = operation.Location().Text().decode("utf-8")
+                except AttributeError:
+                    # Location not available in older TOSA files
+                    op_loc = ""
+
                 if op_loc == "":
                     # op_loc = "region:block:output_0_output_1..."
                     op_loc = (

@@ -7,6 +7,7 @@
 from mlia.backend import armnn_tflite_delegate
 from mlia.backend import corstone
 from mlia.backend import ml_sdk_model_converter
+from mlia.backend import mlia_pytorch_to_tosa_converter
 from mlia.backend import nx_performance_estimator
 from mlia.backend import tosa_checker
 from mlia.backend import tosa_converter_for_tflite

@@ -6,7 +6,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
+    MliaPytorchToTosaConverter,
+)
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
+from mlia.utils.filesystem import is_pytorch_file
 from mlia.utils.filesystem import is_tosa_file
 from mlia.utils.logging import log_action
 from mlia.utils.proc import Command
@@ -50,19 +54,26 @@ class MLSDKModelConverterBase:
 
         return vgf_file
 
-    def _convert_file(self, tflite_file: Path, output_dir: Path) -> Path:
+    def _convert_pytorch_file(self, pytorch_file: Path, output_dir: Path) -> Path:
+        """Run the TosaConverterForTflite to convert the tflite file to tosa."""
+        model_converter = MliaPytorchToTosaConverter()
+        return model_converter(pytorch_file, output_dir)
+
+    def _convert_tflite_file(self, tflite_file: Path, output_dir: Path) -> Path:
         """Run the TosaConverterForTflite to convert the tflite file to tosa."""
         model_converter = TosaConverterForTflite()
         return model_converter(tflite_file, output_dir)
 
-    def run_front_end(self, tflite_file: Path, output_dir: Path) -> Path:
+    def run_front_end(self, model_file: Path, output_dir: Path) -> Path:
         """Run the TosaConverterForTflite frontend."""
         # Check the file extension to see if we've been given a tosa file
-        if is_tosa_file(tflite_file):
-            tosa_file = tflite_file
+        if is_tosa_file(model_file):
+            tosa_file = model_file
         # Otherwise try to convert the file to tosa
+        elif is_pytorch_file(model_file):
+            tosa_file = self._convert_pytorch_file(model_file, output_dir)
         else:
-            tosa_file = self._convert_file(tflite_file, output_dir)
+            tosa_file = self._convert_tflite_file(model_file, output_dir)
 
         if not tosa_file.is_file():
             raise FileNotFoundError(

@@ -24,6 +24,7 @@ from mlia.core.errors import ConfigurationError
 from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
 from mlia.nn.tensorflow.utils import is_tflite_model
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
+from mlia.utils.filesystem import is_pytorch_file
 from mlia.utils.filesystem import is_tosa_file
 from mlia.utils.filesystem import is_vgf_file
 from mlia.utils.logging import log_action
@@ -68,6 +69,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
                 is_tflite_model(self.model),
                 is_tosa_file(self.model),
                 is_vgf_file(self.model),
+                is_pytorch_file(self.model),
             ]
         ):
             raise ConfigurationError("Input must be a TFLite, TOSA or VGF file.")

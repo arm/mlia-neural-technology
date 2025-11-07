@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Utils related to file management."""
 from __future__ import annotations
@@ -144,3 +144,10 @@ def is_vgf_file(model: str | Path) -> bool:
     model_path = Path(model)
 
     return model_path.suffix == ".vgf"
+
+
+def is_pytorch_file(model: str | Path) -> bool:
+    """Check if path contains a pt2 file."""
+    model_path = Path(model)
+
+    return model_path.suffix in {".pt2"}

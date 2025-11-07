@@ -62,6 +62,12 @@ from mlia.core.common import AdviceCategory
             BackendType.WHEEL,
         ),
         (
+            "mlia-pytorch-to-tosa-converter",
+            [],
+            [System.LINUX_AMD64],
+            BackendType.WHEEL,
+        ),
+        (
             "vela",
             [
                 AdviceCategory.COMPATIBILITY,
@@ -108,11 +114,12 @@ SUPPORTED_BACKENDS = {
     "corstone-310",
     "corstone-320",
     "nx-performance-estimator",
+    "mlia-pytorch-to-tosa-converter",
+    "ml-sdk-model-converter",
     "tosa-checker",
     "tosa-converter-for-tflite",
     "tosa-flatbuffers",
     "vela",
-    "ml-sdk-model-converter",
 }
 
 
