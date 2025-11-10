@@ -392,6 +392,19 @@ def mock_performance_estimation(monkeypatch: pytest.MonkeyPatch) -> None:
         MagicMock(return_value=["vela"]),
     )
 
+    # Defaults must match the above list so validate_backend() will succeed
+    def _mock_default_backends(target: str) -> list[str]:
+        if target in ("ethos-u55", "ethos-u65"):
+            return ["vela"]
+        raise AssertionError(
+            f"Unexpected target passed to default_backends(): {target!r}"
+        )
+
+    monkeypatch.setattr(
+        "mlia.cli.command_validators.default_backends",
+        MagicMock(side_effect=_mock_default_backends),
+    )
+
 
 @pytest.fixture(name="installation_manager_mock")
 def fixture_mock_installation_manager(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
