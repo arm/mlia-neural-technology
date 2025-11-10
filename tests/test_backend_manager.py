@@ -17,6 +17,7 @@ from mlia.backend.install import DownloadAndInstall
 from mlia.backend.install import Installation
 from mlia.backend.install import InstallationType
 from mlia.backend.install import InstallFromPath
+from mlia.backend.install import InstallFromVendorPackage
 from mlia.backend.manager import DefaultInstallationManager
 from mlia.core.errors import ConfigurationError
 from mlia.core.errors import InternalError
@@ -138,6 +139,13 @@ _already_installed_dep_mock = partial(
     supported_install_type=(DownloadAndInstall, InstallFromPath),
 )
 
+_install_from_vendor_package_mock = partial(
+    get_installation_mock,
+    name="vendor_package",
+    already_installed=False,
+    supported_install_type=InstallFromVendorPackage,
+)
+
 
 def get_installation_manager(
     noninteractive: bool,
@@ -164,7 +172,7 @@ def get_interactive_installation_manager(
     return DefaultInstallationManager(installations, noninteractive=False)
 
 
-def test_installation_manager_filtering() -> None:
+def test_installation_manager_filtering(tmp_path: Path) -> None:
     """Test default installation manager."""
     already_installed = _already_installed_mock()
     ready_for_installation = _ready_for_installation_mock()
@@ -181,6 +189,9 @@ def test_installation_manager_filtering() -> None:
     assert manager.ready_for_installation() == [
         ready_for_installation,
         could_be_downloaded_and_installed,
+    ]
+    assert manager.supports_installation_type(InstallFromPath(tmp_path)) == [
+        already_installed
     ]
 
 
@@ -308,6 +319,30 @@ def test_installation_manager_install_from(
         install_mock.uninstall.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "install_mock, backend_name, expect_call",
+    [
+        [_install_from_vendor_package_mock(), "vendor_package", True],
+        [_ready_for_installation_mock(), "ready_for_installation", False],
+    ],
+)
+def test_installation_manager_vendor_package(
+    install_mock: MagicMock,
+    backend_name: str,
+    expect_call: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test the installation of vendor packages."""
+
+    manager = get_installation_manager(True, [install_mock], monkeypatch)
+    manager.install_from_default([backend_name])
+
+    if expect_call:
+        install_mock.install.assert_called_once()
+    else:
+        install_mock.install.assert_not_called()
+
+
 def test_installation_manager_unsupported_install_type(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -354,7 +389,9 @@ def test_installation_manager_uninstall(
     assert install_mock.uninstall.mock_calls == expected_call
 
 
-def test_installation_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_installation_manager_duplicated_backends(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that manager should be able to detect wrong state."""
     install_mock = _ready_for_uninstall_mock()
     manager = get_installation_manager(False, [install_mock, install_mock], monkeypatch)
@@ -365,9 +402,28 @@ def test_installation_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         manager.uninstall(["already_installed"])
 
+    with pytest.raises(
+        InternalError, match=": More than one backend with name already_installed found"
+    ):
+        manager.install_from(tmp_path, "already_installed")
+
+
+def test_install_from_default_unknown_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that install_from_default should fail for unknown backend."""
+    install_mock = _ready_for_uninstall_mock()
+    manager = get_installation_manager(False, [install_mock, install_mock], monkeypatch)
+
+    monkeypatch.setattr(
+        "mlia.backend.manager.DefaultInstallationManager._resolve_backend",
+        MagicMock(return_value=None),
+    )
+
+    with pytest.raises(ValueError, match="Unknown backend 'some_backend'"):
+        manager.install_from_default(["some_backend"])
+
 
 def test_uninstall_unknown_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that uninstall should fail for uknown backend."""
+    """Test that uninstall should fail for unknown backend."""
     install_mock = _ready_for_uninstall_mock()
     manager = get_installation_manager(False, [install_mock, install_mock], monkeypatch)
 
@@ -381,13 +437,28 @@ def test_show_env_details(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test method show_env_details."""
     ready_to_install_mock = _ready_for_installation_mock()
     could_be_installed_mock = _could_be_installed_from_mock()
+    logger_info_mock = MagicMock()
+
+    monkeypatch.setattr("mlia.backend.manager.logger.info", logger_info_mock)
 
     manager = get_installation_manager(
-        False,
-        [ready_to_install_mock, could_be_installed_mock],
-        monkeypatch,
+        False, [ready_to_install_mock, could_be_installed_mock], monkeypatch
     )
     manager.show_env_details()
+    logger_info_mock.assert_has_calls(
+        [
+            call("  - %s", "ready_for_installation"),
+            call("  - %s", "could_be_installed_from"),
+        ]
+    )
+
+    manager = get_installation_manager(False, [_already_installed_mock()], monkeypatch)
+    manager.show_env_details()
+    logger_info_mock.assert_has_calls([call("  - %s", "already_installed")])
+
+    manager = get_installation_manager(False, [], monkeypatch)
+    manager.show_env_details()
+    logger_info_mock.assert_has_calls([call("No backends installed")])
 
 
 @pytest.mark.parametrize(
