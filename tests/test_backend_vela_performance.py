@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for module vela/performance."""
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -17,6 +18,7 @@ else:
     _ = ethosu.vela
 
 from mlia.backend.vela.compiler import compile_model  # noqa: E402
+from mlia.backend.vela.compiler import VelaSummary
 from mlia.backend.vela.performance import estimate_performance  # noqa: E402
 from mlia.backend.vela.performance import layer_metrics  # noqa: E402
 from mlia.backend.vela.performance import LayerwisePerfInfo  # noqa: E402
@@ -75,11 +77,16 @@ TFLite_operator,NNG Operator,SRAM Usage,Peak%,Op Cycles,Network%,NPU,SRAM AC,DRA
 MAX_POOL_2D,MaxPool,10944,50.10989010989011,2992.0,7.22147132651091,1330.0,2992.0,0.0,0.0,0.0,6912,0.819252432155658,0.9024064171122994,sequential/max_pooling2d/MaxPool
 """.strip()
 
+LAYERWISE_BAD_NUM_VALUE_DATA_STR = """
+TFLite_operator,NNG Operator,SRAM Usage,Peak%,Op Cycles,Network%,NPU,SRAM AC,DRAM AC,OnFlash AC,OffFlash AC,MAC Count,Network%,Util%,Name
+CONV_2D,Conv2DBias,11936,54.65201465201465,7312.0,17.648194632168373,7312.0,2000.0,0.0,0.0,0.0,73008,8.653353814644136,bad_float,sequential/conv1/Relu;sequential/conv1/Conv2D
+""".strip()
+
 
 TMP_DATA_EXPECTED_STRING = "\
 Name: sequential/conv1/Relu;sequential/conv1/Conv2D, \
-TFLite_operator: CONV_2D, \
-SRAM Usage: 11936, \
+['TFLite_operator', 'Original Operator']: CONV_2D, \
+['SRAM Usage', 'Staging Usage']: 11936, \
 Op Cycles: 7312, \
 NPU: 7312, \
 SRAM AC: 2000, \
@@ -87,11 +94,11 @@ DRAM AC: 0, \
 OnFlash AC: 0, \
 OffFlash AC: 0, \
 MAC Count: 73008, \
-Util%: 3.9002666849015313, \
+['Util%', 'Util% (MAC)']: 3.9002666849015313, \
 \
 Name: sequential/max_pooling2d/MaxPool, \
-TFLite_operator: MAX_POOL_2D, \
-SRAM Usage: 10944, \
+['TFLite_operator', 'Original Operator']: MAX_POOL_2D, \
+['SRAM Usage', 'Staging Usage']: 10944, \
 Op Cycles: 2992, \
 NPU: 1330, \
 SRAM AC: 2992, \
@@ -99,7 +106,7 @@ DRAM AC: 0, \
 OnFlash AC: 0, \
 OffFlash AC: 0, \
 MAC Count: 6912, \
-Util%: 0.9024064171122994, \
+['Util%', 'Util% (MAC)']: 0.9024064171122994, \
 "
 
 
@@ -147,6 +154,16 @@ def test_estimate_performance_parse_layerwise_csv_file_missing_file() -> None:
         parse_layerwise_perf_csv(Path("missing_file.csv"), layer_metrics)
 
 
+def test_estimate_performance_parse_layerwise_csv_file_invalid_number(
+    test_csv_file: Path,
+) -> None:
+    """Test if ValueError is raised if a bad numeric value is present in a CSV file."""
+    with open(test_csv_file, "w", encoding="utf8") as csv_file:
+        csv_file.write(LAYERWISE_BAD_NUM_VALUE_DATA_STR)
+    with pytest.raises(ValueError):
+        parse_layerwise_perf_csv(test_csv_file, layer_metrics)
+
+
 def test_estimate_performance_parse_layerwise_empty_csv_file(
     empty_test_csv_file: Path,
 ) -> None:
@@ -169,6 +186,31 @@ def test_read_invalid_model(test_tflite_invalid_model: Path) -> None:
             target_config.compiler_options is not None
         ), "Vela should be available in tests"
         estimate_performance(test_tflite_invalid_model, target_config.compiler_options)
+
+
+def test_no_csv_file_found(
+    test_tflite_model: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tests if FileNotFound is raised if per-layer CSV file is not found."""
+    # Mock a VelaCompiler object that does nothing
+    mock_vela_compiler = MagicMock()
+    mock_vela_compiler.compile_model.return_value = (VelaSummary, test_tflite_model)
+    mock_vela_compiler_class = MagicMock(return_value=mock_vela_compiler)
+    monkeypatch.setattr(
+        "mlia.backend.vela.performance.VelaCompiler",
+        mock_vela_compiler_class,
+    )
+
+    target_config = EthosUConfiguration.load_profile("ethos-u55-256")
+    assert (
+        target_config.compiler_options is not None
+    ), "Vela should be available in tests"
+    with pytest.raises(FileNotFoundError, match="Vela per-layer CSV file not found"):
+        # Pass an empty directory as output_dir, so that per-layer CSV file
+        # cannot be found
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target_config.compiler_options.output_dir = Path(tmp_dir)
+            estimate_performance(test_tflite_model, target_config.compiler_options)
 
 
 def test_compile_invalid_model(
