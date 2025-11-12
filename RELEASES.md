@@ -16,6 +16,16 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
+## 0.9.3 (2025-11-30)
+
+### Bug fix
+
+* Fix typo in Neural Technology "NX-sustained-12SC-8NX-350MHz" target profile
+
+### Internal changes
+
+* Added new Neural Technology target profiles
+
 ## 0.9.2 (2025-10-31)
 
 ### Feature changes
