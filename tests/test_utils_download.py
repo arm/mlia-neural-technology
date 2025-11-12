@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for download functionality."""
 from __future__ import annotations
@@ -86,6 +86,62 @@ def test_download(
     assert dest.is_file()
     assert dest.read_bytes() == bytes(
         byte for chunk in content_chunks for byte in chunk
+    )
+
+
+@pytest.mark.parametrize("show_progress", [True, False])
+@pytest.mark.parametrize(
+    "content_length1, content_chunks1, content_length2, content_chunks2",
+    [
+        ["5", [bytes(range(5))], "10", [bytes(range(5)), bytes(range(5))]],
+        [
+            "15",
+            [bytes(range(5)), bytes(range(5)), bytes(range(5))],
+            "5",
+            [bytes(range(5))],
+        ],
+    ],
+)
+def test_chained_download(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    show_progress: bool,
+    content_length1: str,
+    content_chunks1: Iterable[bytes],
+    content_length2: str,
+    content_chunks2: Iterable[bytes],
+) -> None:
+    """Test download function on chained download config."""
+    response1 = response_mock(content_length1, content_chunks1)
+    response2 = response_mock(content_length2, content_chunks2)
+
+    # pylint: disable=unused-argument
+    def mock_query(url: str, *args: int, **kwargs: int) -> MagicMock:
+        return response1 if url == "www.url.1.com" else response2
+
+    monkeypatch.setattr("mlia.utils.download.requests.get", mock_query)
+
+    hash_obj = hashlib.sha256()
+    for chunk in content_chunks1:
+        hash_obj.update(chunk)
+    sha256_hash1 = hash_obj.hexdigest()
+
+    hash_obj = hashlib.sha256()
+    for chunk in content_chunks2:
+        hash_obj.update(chunk)
+    sha256_hash2 = hash_obj.hexdigest()
+
+    dest = tmp_path / "sample.bin"
+    download(
+        dest,
+        DownloadConfig("www.url.1.com", sha256_hash=sha256_hash1)
+        + DownloadConfig("www.url.2.com", sha256_hash=sha256_hash2),
+        show_progress=show_progress,
+    )
+
+    assert dest.is_file()
+    assert dest.read_bytes() == bytes(
+        byte for chunk in content_chunks2 for byte in chunk
     )
 
 
