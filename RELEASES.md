@@ -16,7 +16,7 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
-## 0.9.3 (2025-11-30)
+## 0.9.3+internal.0 (2025-11-30)
 
 ### Bug fix
 
