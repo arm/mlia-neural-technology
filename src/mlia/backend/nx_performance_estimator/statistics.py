@@ -5,8 +5,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict
 
-from mlia.backend.nx_graph_compiler.output_parsing import DebugDatabaseContentsType
-from mlia.backend.nx_graph_compiler.output_parsing import (
+from mlia.backend.nx_performance_estimator.output_parsing import (
+    DebugDatabaseContentsType,
+)
+from mlia.backend.nx_performance_estimator.output_parsing import (
     PerformanceDatabaseContentsType,
 )
 

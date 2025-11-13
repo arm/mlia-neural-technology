@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
-"""Tests for Neural Accelerator Graph Compiler performance estimation."""
+"""Tests for Neural Accelerator Performance Estimator performance estimation."""
 from __future__ import annotations
 
 import csv
@@ -10,10 +10,12 @@ from typing import Any
 
 import pytest
 
-from mlia.backend.nx_graph_compiler.output_parsing import NXDebugDatabaseParser
-from mlia.backend.nx_graph_compiler.output_parsing import NXOutputParser
-from mlia.backend.nx_graph_compiler.output_parsing import NXPerformanceDatabaseParser
-from mlia.backend.nx_graph_compiler.output_parsing import SubtableColumnParser
+from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabaseParser
+from mlia.backend.nx_performance_estimator.output_parsing import NXOutputParser
+from mlia.backend.nx_performance_estimator.output_parsing import (
+    NXPerformanceDatabaseParser,
+)
+from mlia.backend.nx_performance_estimator.output_parsing import SubtableColumnParser
 
 
 def test_load(test_resources_path: Path) -> None:

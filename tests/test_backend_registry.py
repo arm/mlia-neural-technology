@@ -107,7 +107,7 @@ SUPPORTED_BACKENDS = {
     "corstone-300",
     "corstone-310",
     "corstone-320",
-    "nx-graph-compiler",
+    "nx-performance-estimator",
     "tosa-checker",
     "tosa-converter-for-tflite",
     "vela",

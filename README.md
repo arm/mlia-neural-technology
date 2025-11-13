@@ -44,7 +44,7 @@ with differing knowledge on hardware optimization and machine learning.
       - [Corstone-300](#corstone-300)
       - [Corstone-310](#corstone-310)
       - [Corstone-310](#corstone-320)
-      - [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler)
+      - [Neural Accelerator Performance Estimator](#neural-accelerator-performance-estimator)
       - [TOSA Converter for TFLite](#tosa-converter-for-tflite)
       - [TOSA Checker](#tosa-checker)
       - [Vela](#vela)
@@ -489,7 +489,7 @@ attributes:
 The *neural-technology* target profiles are supported by the following backends:
 
 - [TOSA Converter for TFLite](#tosa-converter-for-tflite)
-- [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler)
+- [Neural Accelerator Performance Estimator](#neural-accelerator-performance-estimator)
 - [ML SDK Model Converter](#ml-sdk-model-converter)
 
 The *neural-technology* target profiles accept as input:
@@ -569,7 +569,7 @@ the following table shows some compatibility information:
 | Corstone-300                      | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
 | Corstone-310                      | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
 | Corstone-320                      | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-| NX Graph Compiler                 | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
+| NX Performance Estimator          | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
 | Tosa converter  for tflite        | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
 | TOSA checker                      | x86_64 (manylinux2014) | Not compatible | 3.7<=Python<=3.9 |
 | Vela                              | x86_64 and  AArch64    | Windows 10     | Python~=3.7      |
@@ -628,9 +628,9 @@ on [Arm® Cortex™-M85 processor](https://www.arm.com/products/silicon-ip-cpu/c
 - Please use the examples of MLIA using Corstone-320 here to get started:
   <https://github.com/ARM-software/open-iot-sdk>
 
-### Neural Accelerator Graph Compiler
+### Neural Accelerator Performance Estimator
 
-The Neural Accelerator (NX) Graph Compiler provides detailed performance information about the input
+The Neural Accelerator (NX) Performance Estimator provides detailed performance information about the input
 model (in TensorFlow Lite format).
 
 It can be installed via:
@@ -641,7 +641,7 @@ It can be installed via:
 In order to install the backend, use this command:
 
 ```bash
-mlia-backend install nx-graph-compiler
+mlia-backend install nx-performance-estimator
 ```
 
 After the installation was successful you can get a performance report as shown
@@ -652,17 +652,17 @@ in the following example. The raw report will be available as a json file
 
 ```bash
 # Download and install (requires credentials to be set as described above)
-mlia-backend install nx-graph-compiler
-# Get a performance report for the Neural Technology target using the Neural Accelerator (NX) Graph Compiler.
-mlia check --performance -t neural-technology -b nx-graph-compiler ~/model_file.tflite
+mlia-backend install nx-performance-estimator
+# Get a performance report for the Neural Technology target using the Neural Accelerator (NX) Performance Estimator.
+mlia check --performance -t neural-technology -b nx-performance-estimator ~/model_file.tflite
 # Get a Neural Accelerator compatibility report for the same model.
-mlia check --compatibility -t neural-technology -b nx-graph-compiler ~/model_file.tflite
+mlia check --compatibility -t neural-technology -b nx-performance-estimator ~/model_file.tflite
 ```
 
 ### TOSA Converter for TFLite
 
 The TOSA Converter for TFLite backend legalizes TFLite FlatBuffer to TOSA MLIR Bytecode or Text.
-This backend is currently required by the Neural Accelerator Graph Compiler.
+This backend is currently required by the Neural Accelerator Performance Estimator.
 
 Please, install it into the same environment as MLIA using this command:
 
@@ -671,7 +671,7 @@ mlia-backend install tosa-converter-for-tflite
 ```
 
 *Note*: the installation options are the same
-as for the [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler)
+as for the [Neural Accelerator Performance Estimator](#neural-accelerator-performance-estimator)
 (please see detailed information there).
 
 Additional resources:
@@ -716,7 +716,7 @@ Additional resources:
 
 The ML SDK Model Converter is a command line application that translate TOSA ML Models to VGF files.
 
-It is currently required by the Neural Accelerator Graph Compiler to
+It is currently required by the Neural Accelerator Performance Estimator to
 convert the input model from Tosa MLIR to SPIR-V.
 
 Please, install it into the same environment as MLIA using this command:
@@ -726,7 +726,7 @@ mlia-backend install ml-sdk-model-converter
 ```
 
 *Note*: the installation options are the same
-as for the [Neural Accelerator Graph Compiler](#neural-accelerator-graph-compiler)
+as for the [Neural Accelerator Performance Estimator](#neural-accelerator-performance-estimator)
 (please see detailed information there).
 
 Additional resources:

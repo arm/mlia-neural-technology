@@ -13,7 +13,7 @@ from mlia.utils.download import DownloadConfig
 
 def get_ml_sdk_model_converter_installation() -> BackendInstallation:
     """Get all information to install ML SDK Model Converter."""
-    nx_graph_compiler_installation = BackendInstallation(
+    ml_sdk_model_converter_installation = BackendInstallation(
         name="ml-sdk-model-converter",
         description="ML SDK Model Converter",
         fvp_dir_name="ml-sdk-model-converter",
@@ -39,4 +39,4 @@ def get_ml_sdk_model_converter_installation() -> BackendInstallation:
         vendor_path=str(Path("ml-sdk-model-converter") / "model-converter"),
     )
 
-    return nx_graph_compiler_installation
+    return ml_sdk_model_converter_installation

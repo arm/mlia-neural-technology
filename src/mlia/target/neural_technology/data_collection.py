@@ -8,11 +8,11 @@ from pathlib import Path
 
 from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
-from mlia.backend.nx_graph_compiler.performance import (
-    NXGraphCompilerPerformanceEstimator,
+from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorPerformanceEstimator,
 )
-from mlia.backend.nx_graph_compiler.performance import (
-    NXGraphCompilerPerformanceMetrics,
+from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.core.data_collection import ContextAwareDataCollector
 from mlia.core.errors import ConfigurationError
@@ -40,7 +40,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
 
     def collect_data(
         self,
-    ) -> NXGraphCompilerPerformanceMetrics:
+    ) -> NXPerformanceEstimatorPerformanceMetrics:
         """Run performance estimator."""
         if not any(
             [
@@ -56,9 +56,9 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
         else:
             operator_types_mapping = {}
 
-        estimator: NXGraphCompilerPerformanceEstimator
-        if self.backend == "nx-graph-compiler":
-            estimator = NXGraphCompilerPerformanceEstimator(
+        estimator: NXPerformanceEstimatorPerformanceEstimator
+        if self.backend == "nx-performance-estimator":
+            estimator = NXPerformanceEstimatorPerformanceEstimator(
                 self.context.output_dir, self.cfg.backend_config, operator_types_mapping
             )
         else:

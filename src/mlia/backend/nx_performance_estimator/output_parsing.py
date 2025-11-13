@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
-"""Backend module for parsing the Neural Accellerator Graph Compiler's output."""
+"""Backend module for parsing the Neural Accellerator Performance Estimator's output."""
 from __future__ import annotations
 
 import csv
@@ -113,7 +113,7 @@ class SubtableColumnParserDict(SubtableColumnParser):
 class NXOutputParser:
     """Parser for Neural Accelerator output files with a .dat extension.
 
-    Current versions of the graph compiler produce an
+    Current versions of the graph performance estimator produce an
     invalid XML (eg. a closing <table> element without the
     starting one), so we read the file into string first.
     Then we can use the string to extract relevant fields,
@@ -254,7 +254,8 @@ class NXDebugDatabaseParser(NXOutputParser):
     def parse_debug_database(self) -> DebugDatabaseContentsType:
         """Parse the contents of the debug DB.
 
-        Returns a dict. Values and keys represent graph compiler-level operation ids.
+        Returns a dict. Values and keys represent graph performance estimator-level
+        operation ids.
 
         Every key is a string explaining the
         operation mapping: e.g. "fused_op_id_to_tosa_op_ids" maps

@@ -3,6 +3,6 @@
 
 target = "neural-technology"
 
-[backend.nx-graph-compiler]
+[backend.nx-performance-estimator]
 system_config = "system-config-neural-technology-default.ini"
 compiler_config = "gc-config-neural-technology-default.ini"

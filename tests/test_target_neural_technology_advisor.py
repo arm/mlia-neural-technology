@@ -24,7 +24,10 @@ def test_configure_and_get_neural_technology_advisor(test_tflite_model: Path) ->
     ctx = ExecutionContext(advice_category={AdviceCategory.PERFORMANCE})
 
     advisor = configure_and_get_neural_technology_advisor(
-        ctx, "neural-technology", test_tflite_model, backends=["nx-graph-compiler"]
+        ctx,
+        "neural-technology",
+        test_tflite_model,
+        backends=["nx-performance-estimator"],
     )
     workflow = advisor.configure(ctx)
 
@@ -53,7 +56,7 @@ def test_configure_and_get_neural_technology_advisor(test_tflite_model: Path) ->
             },
         },
         "neural_technology_inference_advisor": {
-            "backends": ["nx-graph-compiler"],
+            "backends": ["nx-performance-estimator"],
             "model": str(test_tflite_model),
             "target_profile": "neural-technology",
         },

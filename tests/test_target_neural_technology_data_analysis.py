@@ -7,16 +7,22 @@ from pathlib import Path
 
 import pytest
 
-from mlia.backend.nx_graph_compiler.config import NXGraphCompilerConfig
-from mlia.backend.nx_graph_compiler.output_parsing import NXPerformanceDatabaseParser
-from mlia.backend.nx_graph_compiler.performance import NXGraphCompilerOutputFiles
-from mlia.backend.nx_graph_compiler.performance import (
-    NXGraphCompilerPerformanceMetrics,
+from mlia.backend.nx_performance_estimator.config import (
+    NXPerformanceEstimatorConfig,
 )
-from mlia.backend.nx_graph_compiler.statistics import NXOperatorPerformanceStats
+from mlia.backend.nx_performance_estimator.output_parsing import (
+    NXPerformanceDatabaseParser,
+)
+from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorOutputFiles,
+)
+from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorPerformanceMetrics,
+)
+from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.target.neural_technology.data_analysis import NeuralTechnologyDataAnalyzer
 from mlia.target.neural_technology.data_analysis import (
-    NXGraphCompilerModelPerformanceAnalyzed,
+    NXPerformanceEstimatorModelPerformanceAnalyzed,
 )
 
 
@@ -24,10 +30,12 @@ from mlia.target.neural_technology.data_analysis import (
 @pytest.mark.parametrize(
     "analyzed_data",
     (
-        NXGraphCompilerModelPerformanceAnalyzed(
-            NXGraphCompilerPerformanceMetrics(
-                backend_config=NXGraphCompilerConfig("system.ini", "compiler.ini"),
-                output_files=NXGraphCompilerOutputFiles.from_output_dir(
+        NXPerformanceEstimatorModelPerformanceAnalyzed(
+            NXPerformanceEstimatorPerformanceMetrics(
+                backend_config=NXPerformanceEstimatorConfig(
+                    "system.ini", "compiler.ini"
+                ),
+                output_files=NXPerformanceEstimatorOutputFiles.from_output_dir(
                     Path("DOES_NOT_EXIST"), "TEST"
                 ),
                 performance_db_parser=NXPerformanceDatabaseParser(),
@@ -55,7 +63,7 @@ from mlia.target.neural_technology.data_analysis import (
     ),
 )
 def test_neural_technology_data_analyzer(
-    analyzed_data: NXGraphCompilerModelPerformanceAnalyzed,
+    analyzed_data: NXPerformanceEstimatorModelPerformanceAnalyzed,
 ) -> None:
     """Test Neural Technology data analyzer."""
     analyzer = NeuralTechnologyDataAnalyzer()

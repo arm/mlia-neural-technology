@@ -3,6 +3,6 @@
 
 target = "neural-technology"
 
-[backend.nx-graph-compiler]
+[backend.nx-performance-estimator]
 system_config = "peak-12SC-8NX-600MHz.ini"
 compiler_config = "gc-config-upstream.ini"

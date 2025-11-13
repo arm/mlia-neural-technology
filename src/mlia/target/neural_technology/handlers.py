@@ -6,8 +6,8 @@ from __future__ import annotations
 import logging
 
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
-from mlia.backend.nx_graph_compiler.performance import (
-    NXGraphCompilerPerformanceMetrics,
+from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.core.events import CollectedDataEvent
 from mlia.core.handlers import WorkflowEventsHandler
@@ -34,7 +34,7 @@ class NeuralTechnologyEventHandler(
         if isinstance(
             data_item,
             (
-                NXGraphCompilerPerformanceMetrics,
+                NXPerformanceEstimatorPerformanceMetrics,
                 NXModelCompatibilityInfo,
             ),
         ):

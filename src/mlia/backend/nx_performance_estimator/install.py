@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
-"""Module for the installation of the Neural Accelerator Graph Compiler."""
+"""Module for the installation of the Neural Accelerator Performance Estimator."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,12 +11,12 @@ from mlia.backend.install import PackagePathChecker
 from mlia.utils.download import DownloadConfig
 
 
-def get_nx_graph_compiler_installation() -> BackendInstallation:
-    """Get all information to install the Neural Accelerator Graph Compiler."""
-    nx_graph_compiler_installation = BackendInstallation(
-        name="nx-graph-compiler",
-        description="Neural Accelerator Graph Compiler",
-        fvp_dir_name="nx-graph-compiler",
+def get_nx_performance_estimator_installation() -> BackendInstallation:
+    """Get all information to install the Neural Accelerator Performance Estimator."""
+    nx_performance_estimator_installation = BackendInstallation(
+        name="nx-performance-estimator",
+        description="Neural Accelerator Performance Estimator",
+        fvp_dir_name="nx-performance-estimator",
         download_config=DownloadConfig(
             url=(
                 # pylint: disable=line-too-long
@@ -37,8 +37,8 @@ def get_nx_graph_compiler_installation() -> BackendInstallation:
         backend_installer=None,
         dependencies=["ml-sdk-model-converter"],
         vendor_path=str(
-            Path("nx-graph-compiler") / "graph-compiler-performance-estimator"
+            Path("nx-performance-estimator") / "graph-compiler-performance-estimator"
         ),
     )
 
-    return nx_graph_compiler_installation
+    return nx_performance_estimator_installation

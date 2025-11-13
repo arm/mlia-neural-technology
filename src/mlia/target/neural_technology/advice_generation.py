@@ -8,7 +8,7 @@ from mlia.core.advice_generation import FactBasedAdviceProducer
 from mlia.core.common import AdviceCategory
 from mlia.core.common import DataItem
 from mlia.target.neural_technology.data_analysis import (
-    NXGraphCompilerModelPerformanceAnalyzed,
+    NXPerformanceEstimatorModelPerformanceAnalyzed,
 )
 
 
@@ -16,15 +16,15 @@ class NeuralTechnologyAdviceProducer(FactBasedAdviceProducer):
     """Neural Technology advice producer."""
 
     @singledispatchmethod
-    def produce_advice(self, _data_item: DataItem) -> None:  # type: ignore
+    def produce_advice(self, _data_item: DataItem) -> None:  # type: ignore[override]
         """Produce advice."""
 
     @produce_advice.register
     @advice_category(AdviceCategory.PERFORMANCE)
-    def handle_nx_graph_compiler_performance_analyzed(
-        self, _: NXGraphCompilerModelPerformanceAnalyzed
+    def handle_nx_performance_estimator_performance_analyzed(
+        self, _: NXPerformanceEstimatorModelPerformanceAnalyzed
     ) -> None:
-        """Advice for NT performance estimated by the NX Graph Compiler."""
+        """Advice for NT performance estimated by the NX Performance Estimator."""
         self._point_to_performance_table()
 
     def _point_to_performance_table(self) -> None:

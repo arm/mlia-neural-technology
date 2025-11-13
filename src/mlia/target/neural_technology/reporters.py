@@ -7,8 +7,8 @@ from typing import Any
 from typing import Callable
 
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
-from mlia.backend.nx_graph_compiler.performance import (
-    NXGraphCompilerPerformanceMetrics,
+from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.core.advice_generation import Advice
 from mlia.core.reporters import report_advice
@@ -82,10 +82,10 @@ def report_nx_compatibility(comp_info: NXModelCompatibilityInfo) -> Report:
     )
 
 
-def report_nx_graph_compiler_perf_db(
-    metrics: NXGraphCompilerPerformanceMetrics,
+def report_nx_performance_estimator_perf_db(
+    metrics: NXPerformanceEstimatorPerformanceMetrics,
 ) -> Report:
-    """Report Neural Accelerator graph compiler's graph DB."""
+    """Report Neural Accelerator performance estimators's graph DB."""
     perf_records = dict(sorted(metrics.performance_metrics.items()))
 
     general_column = [Column("ID", alias="id", fmt=Format(wrap_width=25))]
@@ -172,8 +172,8 @@ def neural_technology_formatters(data: Any) -> Callable[[Any], Report]:
     if isinstance(data, NeuralTechnologyConfiguration):
         return report_target
 
-    if isinstance(data, NXGraphCompilerPerformanceMetrics):
-        return report_nx_graph_compiler_perf_db
+    if isinstance(data, NXPerformanceEstimatorPerformanceMetrics):
+        return report_nx_performance_estimator_perf_db
 
     if isinstance(data, NXModelCompatibilityInfo):
         return report_nx_compatibility
