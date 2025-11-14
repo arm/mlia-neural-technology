@@ -323,7 +323,7 @@ def test_installation_manager_install_from(
     "install_mock, backend_name, expect_call",
     [
         [_install_from_vendor_package_mock(), "vendor_package", True],
-        [_ready_for_installation_mock(), "ready_for_installation", False],
+        [_already_installed_mock(), "already_installed", False],
     ],
 )
 def test_installation_manager_vendor_package(
@@ -341,6 +341,19 @@ def test_installation_manager_vendor_package(
         install_mock.install.assert_called_once()
     else:
         install_mock.install.assert_not_called()
+
+
+def test_installation_manager_vendor_package_no_default_installation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test if a ValueError is raised for a only-from-file-installable."""
+    manager = get_installation_manager(
+        True, [_could_be_installed_from_mock()], monkeypatch
+    )
+    with pytest.raises(
+        ValueError, match="backend found, but can only be installed from a file."
+    ):
+        manager.install_from_default(["could_be_installed_from"])
 
 
 def test_installation_manager_unsupported_install_type(
@@ -406,20 +419,6 @@ def test_installation_manager_duplicated_backends(
         InternalError, match=": More than one backend with name already_installed found"
     ):
         manager.install_from(tmp_path, "already_installed")
-
-
-def test_install_from_default_unknown_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that install_from_default should fail for unknown backend."""
-    install_mock = _ready_for_uninstall_mock()
-    manager = get_installation_manager(False, [install_mock, install_mock], monkeypatch)
-
-    monkeypatch.setattr(
-        "mlia.backend.manager.DefaultInstallationManager._resolve_backend",
-        MagicMock(return_value=None),
-    )
-
-    with pytest.raises(ValueError, match="Unknown backend 'some_backend'"):
-        manager.install_from_default(["some_backend"])
 
 
 def test_uninstall_unknown_backend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -678,7 +677,8 @@ def test_installation_manager_many_deps_from_path(
             ],
             ["backend"],
             pytest.raises(
-                InternalError, match="dependency found, but cannot be downloaded."
+                InternalError,
+                match="dep0 found, but can only be installed from a file.",
             ),
         ),
         (
