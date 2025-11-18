@@ -218,8 +218,12 @@ def test_optimization_profile_non_valid_file(
             ["Cortex-A"],
             [
                 TargetInfo(
-                    supported_backends=["nx-graph-compiler", "corstone-300", "unknown"],
-                    default_backends=["nx-graph-compiler"],
+                    supported_backends=[
+                        "nx-performance-estimator",
+                        "corstone-300",
+                        "unknown",
+                    ],
+                    default_backends=["nx-performance-estimator"],
                     advisor_factory_func=None,
                     target_profile_cls=None,
                 )
@@ -227,7 +231,8 @@ def test_optimization_profile_non_valid_file(
             [
                 (
                     "Cortex-A\n<cortex-a>",
-                    "Neural Accelerator Graph Compiler\n<nx-graph-compiler>"
+                    "Neural Accelerator Performance Estimator\n"
+                    "<nx-performance-estimator>"
                     "\nCorstone-300\n<corstone-300>\nunknown\n<unknown>",
                     "NOT INSTALLED\n\nNOT INSTALLED\n\nNOT REGISTERED",
                     "YES/YES/YES",
