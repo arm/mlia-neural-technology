@@ -21,9 +21,9 @@ from mlia.utils.filesystem import get_mlia_target_optimization_dir
 from mlia.utils.filesystem import get_mlia_target_profiles_dir
 
 if sys.version_info >= (3, 11):
-    import tomllib
+    import tomllib  # pragma: no cover
 else:
-    import tomli as tomllib
+    import tomli as tomllib  # pragma: no cover
 
 
 def get_builtin_target_profile_path(target_profile: str) -> Path:
@@ -107,20 +107,24 @@ class TargetProfile(ABC):
         self.backend_config = {} if backend_config is None else backend_config
 
     @classmethod
-    def load(cls: type[T], path: str | Path) -> T:
+    def load(
+        cls: type[T], path: str | Path, override_backend_options: dict | None = None
+    ) -> T:
         """Load and verify a target profile from file and return new instance."""
         profile_data = load_profile(path)
 
         try:
-            new_instance = cls.load_json_data(profile_data)
+            new_instance = cls.load_data(profile_data, override_backend_options)
         except KeyError as ex:
             raise KeyError(f"Missing key in file {path}.") from ex
 
         return new_instance
 
     @classmethod
-    def load_json_data(cls: type[T], profile_data: dict) -> T:
-        """Load a target profile from the JSON data."""
+    def load_data(
+        cls: type[T], profile_data: dict, override_backend_options: dict | None = None
+    ) -> T:
+        """Load a target profile from a dictionary and backend override options."""
         # Support both old 'target' field and new 'target_type' field
         # Map target_type to target for backward compatibility with existing code
         if "target_type" in profile_data and "target" not in profile_data:
@@ -130,18 +134,33 @@ class TargetProfile(ABC):
             # Merge config fields into top level for backward compatibility
             config_data = profile_data.pop("config")
             profile_data = {**config_data, **profile_data}
+        backend_config = {}
+        for backend_name, backend_opts in profile_data.get("backend", {}).items():
+            backend_config[backend_name] = dict(backend_opts)
+
+        # Apply backend parameter options if provided
+        if override_backend_options:
+            # Deep merge the options into the backend config
+            for backend_name, options in override_backend_options.items():
+                if backend_name not in backend_config:
+                    backend_config[backend_name] = {}
+                backend_config[backend_name].update(options)
+
+        profile_data["backend_config"] = backend_config
         new_instance = cls(**profile_data)
         new_instance.verify()
         return new_instance
 
     @classmethod
-    def load_profile(cls: type[T], target_profile: str | Path) -> T:
+    def load_profile(
+        cls: type[T], target_profile: str | Path, backend_options: dict | None = None
+    ) -> T:
         """Load a target profile from built-in target profile name or file path."""
         if is_builtin_target_profile(target_profile):
             profile_file = get_builtin_target_profile_path(cast(str, target_profile))
         else:
             profile_file = Path(target_profile)
-        return cls.load(profile_file)
+        return cls.load(profile_file, backend_options)
 
     def save(self, path: str | Path) -> None:
         """Save this target profile to a file."""

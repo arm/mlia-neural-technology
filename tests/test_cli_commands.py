@@ -564,3 +564,50 @@ def test_check_category_combinations(
     get_advice_mock.assert_called_once()
     call_args = get_advice_mock.call_args
     assert call_args[0][2] == expected_category
+
+
+def test_check_backend_options(
+    sample_context: ExecutionContext,
+    test_tflite_model: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check() with different category combinations."""
+    # Mock get_advice to capture what category is passed
+    get_advice_mock = MagicMock()
+    monkeypatch.setattr("mlia.cli.commands.get_advice", get_advice_mock)
+
+    # Mock validators
+    monkeypatch.setattr("mlia.cli.commands.validate_check_target_profile", MagicMock())
+    monkeypatch.setattr(
+        "mlia.cli.commands.validate_backend", MagicMock(return_value=["backend-0"])
+    )
+    monkeypatch.setattr(
+        "mlia.cli.commands.get_available_backends",
+        MagicMock(return_value=["backend-0"]),
+    )
+
+    extra_options = {
+        "backend_0_opt_0": "val_0",
+        "backend_0_opt_1": "val_1",
+        "backend_0_opt_2": None,
+        "other_opt": "val",
+    }
+
+    check(
+        sample_context,
+        target_profile="ethos-u55-256",
+        model=str(test_tflite_model),
+        compatibility=True,
+        performance=False,
+        backend=["backend_0"],
+        **extra_options,
+    )
+
+    get_advice_mock.assert_called_once()
+    call_args = get_advice_mock.call_args
+    assert call_args[1]["backend_options"] == {
+        "backend-0": {
+            "opt_0": "val_0",
+            "opt_1": "val_1",
+        }
+    }

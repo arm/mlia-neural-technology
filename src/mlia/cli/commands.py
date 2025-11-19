@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from mlia.api import ExecutionContext
 from mlia.api import get_advice
+from mlia.backend.manager import get_available_backends
 from mlia.backend.manager import get_installation_manager
 from mlia.cli.command_validators import validate_backend
 from mlia.cli.command_validators import validate_check_target_profile
@@ -41,13 +43,14 @@ logger = logging.getLogger(__name__)
 CONFIG = create_section_header("ML Inference Advisor configuration")
 
 
-def check(
+def check(  # pylint: disable=too-many-locals
     ctx: ExecutionContext,
     target_profile: str,
     model: str | None = None,
     compatibility: bool = False,
     performance: bool = False,
     backend: list[str] | None = None,
+    **kwargs: Any,
 ) -> None:
     """Generate a full report on the input model.
 
@@ -66,6 +69,7 @@ def check(
     :param compatibility: flag that identifies whether to run compatibility checks
     :param performance: flag that identifies whether to run performance checks
     :param backend: list of the backends to use for evaluation
+    :param kwargs: additional keyword arguments including backend-specific options
 
     Example:
         Run command for the target profile ethos-u55-256 to verify both performance
@@ -94,12 +98,43 @@ def check(
     validate_check_target_profile(target_profile, category)
     validated_backend = validate_backend(target_profile, backend)
 
+    # [backend_name_0_, backend_name_1_, ...]
+    backend_prefixes = [
+        name.replace("-", "_") + "_" for name in get_available_backends()
+    ]
+    # {'backend-name-0': {option: value}, 'backend-name-1': {...}, ...}
+    backend_options: dict[str, dict[str, str]] = {}
+
+    # Load backend options
+    for key, value in kwargs.items():
+        if value is None:
+            continue
+
+        backend_name = None
+        option_name = None
+        for prefix in backend_prefixes:
+            if key.startswith(prefix):
+                backend_name = prefix.replace("_", "-")[
+                    :-1
+                ]  # remove trailing underscore
+                option_name = key[len(prefix) :]  # noqa
+                break
+        if backend_name is None:
+            continue
+
+        if backend_name not in backend_options:
+            backend_options[backend_name] = {}
+        backend_options[backend_name].update(
+            {option_name: value}  # type: ignore[dict-item]
+        )
+
     get_advice(
         target_profile,
         model,
         category,
         context=ctx,
         backends=validated_backend,
+        backend_options=backend_options,
     )
 
 

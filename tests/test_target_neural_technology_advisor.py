@@ -85,6 +85,7 @@ def test_configure_and_get_neural_technology_advisor(
             },
         },
         "neural_technology_inference_advisor": {
+            "backend_options": {},
             "backends": ["nx-performance-estimator"],
             "model": str(test_tflite_model),
             "target_profile": "neural-technology",

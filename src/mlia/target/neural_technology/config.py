@@ -14,7 +14,7 @@ class NeuralTechnologyConfiguration(TargetProfile):
     def __init__(self, **kwargs: Any) -> None:
         """Init Neural Technology target configuration."""
         target = kwargs["target"]
-        super().__init__(target, kwargs.get("backend", {}))
+        super().__init__(target, kwargs.get("backend_config", {}))
 
     def verify(self) -> None:
         """Check the parameters."""

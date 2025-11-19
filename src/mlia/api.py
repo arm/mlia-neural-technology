@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for the API functions."""
 from __future__ import annotations
@@ -25,6 +25,7 @@ def get_advice(
     optimization_targets: list[dict[str, Any]] | None = None,
     context: ExecutionContext | None = None,
     backends: list[str] | None = None,
+    backend_options: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """Get the advice.
 
@@ -44,6 +45,9 @@ def get_advice(
            could be used for advanced use cases
     :param backends: A list of backends that should be used for the given
            target. Default settings will be used if None.
+    :param backend_options: Optional dictionary of backend-specific options
+           discovered from CLI arguments. Backend parameters are defined in each
+           backend's CONFIG_TO_CLI_OPTION and automatically exposed as CLI options.
 
     Examples:
         NB: Before launching MLIA, the logging functionality should be configured!
@@ -73,6 +77,7 @@ def get_advice(
         optimization_targets=optimization_targets,
         optimization_profile=optimization_profile,
         backends=backends,
+        backend_options=backend_options,
     )
     advisor.run(context)
 

@@ -40,6 +40,7 @@ with differing knowledge on hardware optimization and machine learning.
    - [TOSA](#tosa)
    - [Custom target profiles](#custom-target-profiles)
 - [Backend installation](#backend-installation)
+   - [Backend configuration options](#backend-configuration-options)
    - [Available backends](#available-backends)
       - [Arm NN TensorFlow Lite Delegate](#arm-nn-tensorflow-lite-delegate)
       - [Corstone-300](#corstone-300)
@@ -199,6 +200,15 @@ mlia check ~/models/mobilenet_v1_1.0_224_quant.tflite \
     --target-profile ethos-u55-256 \
     --performance \
     --json
+
+# Override backend configuration from command line
+# (available options are automatically discovered from installed backends)
+mlia check ~/models/mobilenet_v2_1.0_224_INT8.tflite \
+    --target-profile neural-technology \
+    --performance \
+    --backend "nx-performance-estimator" \
+    --nx-performance-estimator.system-config ~/configs/custom-system.ini \
+    --nx-performance-estimator.compiler-config ~/configs/custom-compiler.ini
 
 # Get help and further information
 mlia check --help
@@ -565,6 +575,52 @@ mlia-backend --help
 
 **Note:** Some, but not all, backends can be automatically downloaded, if no
 path is provided.
+
+## Backend configuration options
+
+Many backends support configuration options that can be overridden directly from
+the command line without modifying target profile files. MLIA automatically
+discovers available options from installed backends and exposes them as CLI
+arguments.
+
+Backend-specific options use standard CLI naming conventions (hyphens for
+multi-word options) and are automatically mapped to the corresponding backend
+parameters (underscores in Python).
+
+### Discovering available options
+
+Use `mlia check --help` to see all available backend configuration options for
+your installed backends:
+
+```bash
+mlia check --help
+```
+
+Backend configuration options appear in a dedicated section of the help output,
+organized by backend.
+
+### Usage examples
+
+```bash
+# Override NX Performance Estimator system configuration
+mlia check model.tflite \
+    --target-profile neural-technology \
+    --performance \
+    --backend nx-performance-estimator \
+    --nx-performance-estimator.system-config /path/to/custom-system.ini
+
+# Override multiple backend options at once
+mlia check model.tflite \
+    --target-profile neural-technology \
+    --performance \
+    --backend nx-performance-estimator \
+    --nx-performance-estimator.system-config /path/to/custom-system.ini \
+    --nx-performance-estimator.compiler-config /path/to/custom-compiler.ini
+```
+
+**Note:** Backend configuration options from the command line override settings
+from target profile files, allowing quick experimentation without modifying
+configuration files.
 
 ## Available backends
 

@@ -76,7 +76,14 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
     def _get_target_cfg(self, context: Context) -> NeuralTechnologyConfiguration:
         """Get target configuration."""
         target_profile = self.get_target_profile(context)
-        return NeuralTechnologyConfiguration.load_profile(target_profile)
+        backend_options = context.config_parameters[
+            self.name()
+        ].get(  # type: ignore[index]
+            "backend_options", {}
+        )
+        return NeuralTechnologyConfiguration.load_profile(
+            target_profile, backend_options
+        )
 
     def _get_backends(self, context: Context) -> str:
         """Get list of backends."""
@@ -127,7 +134,11 @@ def _get_config_parameters(
             f"Only one backend is supported but {len(backends)} were provided: "
             f"{backends}"
         )
+    backend_options = extra_args.get("backend_options", {})
     advisor_parameters[NeuralTechnologyInferenceAdvisor.name()]["backends"] = backends
+    advisor_parameters[NeuralTechnologyInferenceAdvisor.name()][
+        "backend_options"
+    ] = backend_options
 
     add_common_optimization_params(advisor_parameters, extra_args)
 

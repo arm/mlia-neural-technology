@@ -21,6 +21,7 @@ from mlia.cli.commands import target_list
 from mlia.cli.common import CommandInfo
 from mlia.cli.helpers import CLIActionResolver
 from mlia.cli.helpers import copy_profile_file_to_output_dir
+from mlia.cli.options import add_backend_config_options
 from mlia.cli.options import add_backend_install_options
 from mlia.cli.options import add_backend_options
 from mlia.cli.options import add_backend_uninstall_options
@@ -79,6 +80,7 @@ def get_commands() -> list[CommandInfo]:
                     ],
                 ),
                 add_backend_options,
+                add_backend_config_options,
                 add_check_category_options,
                 add_output_options,
                 add_debug_options,
@@ -208,9 +210,11 @@ def setup_context(
     # these parameters should not be passed into command function
     skipped_params = ["func", "command", "debug", "json", "output_dir"]
 
-    # pass these parameters only if command expects them
-    expected_params = [context_var_name]
-    func_params = signature(args.func).parameters
+    func_signature = signature(args.func)
+    func_params = func_signature.parameters
+
+    # Check if function accepts **kwargs
+    accepts_var_keyword = any(p.kind == p.VAR_KEYWORD for p in func_params.values())
 
     params = {context_var_name: ctx, **vars(args)}
 
@@ -218,7 +222,12 @@ def setup_context(
         param_name: param_value
         for param_name, param_value in params.items()
         if param_name not in skipped_params
-        and (param_name not in expected_params or param_name in func_params)
+        and (
+            # Always include if in function signature
+            param_name in func_params
+            # Or if function accepts **kwargs and value is not None
+            or (accepts_var_keyword and param_value is not None)
+        )
     }
     return (ctx, func_args)
 

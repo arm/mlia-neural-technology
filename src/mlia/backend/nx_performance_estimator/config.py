@@ -16,6 +16,21 @@ class NXPerformanceEstimatorConfig:
     system_config: str | Path
     compiler_config: str | Path
 
+    def __post_init__(self) -> None:
+        """Convert string paths to Path objects."""
+        if not isinstance(self.system_config, Path):
+            self.system_config = (
+                Path(self.system_config)
+                if self.system_config != "default"
+                else "default"
+            )
+        if not isinstance(self.compiler_config, Path):
+            self.compiler_config = (
+                Path(self.compiler_config)
+                if self.compiler_config != "default"
+                else "default"
+            )
+
     def set_config_dir(self, config_dir: Path) -> None:
         """Prepend config file paths (if relative) with the given config dir."""
 
@@ -33,6 +48,6 @@ class NXPerformanceEstimatorConfig:
 
 
 CONFIG_TO_CLI_OPTION = {
-    "system_config": "--system_config",
-    "compiler_config": "--compiler_config",
+    "system_config": "--system-config",
+    "compiler_config": "--compiler-config",
 }

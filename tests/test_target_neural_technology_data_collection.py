@@ -94,7 +94,7 @@ def test_neural_technology_performance_collect_data(
         model,
         NeuralTechnologyConfiguration(
             target="neural-technology",
-            backend={backend: {"system_config": "", "compiler_config": ""}},
+            backend_config={backend: {"system_config": "", "compiler_config": ""}},
         ),
         backend,
     )

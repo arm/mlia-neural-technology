@@ -139,17 +139,40 @@ def test_target_profile(
     target_override: str,
 ) -> None:
     """Test the class 'TargetProfile'."""
-
     profile = fn_init(target=target)
     assert profile.target == target
 
-    profile = profile_class.load_json_data({"target": super_target})
+    profile = profile_class.load_data({"target": super_target})
     assert profile.target == super_target
 
     profile = fn_init(target="")
     profile.target = target_override
     with pytest.raises(ValueError):
         profile.verify()
+
+
+def test_load_json_data_backend_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test merging backend options in load_json_data function."""
+    init_mock = MagicMock(return_value=None)
+    monkeypatch.setattr("mlia.target.config.TargetProfile.__init__", init_mock)
+    monkeypatch.setattr("tests.test_target_config.MyTargetProfile.verify", MagicMock())
+
+    in_file_backend_options = {"backend_0": {"opt_0": "val_0", "opt_1": "val_1"}}
+    override_backend_options = {
+        "backend_0": {"opt_0": "overridden_val_0", "opt_2": "val_2"},
+        "backend_1": {"opt_0": "val_0"},
+    }
+
+    _ = MyTargetProfile.load_data(
+        {"target": "MySuperTarget", "backend": {**in_file_backend_options}},
+        override_backend_options,
+    )
+
+    init_call_args = init_mock.call_args
+    assert init_call_args[1]["backend_config"] == {
+        "backend_0": {"opt_0": "overridden_val_0", "opt_1": "val_1", "opt_2": "val_2"},
+        "backend_1": {"opt_0": "val_0"},
+    }
 
 
 # mypy: disable-error-code=misc
