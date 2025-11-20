@@ -226,7 +226,7 @@ def test_optimization_profile_non_valid_file(
                     default_backends=["nx-performance-estimator"],
                     advisor_factory_func=None,
                     target_profile_cls=None,
-                )
+                ),
             ],
             [
                 (

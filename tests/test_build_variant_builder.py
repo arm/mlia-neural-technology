@@ -119,8 +119,8 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         )
         assert builder.platform == "manylinux2014_x86_64"
         assert builder.backup_dir is None
-        assert builder.backed_up_paths == {}
-        assert builder._current_variant_files == []  # pylint: disable=protected-access
+        assert not builder.backed_up_paths
+        assert not builder._current_variant_files  # pylint: disable=protected-access
 
     def test_init_custom_config_dir(
         self, temp_workspace: tuple[Path, Path, Path, Path]
@@ -249,10 +249,11 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         mlia_root, _, _, _ = temp_workspace
         nonexistent_dir = mlia_root.parent / "nonexistent"
 
-        builder = VariantBuilder(mlia_root, config_base_dir=nonexistent_dir)
-        variants = builder.get_available_variants()
+        with pytest.raises(FileNotFoundError):
+            builder = VariantBuilder(mlia_root, config_base_dir=nonexistent_dir)
+            variants = builder.get_available_variants()
 
-        assert variants == []
+            assert not variants
 
     def test_backup_default_paths(
         self, temp_workspace: tuple[Path, Path, Path, Path]
@@ -326,7 +327,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         # Check restoration
         assert not backup_dir.exists()
         assert builder.backup_dir is None
-        assert builder.backed_up_paths == {}
+        assert not builder.backed_up_paths
 
         # Check both directories were restored
         resources_content = (resources_dir / "default-system-config.ini").read_text()
@@ -430,7 +431,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         assert not variant_profile.exists()
         assert (resources_dir / "default-system-config.ini").exists()
         assert (target_profiles_dir / "default-profile.toml").exists()
-        assert builder._current_variant_files == []  # pylint: disable=protected-access
+        assert not builder._current_variant_files  # pylint: disable=protected-access
 
     def test_clean_variant_files_empty(
         self, temp_workspace: tuple[Path, Path, Path, Path]
@@ -441,7 +442,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         builder = VariantBuilder(mlia_root, config_base_dir=config_base_dir)
         builder.clean_variant_files()  # Should not raise
 
-        assert builder._current_variant_files == []  # pylint: disable=protected-access
+        assert not builder._current_variant_files  # pylint: disable=protected-access
 
     @patch("subprocess.run")
     @patch("shutil.rmtree")
@@ -527,7 +528,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         assert results["success"] is True
         assert "default" in results["builds"]
         assert "test_variant" in results["builds"]
-        assert results["failed"] == []
+        assert not results["failed"]
 
         # Check build was called for default and variant
         assert mock_build.call_count == 2
@@ -574,7 +575,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         assert results["success"] is False
         assert "default" in results["failed"]
         assert "test_variant" in results["failed"]
-        assert results["builds"] == []
+        assert not results["builds"]
 
     @patch.object(VariantBuilder, "restore_resources")
     @patch.object(VariantBuilder, "apply_variant_config")
