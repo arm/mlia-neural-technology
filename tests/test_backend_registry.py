@@ -110,6 +110,7 @@ SUPPORTED_BACKENDS = {
     "nx-performance-estimator",
     "tosa-checker",
     "tosa-converter-for-tflite",
+    "tosa-flatbuffers",
     "vela",
     "ml-sdk-model-converter",
 }

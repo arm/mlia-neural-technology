@@ -10,4 +10,5 @@ from mlia.backend import ml_sdk_model_converter
 from mlia.backend import nx_performance_estimator
 from mlia.backend import tosa_checker
 from mlia.backend import tosa_converter_for_tflite
+from mlia.backend import tosa_flatbuffers
 from mlia.backend import vela

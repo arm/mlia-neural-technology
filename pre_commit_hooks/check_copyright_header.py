@@ -57,6 +57,12 @@ if __name__ == "__main__":
         .splitlines()
     )
 
+    # Check the *.license file if the license cannot be put in the original file
+    license_substitutions = {
+        "tests/test_resources/nx/test_model_int8.tosa",
+        "tests/test_resources/nx/test_model_int8.tosa.mlir",
+    }
+
     # Also check files modified in the last commit to catch files that might have
     # been committed with --no-verify and outdated copyright headers
     try:
@@ -72,7 +78,10 @@ if __name__ == "__main__":
         recently_modified_files = []
 
     # Combine and deduplicate files to check
-    all_files_to_check = list(set(staged_files + recently_modified_files))
+    all_files_to_check = [
+        f + ".license" if f in license_substitutions else f
+        for f in set(staged_files + recently_modified_files)
+    ]
 
     checker = CopyrightHeaderChecker()
     # pylint: disable-next=invalid-name

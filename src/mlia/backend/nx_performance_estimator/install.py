@@ -35,7 +35,7 @@ def get_nx_performance_estimator_installation() -> BackendInstallation:
             ],
         ),
         backend_installer=None,
-        dependencies=["ml-sdk-model-converter"],
+        dependencies=["ml-sdk-model-converter", "tosa-flatbuffers"],
         vendor_path=str(
             Path("nx-performance-estimator") / "graph-compiler-performance-estimator"
         ),
