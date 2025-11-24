@@ -32,11 +32,25 @@ class CopyrightHeaderChecker:
             if not os.path.exists(filename):
                 continue
 
+            # For JSON files, check for sidecar .license file
+            if filename.endswith(".json"):
+                license_file = filename + ".license"
+                if os.path.exists(license_file):
+                    filename = license_file
+                else:
+                    print(
+                        f"ERROR: JSON file {filename} requires a sidecar "
+                        f"{license_file} file with copyright header!"
+                    )
+                    has_outdated_headers = True
+                    continue
+
             try:
                 with open(filename, encoding="utf-8") as file:
                     first_line = file.readline()
                     second_line = file.readline()
             except (UnicodeDecodeError, PermissionError) as err:
+                # Skip binary files and files without read permissions
                 print(f"WARN: Cannot check {filename}: {err}! ")
                 continue
 
