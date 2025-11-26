@@ -121,6 +121,15 @@ class TargetProfile(ABC):
     @classmethod
     def load_json_data(cls: type[T], profile_data: dict) -> T:
         """Load a target profile from the JSON data."""
+        # Support both old 'target' field and new 'target_type' field
+        # Map target_type to target for backward compatibility with existing code
+        if "target_type" in profile_data and "target" not in profile_data:
+            profile_data = {**profile_data, "target": profile_data["target_type"]}
+        # Extract config fields if present in new schema format
+        if "config" in profile_data:
+            # Merge config fields into top level for backward compatibility
+            config_data = profile_data.pop("config")
+            profile_data = {**config_data, **profile_data}
         new_instance = cls(**profile_data)
         new_instance.verify()
         return new_instance

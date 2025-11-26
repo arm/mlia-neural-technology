@@ -33,6 +33,7 @@ with differing knowledge on hardware optimization and machine learning.
       - [Optimization Profiles](#optimization-profiles)
       - [Custom optimization Profiles](#custom-optimization-profiles)
 - [Target profiles](#target-profiles)
+   - [Listing target profiles](#listing-target-profiles)
    - [Ethos-U](#ethos-u)
    - [Cortex-A](#cortex-a)
    - [Neural Technology](#neural-technology)
@@ -423,22 +424,21 @@ The support of the above sub-commands for different targets is provided via
 backends that need to be installed separately, see
 [Backend installation](#backend-installation) section.
 
+## Listing target profiles
+
+To see all available built-in target profiles with their descriptions, use:
+
+```bash
+mlia-target list
+```
+
+This will display profiles grouped by target type with detailed descriptions
+of each profile's configuration.
+
 ## Ethos-U
 
-There are a number of predefined profiles for Ethos-U with the following
-attributes:
-
-| Profile name   | MAC  | System config                | Memory mode    |
-|----------------|------|------------------------------|----------------|
-| ethos-u55-256  | 256  | Ethos_U55_High_End_Embedded  | Shared_Sram    |
-| ethos-u55-128  | 128  | Ethos_U55_High_End_Embedded  | Shared_Sram    |
-| ethos-u65-512  | 512  | Ethos_U65_High_End           | Dedicated_Sram |
-| ethos-u65-256  | 256  | Ethos_U65_High_End           | Dedicated_Sram |
-| ethos-u85-2048 | 2048 | Ethos_U85_SYS_DRAM_High_2048 | Dedicated_Sram |
-| ethos-u85-1024 | 1024 | Ethos_U85_SYS_DRAM_Mid_1024  | Dedicated_Sram |
-| ethos-u85-512  | 512  | Ethos_U85_SYS_DRAM_Mid_512   | Dedicated_Sram |
-| ethos-u85-256  | 256  | Ethos_U85_SYS_DRAM_Low       | Dedicated_Sram |
-| ethos-u85-128  | 128  | Ethos_U85_SYS_DRAM_Low       | Dedicated_Sram |
+MLIA provides predefined profiles for Ethos-U NPUs. For the complete list of
+available Ethos-U profiles and their configurations, use `mlia-target list`.
 
 Example:
 
@@ -477,14 +477,8 @@ Please, find more details in the section for the
 
 ## Neural Technology
 
-There are a number of predefined profiles for Neural-Technology with the following
-attributes:
-
-| Target profile name             | Shader Cores | Neural Engines | SC clock (MHz) | NE clock ratio | NE clock (MHz) | L2                |
-|----------------------------------|---------------|----------------|----------------|----------------|----------------|-------------------|
-| neural-technology                | 12            | 8              | 750            | 2.0×           | 1500           | 8×256k (2 MB)     |
-| NX-sustained-12SC-8NX-350MHz     | 12            | 8              | 350            | 1.8×           | 630            | 8×256k (2 MB)     |
-| NX-peak-12SC-8NX-600MHz          | 12            | 8              | 600            | 1.63×          | 978            | 8×256k (2 MB)     |
+MLIA provides predefined profiles for Neural Technology. For the complete list of
+available Neural Technology profiles and their configurations, use `mlia-target list`.
 
 The *neural-technology* target profiles are supported by the following backends:
 

@@ -1,8 +1,18 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 
-target = "neural-technology"
+profile_name = "NX-peak-12SC-8NX-600MHz"
+target_type = "neural-technology"
+description = "Neural Technology peak performance profile with 12 Shader Cores, 8 Neural Engines, 600/600MHz SC/NE clock"
 
-[backend.nx-performance-estimator]
+[[components]]
+type = "npu"
+family = "mali"
+model = "nx"
+variant = "8NX-600MHz"
+
+[config]
+
+[config.backend.nx-performance-estimator]
 system_config = "peak-12SC-8NX-600MHz.ini"
 compiler_config = "gc-config-upstream.ini"

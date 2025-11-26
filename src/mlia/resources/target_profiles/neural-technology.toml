@@ -1,8 +1,17 @@
 # SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 
-target = "neural-technology"
+profile_name = "neural-technology"
+target_type = "neural-technology"
+description = "Neural Technology default profile with 12 Shader Cores, 8 Neural Engines, 750/750MHz SC/NE clock"
 
-[backend.nx-performance-estimator]
+[[components]]
+type = "npu"
+family = "mali"
+model = "nx"
+
+[config]
+
+[config.backend.nx-performance-estimator]
 system_config = "system-config-neural-technology-default.ini"
 compiler_config = "gc-config-neural-technology-default.ini"
