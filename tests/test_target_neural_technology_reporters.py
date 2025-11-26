@@ -23,6 +23,8 @@ from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
+from mlia.core.advice_generation import Advice
+from mlia.core.reporters import report_advice
 from mlia.core.reporting import Table
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.reporters import neural_technology_formatters
@@ -245,6 +247,12 @@ def test_nx_compatibility_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def test_neural_technology_formatters_advice_list() -> None:
+    """Test neural_technology_formatters function with a list of Advice objects."""
+    ret = neural_technology_formatters([Advice(["Sample 1"])])
+    assert ret is report_advice
+
+
 def test_neural_technology_formatters_invalid_data() -> None:
     """Test neural_technology_formatters() with invalid input."""
     with pytest.raises(
@@ -252,6 +260,19 @@ def test_neural_technology_formatters_invalid_data() -> None:
         match=r"^Unable to find appropriate formatter for .*",
     ):
         neural_technology_formatters(12)
+
+
+def test_neural_technology_configuration_verify() -> None:
+    """
+    Test that the verify function of class NeuralTechnologyConfiguration
+    raises an error with an invalid target.
+    """
+    target = "AnyTarget"
+    cfg = NeuralTechnologyConfiguration(target=target)
+    with pytest.raises(
+        ValueError, match=f"Wrong target {target} for Neural Technology configuration"
+    ):
+        cfg.verify()
 
 
 # %%

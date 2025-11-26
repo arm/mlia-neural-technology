@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from typing import Sequence
 
 from mlia.core.advice_generation import AdviceProducer
 from mlia.core.advisor import DefaultInferenceAdvisor
@@ -118,7 +119,7 @@ def _get_config_parameters(
     }
 
     # Neural Technology requires exactly one backend specified
-    backends = extra_args.get("backends")
+    backends: Sequence = extra_args.get("backends", [])
     if not backends:
         raise ConfigurationError("One backend is required but was not specified.")
     if len(backends) > 1:
