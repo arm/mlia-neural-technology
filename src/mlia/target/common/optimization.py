@@ -88,7 +88,7 @@ class OptimizingDataCollector(ContextAwareDataCollector):
         self,
         opt_settings: list[OptimizationSettings],
         rewrite_parameters: dict,
-        model: KerasModel | TFLiteModel,
+        model: KerasModel | TFLiteModel | Path,
     ) -> Any:
         """Run optimization."""
         optimizer = get_optimizer(
