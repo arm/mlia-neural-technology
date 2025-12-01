@@ -8,6 +8,8 @@ from pathlib import Path
 
 from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.compat import TOSAModel
+from mlia.backend.ml_sdk_model_converter.compat import VGFModel
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceEstimator,
 )
@@ -90,12 +92,19 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         self,
     ) -> NXModelCompatibilityInfo:
         """Run performance estimator."""
-        if not is_tflite_model(self.model):
-            raise ConfigurationError("Input must be a TFLite file.")
+        model: Path | TOSAModel | VGFModel | None = None
+        if is_tflite_model(self.model):
+            model = self.model
+        elif is_vgf_file(self.model):
+            model = VGFModel(self.model)
+        elif is_tosa_file(self.model):
+            model = TOSAModel(self.model)
+        else:
+            raise ConfigurationError("Input must be a TFLite, TOSA or VGF file.")
 
         checker = NXCompatibilityChecker(self.context.output_dir)
 
-        comp_info = checker.check_compatibility(self.model)
+        comp_info = checker.check_compatibility(model)
 
         return comp_info
 

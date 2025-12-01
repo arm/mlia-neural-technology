@@ -1,23 +1,19 @@
 # SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
-"""Tests for Neural Accelerator Performance Estimator tosa reader."""
+"""Tests for tosa reader."""
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
 from mlia.backend.errors import BackendUnavailableError
-
-try:
-    from mlia.backend.nx_performance_estimator.tosa_reader import (
-        read_tosa_flatbuffer_ops,
-    )
-    from mlia.backend.nx_performance_estimator.tosa_reader import read_tosa_mlir_ops
-    from mlia.backend.nx_performance_estimator.tosa_reader import TosaOp
-except BackendUnavailableError:
-    pytest.skip("Tosa Flatbuffers backend not installed.", allow_module_level=True)
+from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_flatbuffer_ops
+from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_mlir_ops
+from mlia.backend.ml_sdk_model_converter.tosa_reader import tosa_flatbuffers_available
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
 
 
 def _check_id_to_tosa_ops(id_to_tosa_ops: dict[int, TosaOp], expected_len: int) -> None:
@@ -38,10 +34,12 @@ def _check_id_to_tosa_ops(id_to_tosa_ops: dict[int, TosaOp], expected_len: int) 
     assert all(isinstance(loc, str) and loc for loc in locations)
 
 
-def test_read_tosa_mlir_model(test_tosa_mlir_model: tuple[Path, int]) -> None:
+def test_read_tosa_mlir_model(
+    test_tosa_mlir_model_with_length: tuple[Path, int]
+) -> None:
     """Tests TOSA-MLIR file parser on a valid model
     (all locations defined, correct variable names, etc)."""
-    model_path, expected_len = test_tosa_mlir_model
+    model_path, expected_len = test_tosa_mlir_model_with_length
     id_to_tosa_ops = read_tosa_mlir_ops(model_path)
     _check_id_to_tosa_ops(id_to_tosa_ops, expected_len)
 
@@ -117,9 +115,25 @@ def test_read_tosa_mlir_missing_loc(tmp_path: Path) -> None:
 
 
 def test_read_tosa_flatbuffer_model(
-    test_tosa_flatbuffer_model: tuple[Path, int]
+    test_tosa_flatbuffer_model_with_length: tuple[Path, int]
 ) -> None:
     """Tests TOSA flatbuffer file parser."""
-    model_path, expected_len = test_tosa_flatbuffer_model
+    if not tosa_flatbuffers_available():
+        pytest.skip("Tosa Flatbuffers backend not available")
+    model_path, expected_len = test_tosa_flatbuffer_model_with_length
+
     id_to_tosa_ops = read_tosa_flatbuffer_ops(model_path)
     _check_id_to_tosa_ops(id_to_tosa_ops, expected_len)
+
+
+def test_tosa_flatbuffers_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test if BackendNotAvailable is raised with tosa-flatbuffers is not installed"""
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.tosa_reader.tosa_flatbuffers_available",
+        MagicMock(return_value=False),
+    )
+
+    with pytest.raises(
+        BackendUnavailableError, match="Tosa Flatbuffers backend not available"
+    ):
+        _ = read_tosa_flatbuffer_ops(Path("some_file.tosa"))

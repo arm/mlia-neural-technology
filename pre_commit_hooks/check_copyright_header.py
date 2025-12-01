@@ -60,7 +60,8 @@ if __name__ == "__main__":
     # Check the *.license file if the license cannot be put in the original file
     license_substitutions = {
         "tests/test_resources/nx/test_model_int8.tosa",
-        "tests/test_resources/nx/test_model_int8.tosa.mlir",
+        "tests/test_resources/nx/test_model_int8.tosamlir",
+        "tests/test_resources/nx/test_model_int8.vgf",
     }
 
     # Also check files modified in the last commit to catch files that might have

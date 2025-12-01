@@ -43,8 +43,8 @@ class MLSDKModelConverterBase:
         with log_action("Running ML SDK Model Converter..."):
             logger.debug("ML SDK Model Converter path: %s", self.converter_path)
 
-            tosa_file = self._run_front_end(tflite_file, output_dir)
-            vgf_file = self._run_back_end(tosa_file, output_dir)
+            tosa_file = self.run_front_end(tflite_file, output_dir)
+            vgf_file = self.run_back_end(tosa_file, output_dir)
 
             logger.debug("Output file: %s", vgf_file)
 
@@ -55,7 +55,7 @@ class MLSDKModelConverterBase:
         model_converter = TosaConverterForTflite()
         return model_converter(tflite_file, output_dir)
 
-    def _run_front_end(self, tflite_file: Path, output_dir: Path) -> Path:
+    def run_front_end(self, tflite_file: Path, output_dir: Path) -> Path:
         """Run the TosaConverterForTflite frontend."""
         # Check the file extension to see if we've been given a tosa file
         if is_tosa_file(tflite_file):
@@ -91,7 +91,7 @@ class MLSDKModelConverterBase:
         )
         return cmd
 
-    def _run_back_end(self, tosa_file: Path, output_dir: Path) -> Path:
+    def run_back_end(self, tosa_file: Path, output_dir: Path) -> Path:
         """Run the backend and return the SPIR-V output archive."""
         vgf_file = output_dir / f"{tosa_file.stem}.vgf"
         cmd = self._create_back_end_command(tosa_file, vgf_file)
@@ -112,9 +112,9 @@ class MLSDKModelConverterBase:
 class MLSDKModelConverter(MLSDKModelConverterBase):
     """Run the ML SDK Model Converter to produce a SPIR-v file."""
 
-    def _run_back_end(self, tosa_file: Path, output_dir: Path) -> Path:
+    def run_back_end(self, tosa_file: Path, output_dir: Path) -> Path:
         """Run the backend and return the SPIR-V output archive."""
-        vgf_file = super()._run_back_end(tosa_file, output_dir)
+        vgf_file = super().run_back_end(tosa_file, output_dir)
 
         if not vgf_file.is_file():
             raise FileNotFoundError(

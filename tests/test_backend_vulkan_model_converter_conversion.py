@@ -43,7 +43,7 @@ def test_ml_sdk_model_converter_success(
 
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.conversion.MLSDKModelConverter."
-        "_run_front_end",
+        "run_front_end",
         lambda _, __, tosa_file: Path(str(tosa_file)),
     )
     monkeypatch.setattr(
@@ -68,7 +68,7 @@ def test_ml_sdk_model_converter_back_end_fail(
 
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.conversion.MLSDKModelConverter."
-        "_run_front_end",
+        "run_front_end",
         lambda _, __, tosa_file: Path(str(tosa_file)),
     )
     monkeypatch.setattr(

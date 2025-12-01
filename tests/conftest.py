@@ -149,8 +149,9 @@ TEST_MODEL_TFLITE_NO_ACT_FILE = "test_model_no_act.tflite"
 TEST_MODEL_TFLITE_VELA_FILE = "test_model_vela.tflite"
 TEST_MODEL_TF_SAVED_MODEL_FILE = "tf_model_test_model"
 TEST_MODEL_INVALID_FILE = "invalid.tflite"
-TEST_MODEL_TOSA_MLIR_INT8_FILE = "nx/test_model_int8.tosa.mlir"
+TEST_MODEL_TOSA_MLIR_INT8_FILE = "nx/test_model_int8.tosamlir"
 TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE = "nx/test_model_int8.tosa"
+TEST_MODEL_VGF_INT8_FILE = "nx/test_model_int8.vgf"
 
 
 @pytest.fixture(scope="session", name="test_models_path")
@@ -301,13 +302,35 @@ def set_training_steps(
         yield
 
 
-@pytest.fixture(scope="session", name="test_tosa_mlir_model")
-def fixture_test_tosa_mlir_model(test_resources_path: Path) -> tuple[Path, int]:
+@pytest.fixture(scope="session", name="test_tosa_mlir_model_with_length")
+def fixture_test_tosa_mlir_model_with_length(
+    test_resources_path: Path,
+) -> tuple[Path, int]:
     """Return a TOSA MLIR model path and expected operation count."""
     return test_resources_path / TEST_MODEL_TOSA_MLIR_INT8_FILE, 158
 
 
-@pytest.fixture(scope="session", name="test_tosa_flatbuffer_model")
-def fixture_test_tosa_flatbuffer_model(test_resources_path: Path) -> tuple[Path, int]:
+@pytest.fixture(scope="session", name="test_tosa_flatbuffer_model_with_length")
+def fixture_test_tosa_flatbuffer_model_with_length(
+    test_resources_path: Path,
+) -> tuple[Path, int]:
     """Return a TOSA flatbuffer model path and expected operation count."""
     return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE, 158
+
+
+@pytest.fixture(scope="session", name="test_tosa_mlir_model")
+def fixture_test_tosa_mlir_model(test_resources_path: Path) -> Path:
+    """Return a TOSA MLIR model path."""
+    return test_resources_path / TEST_MODEL_TOSA_MLIR_INT8_FILE
+
+
+@pytest.fixture(scope="session", name="test_tosa_flatbuffer_model")
+def fixture_test_tosa_flatbuffer_model(test_resources_path: Path) -> Path:
+    """Return a TOSA flatbuffer model path."""
+    return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE
+
+
+@pytest.fixture(scope="session", name="test_vgf_model")
+def fixture_test_vgf_model(test_resources_path: Path) -> Path:
+    """Return a VGF model path."""
+    return test_resources_path / TEST_MODEL_VGF_INT8_FILE

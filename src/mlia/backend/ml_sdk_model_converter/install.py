@@ -35,7 +35,7 @@ def get_ml_sdk_model_converter_installation() -> BackendInstallation:
             ],
         ),
         backend_installer=None,
-        dependencies=["tosa-converter-for-tflite"],
+        dependencies=["tosa-converter-for-tflite", "tosa-flatbuffers"],
         vendor_path=str(Path("ml-sdk-model-converter") / "model-converter"),
     )
 

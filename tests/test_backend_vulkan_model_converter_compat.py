@@ -12,8 +12,12 @@ import pytest
 from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.ml_sdk_model_converter.compat import NXOperatorCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.compat import TOSAModel
+from mlia.backend.ml_sdk_model_converter.compat import VGFModel
 from mlia.backend.ml_sdk_model_converter.compat import VMCCompatibilityLogReader
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
+from mlia.nn.tensorflow.config import get_model
 from mlia.utils.proc import OutputConsumer
 
 
@@ -169,7 +173,207 @@ def test_vmc_log_parser_invalid_loc(line: str) -> None:
         VMCCompatibilityLogReader().parse_loc(line)
 
 
-def test_checker_calls_vmc_correctly(
+def test_tosa_flatbuffer_input_supported(tmp_path: Path) -> None:
+    """Tests the tosa_input_supported() function."""
+    checker = NXCompatibilityChecker(tmp_path)
+
+    try:
+        import tosa_flatbuffers  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import
+
+        assert checker.tosa_flatbuffer_input_supported()
+    except ImportError:
+        assert not checker.tosa_flatbuffer_input_supported()
+
+
+def test_check_compatibility_vgf(tmp_path: Path) -> None:
+    """Test compatibility check for VGF inputs"""
+    model_path = tmp_path / "model.vgf"
+    model_path.touch()
+
+    checker = NXCompatibilityChecker(tmp_path)
+    result = checker.check_compatibility(VGFModel(model_path))
+    incompatible_ops = [op for op in result.get_records() if op.placement != "NX"]
+    assert incompatible_ops == []  # All VGF ops should be supported
+
+
+@pytest.mark.parametrize(
+    "use_flatbuffer,"
+    "tosa_ops,"
+    "expected_nx_compatible_locations,"
+    "expected_nx_incompatible_locations",
+    [
+        (
+            False,
+            {
+                0: TosaOp("tosa.conv2d", "model/block0"),
+                1: TosaOp("tosa.avg_pool2d", "model/block0"),
+                2: TosaOp("tosa.tanh", "model/block1"),
+            },
+            [
+                "model/block0_0",
+                "model/block0_1",
+                "model/block1_2",
+            ],
+            [],
+        ),
+        (
+            False,
+            {
+                0: TosaOp("tosa.conv2d", "model/block0"),
+                1: TosaOp("tosa.avg_pool2d", "model/block0"),
+                2: TosaOp("tosa.no_op", "model/block1"),  # unknown op
+            },
+            [
+                "model/block0_0",
+                "model/block0_1",
+            ],
+            [
+                "model/block1_2",
+            ],
+        ),
+        (
+            False,
+            {
+                0: TosaOp("tosa.conv2d", "model/block0"),
+                1: TosaOp("tosa.avg_pool2d", "model/block0"),
+                2: TosaOp("tosa.custom", "model/block1"),  # shader op
+            },
+            [
+                "model/block0_0",
+                "model/block0_1",
+            ],
+            [
+                "model/block1_2",
+            ],
+        ),
+        (
+            True,
+            {
+                0: TosaOp("CONV2D", "model/block0"),
+                1: TosaOp("AVG_POOL2D", "model/block0"),
+                2: TosaOp("TANH", "model/block1"),
+            },
+            [
+                "model/block0_0",
+                "model/block0_1",
+                "model/block1_2",
+            ],
+            [],
+        ),
+        (
+            True,
+            {
+                0: TosaOp("CONV2D", "model/block0"),
+                1: TosaOp("AVG_POOL2D", "model/block0"),
+                2: TosaOp("NO_OP", "model/block1"),
+            },
+            [
+                "model/block0_0",
+                "model/block0_1",
+            ],
+            [
+                "model/block1_2",
+            ],
+        ),
+        (
+            True,
+            {
+                0: TosaOp("CONV2D", "model/block0"),
+                1: TosaOp("AVG_POOL2D", "model/block0"),
+                2: TosaOp("CUSTOM", "model/block1"),
+            },
+            [
+                "model/block0_0",
+                "model/block0_1",
+            ],
+            [
+                "model/block1_2",
+            ],
+        ),
+        (
+            False,
+            {},
+            [],
+            [],
+        ),
+    ],
+)
+def test_check_compatibility_tosa(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    use_flatbuffer: bool,
+    tosa_ops: dict[int, TosaOp],
+    expected_nx_compatible_locations: list[str],
+    expected_nx_incompatible_locations: list[str],
+) -> None:
+    """Test compatibility check for TOSA-MLIR inputs"""
+    checker = NXCompatibilityChecker(tmp_path)
+
+    if use_flatbuffer and not checker.tosa_flatbuffer_input_supported():
+        pytest.skip("Tosa Flatbuffers not available.")
+
+    model_file = "model.tosa" if use_flatbuffer else "model.tosamlir"
+    model_path = tmp_path / model_file
+    model_path.touch()
+
+    mock_read_tosa_mlir_ops = MagicMock(return_value=tosa_ops)
+    mock_read_tosa_function = "mlia.backend.ml_sdk_model_converter.compat." + (
+        "read_tosa_flatbuffer_ops" if use_flatbuffer else "read_tosa_mlir_ops"
+    )
+    monkeypatch.setattr(
+        mock_read_tosa_function,
+        mock_read_tosa_mlir_ops,
+    )
+    records = checker.check_compatibility(TOSAModel(model_path)).get_records()
+    mock_read_tosa_mlir_ops.assert_called_once()
+
+    nx_compatible_locations = [op.location for op in records if op.placement == "NX"]
+    nx_incompatible_locations = [op.location for op in records if op.placement != "NX"]
+
+    assert nx_compatible_locations == expected_nx_compatible_locations
+    assert nx_incompatible_locations == expected_nx_incompatible_locations
+
+
+def test_check_compatibility_unsupported_input(
+    tmp_path: Path,
+    test_keras_model: Path,
+) -> None:
+    """Test compatibility check for unsupported input models"""
+    checker = NXCompatibilityChecker(tmp_path)
+
+    with pytest.raises(NotImplementedError, match="Compatibility not supported for"):
+        checker.check_compatibility(get_model(test_keras_model))
+
+
+def test_check_compatibility_tosa_bad_file_ext(
+    tmp_path: Path,
+) -> None:
+    """Test compatibility check for bad file formats."""
+    checker = NXCompatibilityChecker(tmp_path)
+    model = tmp_path / "model.bad_ext"
+
+    with pytest.raises(RuntimeError, match="Unsupported file format '.bad_ext'"):
+        checker.check_compatibility(TOSAModel(model))
+
+
+def test_check_compatibility_tosa_parsing_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test compatibility check if parsing a TOSA file fails."""
+    checker = NXCompatibilityChecker(tmp_path)
+    model = tmp_path / "model.tosamlir"
+
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat.read_tosa_mlir_ops",
+        MagicMock(side_effect=Exception("Parsing failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="Failed to read TOSA operations from"):
+        checker.check_compatibility(TOSAModel(model))
+
+
+def test_check_compatibility_tflite(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

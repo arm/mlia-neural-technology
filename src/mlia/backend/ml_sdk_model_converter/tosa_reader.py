@@ -10,19 +10,15 @@ from pathlib import Path
 
 from mlia.backend.errors import BackendUnavailableError
 
+_TOSA_FLATBUFFERS_AVAILABLE = True
+
 try:
     from tosa_flatbuffers.tosa import TosaGraph
-    from tosa_flatbuffers.tosa import Op
-except ImportError as exc:
-    raise BackendUnavailableError(
-        "Tosa Flatbuffers backend not available", "tosa-flatbuffers"
-    ) from exc
+    from tosa_flatbuffers.tosa import Op  # pragma: no cover
+except ImportError:  # pragma: no cover
+    _TOSA_FLATBUFFERS_AVAILABLE = False  # pragma: no cover
 
 logger = logging.getLogger(__name__)
-
-
-# Create a mapping from Op enum values to their string names
-_TOSA_FLATBUFFER_OPS = {v: k for k, v in Op.Op.__dict__.items() if isinstance(v, int)}
 
 # Capture locations: loc#1 = loc("model/layer") will have 1 and "model/layer" captured
 _RE_MLIR_LOCATION = re.compile(r"^\s*(#loc\d+)\s*=\s*loc\((.*?)(?:\(#loc\))?\)\s*$")
@@ -43,11 +39,16 @@ class TosaOp:
     loc: str
 
 
+def tosa_flatbuffers_available() -> bool:
+    """Check if Tosa Flatbuffers backend is available."""
+    return _TOSA_FLATBUFFERS_AVAILABLE
+
+
 def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
-    """Read TOSA operations from a .tosa.mlir file.
+    """Read TOSA operations from a .tosamlir file.
 
     Args:
-        tosa_mlir_file(Path): A path to a .tosa.mlir file.
+        tosa_mlir_file(Path): A path to a .tosamlir file.
 
     Returns:
         A dictionary that maps op ids to TosaOp objects.
@@ -89,6 +90,7 @@ def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
     return id_to_ops
 
 
+# pylint: disable=too-many-locals
 def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
     """Read TOSA operations from a flatbuffer file.
 
@@ -98,6 +100,15 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
     Returns:
         A dictionary that maps op ids to TosaOp objects.
     """
+    if not tosa_flatbuffers_available():
+        raise BackendUnavailableError(
+            "Tosa Flatbuffers backend not available", "tosa-flatbuffers"
+        )
+
+    # Create a mapping from Op enum values to their string names
+    tosa_flatbuffer_ops = {
+        v: k for k, v in Op.Op.__dict__.items() if isinstance(v, int)
+    }
     with open(tosa_flatbuffer_file, "rb") as file:
         buf = bytearray(file.read())
     tosa_graph = TosaGraph.TosaGraph.GetRootAsTosaGraph(buf)
@@ -108,9 +119,14 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
         for j in range(reg.BlocksLength()):
             block = reg.Blocks(j)
             for k in range(block.OperatorsLength()):
-                operation = block.Operators(k).Op()
-                op_name = _TOSA_FLATBUFFER_OPS[operation]
-                op_loc = f"{reg.Name()}:{block.Name()}"
+                operation = block.Operators(k)
+                # op_loc = "region:block:output_0_output_1..."
+                op_loc = f"{reg.Name().decode('utf-8')}:{block.Name().decode('utf-8')}"
+                op_loc += ":"
+                for out_idx in range(operation.OutputsLength()):
+                    op_loc += operation.Outputs(out_idx).decode("utf-8") + "_"
+                op_loc = op_loc[:-1]
+                op_name = tosa_flatbuffer_ops[operation.Op()]
                 tosa_ops.update({op_id: TosaOp(op_name, op_loc)})
                 op_id += 1
     return tosa_ops

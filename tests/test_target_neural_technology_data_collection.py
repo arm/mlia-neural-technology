@@ -108,9 +108,14 @@ def test_neural_technology_performance_collect_data(
     "model_fixture, expectation",
     [
         ("test_tflite_model", does_not_raise()),
+        ("test_tosa_mlir_model", does_not_raise()),
+        ("test_vgf_model", does_not_raise()),
         (
             "test_keras_model",
-            pytest.raises(ConfigurationError, match="Input must be a TFLite file."),
+            pytest.raises(
+                ConfigurationError,
+                match="Input must be a TFLite, TOSA or VGF file.",
+            ),
         ),
     ],
 )
@@ -122,10 +127,11 @@ def test_neural_technology_compatibility_collect_data(
     request: pytest.FixtureRequest,
 ) -> None:
     """Tests for the NeuralTechnologyCompatibility class."""
+    mock_check_compatibility = MagicMock(return_value=None)
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.compat."
         + "NXCompatibilityChecker.check_compatibility",
-        MagicMock(return_value=None),
+        mock_check_compatibility,
     )
 
     model = request.getfixturevalue(model_fixture)
@@ -145,3 +151,4 @@ def test_neural_technology_compatibility_collect_data(
 
     with expectation:
         ntc.collect_data()
+        mock_check_compatibility.assert_called_once()
