@@ -17,11 +17,11 @@ def get_tosa_converter_for_tflite_backend_installation() -> Installation:
         download_config=DownloadConfig(
             url=(
                 # pylint: disable=line-too-long
-                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/tosa_converter_for_tflite/tosa_converter_for_tflite-2025.11.0.dev0-cp39-cp39-linux_x86_64.whl"
+                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/tosa_converter_for_tflite/tosa_converter_for_tflite-2025.11.0.dev0-cp310-cp310-linux_x86_64.whl"
                 # pylint: enable=line-too-long
             ),
             sha256_hash=(
-                "6470f98d50d30c91ac9b8dbc9c6cf67f1262755fbce97f135593088c0b4786fb"
+                "1732d72b8aa76a4eb8cc38480c0b38b335b38807140b192dcbc5a59d361c04aa"
             ),
             header_gen_fn=artifactory_credential_headers,
         ),

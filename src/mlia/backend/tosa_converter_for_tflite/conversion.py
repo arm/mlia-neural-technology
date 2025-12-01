@@ -37,6 +37,11 @@ class TosaConverterForTflite:
                 f"Path '{output_dir}' is not a directory. Unable to run "
                 "TOSA Converter For Tflite."
             )
+        if not tflite_file.is_file():
+            raise FileNotFoundError(
+                f"TensorFlow Lite model file '{tflite_file}' not found. "
+                "Unable to run TOSA Converter For Tflite."
+            )
         with log_action("Running TOSA Converter For Tflite..."):
             logger.debug("TOSA Converter For Tflite:")
 

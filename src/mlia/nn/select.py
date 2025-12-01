@@ -10,7 +10,7 @@ from typing import cast
 from typing import List
 from typing import NamedTuple
 
-from keras.api._v2 import keras  # Temporary workaround for now: MLIA-1107
+import tf_keras as keras
 
 from mlia.core.errors import ConfigurationError
 from mlia.nn.common import Optimizer
