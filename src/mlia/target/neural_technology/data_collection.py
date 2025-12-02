@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import logging
+import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
@@ -29,6 +32,22 @@ from mlia.utils.logging import log_action
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class NXCompatibilityResult:
+    """Wrapper for NX compatibility info with both legacy and standardized output."""
+
+    legacy_info: NXModelCompatibilityInfo
+    standardized_output: dict[str, Any] | None = None
+
+
+@dataclass
+class NXPerformanceResult:
+    """Wrapper for NX performance metrics with both legacy and standardized output."""
+
+    legacy_info: NXPerformanceEstimatorPerformanceMetrics
+    standardized_output: dict[str, Any] | None = None
+
+
 class NeuralTechnologyPerformance(ContextAwareDataCollector):
     """Collect performance information."""
 
@@ -42,7 +61,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
 
     def collect_data(
         self,
-    ) -> NXPerformanceEstimatorPerformanceMetrics:
+    ) -> NXPerformanceResult | NXPerformanceEstimatorPerformanceMetrics:
         """Run performance estimator."""
         if not any(
             [
@@ -72,7 +91,35 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
         with log_action("Checking performance..."):
             metrics = estimator.estimate(self.model)
 
-        return metrics
+        # Generate standardized output
+        try:
+            # Clean CLI arguments to use basename for executable
+            cli_args = [Path(sys.argv[0]).name] + sys.argv[1:] if sys.argv else []
+
+            # Build target configuration
+            target_config = {
+                "target": self.cfg.target,
+                "profile_name": self.cfg.target,
+            }
+
+            standardized = metrics.to_standardized_output(
+                model_path=self.model,
+                backend_name=self.backend,
+                target_config=target_config,
+                cli_arguments=cli_args,
+            )
+
+            return NXPerformanceResult(
+                legacy_info=metrics,
+                standardized_output=standardized,
+            )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to generate standardized output for NX performance: %s",
+                exc,
+            )
+            # Fall back to legacy metrics on any error
+            return metrics
 
     @classmethod
     def name(cls) -> str:
@@ -90,7 +137,7 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
 
     def collect_data(
         self,
-    ) -> NXModelCompatibilityInfo:
+    ) -> NXCompatibilityResult | NXModelCompatibilityInfo:
         """Run performance estimator."""
         model: Path | TOSAModel | VGFModel | None = None
         if is_tflite_model(self.model):
@@ -106,7 +153,35 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
 
         comp_info = checker.check_compatibility(model)
 
-        return comp_info
+        # Generate standardized output
+        try:
+            # Clean CLI arguments to use basename for executable
+            cli_args = [Path(sys.argv[0]).name] + sys.argv[1:] if sys.argv else []
+
+            # Build target configuration
+            target_config = {
+                "target": self.cfg.target,
+                "profile_name": self.cfg.target,
+            }
+
+            standardized = comp_info.to_standardized_output(
+                model_path=self.model,
+                target_config=target_config,
+                backend_config=self.cfg.backend_config,
+                cli_arguments=cli_args,
+            )
+
+            return NXCompatibilityResult(
+                legacy_info=comp_info,
+                standardized_output=standardized,
+            )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to generate standardized output for NX compatibility: %s",
+                exc,
+            )
+            # Fall back to legacy info on any error
+            return comp_info
 
     @classmethod
     def name(cls) -> str:

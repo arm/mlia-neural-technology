@@ -1,14 +1,19 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
+# pylint: disable=duplicate-code
 """Backend module for Neural Accelerator Performance Estimator performance estimation."""  # pylint: disable=line-too-long
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from typing import Union
 
+import mlia
+import mlia.core.output_schema as schema
 from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverter
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
@@ -72,6 +77,144 @@ class NXPerformanceEstimatorPerformanceMetrics:
     output_files: NXPerformanceEstimatorOutputFiles
     performance_db_parser: NXPerformanceDatabaseParser
     performance_metrics: dict[str, NXOperatorPerformanceStats]
+
+    def to_standardized_output(  # pylint: disable=too-many-locals
+        self,
+        model_path: Path,
+        backend_name: str = "nx-performance-estimator",
+        target_config: dict[str, Any] | None = None,
+        run_id: str | None = None,
+        timestamp: str | None = None,
+        cli_arguments: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Convert to standardized output format.
+
+        Args:
+            model_path: Path to the model file
+            backend_name: Name of the backend (default: 'nx-performance-estimator')
+            target_config: Target configuration parameters
+            run_id: Optional run ID (will be generated if not provided)
+            timestamp: Optional ISO 8601 timestamp (will be generated if not provided)
+            cli_arguments: Optional CLI arguments used for the run
+
+        Returns:
+            Dictionary representing standardized output
+        """
+        # Generate run_id and timestamp if not provided
+        if run_id is None:
+            run_id = schema.StandardizedOutput.create_run_id()
+        if timestamp is None:
+            timestamp = schema.StandardizedOutput.create_timestamp()
+
+        # Create tool info
+        tool = schema.Tool(name="mlia", version=mlia.__version__)
+
+        # Create backend configuration
+        backend_config_dict = {
+            "system_config": Path(self.backend_config.system_config).stem
+            if self.backend_config.system_config != NXPerformanceEstimatorConfig.DEFAULT
+            else "default",
+            "compiler_config": Path(self.backend_config.compiler_config).stem
+            if self.backend_config.compiler_config
+            != NXPerformanceEstimatorConfig.DEFAULT
+            else "default",
+        }
+
+        # Create backend
+        backend = schema.Backend(
+            id=backend_name,
+            name="Neural Accelerator (NX) Performance Estimator",
+            version="unknown",  # NX version not readily available
+            configuration=backend_config_dict,
+        )
+
+        # Extract target info from config
+        target_config = target_config or {}
+        target_type = target_config.get("target", "neural-accelerator")
+        profile_name = target_config.get("profile_name", target_type)
+
+        # Extract variant from system_config name if not default
+        variant = None
+        if self.backend_config.system_config != NXPerformanceEstimatorConfig.DEFAULT:
+            variant = Path(self.backend_config.system_config).stem
+
+        # Create target components - Neural Accelerator (NX)
+        components = [
+            schema.Component(
+                type=schema.ComponentType.GPU,
+                family="mali",
+                model="nx",
+                variant=variant,
+            )
+        ]
+
+        # Create target
+        target = schema.Target(
+            profile_name=profile_name,
+            target_type=target_type,
+            components=components,
+            configuration=target_config,
+            description="Neural Accelerator (NX) performance estimation",
+        )
+
+        # Calculate model hash and size
+        model_hash = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        model_size = model_path.stat().st_size
+
+        # Determine model format (suffix without the dot)
+        suffix = model_path.suffix.lower()
+        model_format = suffix.lstrip(".") or "unknown"
+
+        model = schema.Model(
+            name=model_path.name,
+            format=model_format,
+            hash=model_hash,
+            size_bytes=model_size,
+        )
+
+        # Create context
+        context = schema.Context(
+            cli_arguments=cli_arguments or [],
+            runtime_configuration=None,
+            git=None,
+            notes=None,
+        )
+
+        # Create performance metrics from the statistics
+        metrics = []
+        for chain_name, stats in self.performance_metrics.items():
+            # Add total cycles metric for this chain
+            metrics.append(
+                schema.Metric(
+                    name=f"{chain_name}_total_cycles",
+                    value=float(stats.total_cycles),
+                    unit="cycles",
+                )
+            )
+
+        # Create result
+        result = schema.Result(
+            kind=schema.ResultKind.PERFORMANCE,
+            status=schema.ResultStatus.OK,
+            producer=backend.id,
+            warnings=[],
+            errors=[],
+            metrics=metrics,
+            mode=None,  # NX doesn't specify simulation/measured
+        )
+
+        return schema.StandardizedOutput(
+            schema_version=schema.SCHEMA_VERSION,
+            run_id=run_id,
+            timestamp=timestamp,
+            tool=tool,
+            target=target,
+            model=model,
+            context=context,
+            backends=[backend],
+            results=[result],
+            extensions={},
+        ).to_dict()
 
 
 class NXPerformanceEstimatorPerformanceEstimator(

@@ -97,7 +97,7 @@ def configure_and_get_neural_technology_advisor(
 ) -> InferenceAdvisor:
     """Create and configure Neural Technology advisor."""
     if context.event_handlers is None:
-        context.event_handlers = [NeuralTechnologyEventHandler()]
+        context.event_handlers = [NeuralTechnologyEventHandler(context.output_dir)]
 
     if context.config_parameters is None:
         context.config_parameters = _get_config_parameters(

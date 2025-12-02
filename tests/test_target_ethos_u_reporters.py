@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
+# pylint: disable=duplicate-code
 """Tests for reports module."""
 from __future__ import annotations
 
@@ -27,6 +28,8 @@ from mlia.target.ethos_u.reporters import report_perf_metrics
 from mlia.target.ethos_u.reporters import report_target_details
 from mlia.target.registry import profile
 from mlia.utils.console import remove_ascii_codes
+
+# pylint: disable=duplicate-code
 
 
 # pylint: disable=line-too-long

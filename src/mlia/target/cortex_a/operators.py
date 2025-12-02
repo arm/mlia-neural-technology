@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2022-2023,2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
+# pylint: disable=duplicate-code
 """Cortex-A tools module."""
 from __future__ import annotations
 

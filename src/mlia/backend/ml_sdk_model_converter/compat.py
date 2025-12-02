@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
+# pylint: disable=duplicate-code
 """Neural Accelerator operator compatibility module."""
 from __future__ import annotations
 
@@ -11,6 +12,8 @@ from functools import singledispatchmethod
 from pathlib import Path
 from typing import Any
 
+import mlia
+import mlia.core.output_schema as schema
 from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverterBase
 from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_flatbuffer_ops
 from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_mlir_ops
@@ -18,6 +21,7 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import tosa_flatbuffers_ava
 from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
 from mlia.backend.repo import get_backend_repository
 from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
+from mlia.utils.filesystem import sha256
 
 logger = logging.getLogger(__name__)
 
@@ -252,6 +256,162 @@ class NXModelCompatibilityInfo:
     def get_records(self) -> list[NXOperatorCompatibilityInfo]:
         """Return an ordered list of records."""
         return [self.layer_map[loc] for loc in sorted(self.layer_map.keys())]
+
+    def to_standardized_output(  # pylint: disable=too-many-locals,too-many-branches
+        self,
+        model_path: Path,
+        run_id: str | None = None,
+        timestamp: str | None = None,
+        cli_arguments: list[str] | None = None,
+        target_config: dict[str, Any] | None = None,
+        backend_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Convert to standardized output format.
+
+        Args:
+            model_path: Path to the model file
+            run_id: Optional run ID (will be generated if not provided)
+            timestamp: Optional ISO 8601 timestamp (will be generated if not provided)
+            cli_arguments: Optional CLI arguments used for the run
+            target_config: Optional target configuration parameters
+            backend_config: Optional backend configuration parameters
+
+        Returns:
+            Standardized output dictionary
+        """
+        # Generate run_id and timestamp if not provided
+        if run_id is None:
+            run_id = schema.StandardizedOutput.create_run_id()
+        if timestamp is None:
+            timestamp = schema.StandardizedOutput.create_timestamp()
+
+        # Create tool info
+        tool = schema.Tool(name="mlia", version=mlia.__version__)
+
+        # Create backend
+        backend = schema.Backend(
+            id="ml-sdk-model-converter",
+            name="ML SDK Model Converter",
+            version="unknown",
+            configuration=backend_config or {},
+        )
+
+        # Create target
+        target_type = (target_config or {}).get("target", "neural-accelerator")
+        gpu_component = schema.Component(
+            type=schema.ComponentType.GPU,
+            family="mali",
+            model="nx",
+        )
+
+        target = schema.Target(
+            profile_name=target_type,
+            target_type="gpu",
+            components=[gpu_component],
+            configuration=target_config or {},
+            description="Neural Accelerator (NX) compatibility check",
+        )
+
+        # Create model
+        model_hash = sha256(model_path)
+        model_format = model_path.suffix.lstrip(".") if model_path.suffix else "unknown"
+        model = schema.Model(
+            name=model_path.name,
+            format=model_format,
+            hash=model_hash,
+        )
+
+        # Create context
+        context = schema.Context(
+            cli_arguments=cli_arguments or [],
+        )
+
+        # Create checks and entities for each operator
+        checks: list[schema.Check] = []
+        entities: list[schema.Entity] = []
+
+        for idx, record in enumerate(self.get_records()):
+            entity_id = f"op_{idx}"
+
+            # Determine placement based on compat level
+            if record.compat_level in ("TOSA", "Shader"):
+                placement = record.placement.lower() if record.placement else "nx"
+                supported = True
+            else:
+                placement = "cpu"
+                supported = False
+
+            # Create entity for this operator
+            entity_attrs = {
+                "index": idx,
+                "compat_level": record.compat_level,
+            }
+            if record.type:
+                entity_attrs["op_type"] = record.type
+            if record.tosa_op:
+                entity_attrs["tosa_op"] = record.tosa_op
+
+            entity = schema.Entity(
+                scope=schema.OperatorScope.OPERATOR,
+                name=record.location,
+                location=record.location,
+                placement=placement,
+                id=entity_id,
+                attributes=entity_attrs,
+            )
+            entities.append(entity)
+
+            # Create check for NX compatibility
+            if supported:
+                status = schema.CheckStatus.PASS
+                details: dict[str, Any] = {}
+            else:
+                status = schema.CheckStatus.FAIL
+                details = {}
+                if record.error:
+                    details["error"] = record.error
+
+            check = schema.Check(
+                id=f"nx_support_{entity_id}",
+                status=status,
+                details=details,
+            )
+            checks.append(check)
+
+        # Determine overall result status
+        records = self.get_records()
+        if not records:
+            result_status = schema.ResultStatus.OK
+        elif all(r.compat_level in ("TOSA", "Shader") for r in records):
+            result_status = schema.ResultStatus.OK
+        elif any(r.compat_level in ("TOSA", "Shader") for r in records):
+            result_status = schema.ResultStatus.PARTIAL
+        else:
+            result_status = schema.ResultStatus.INCOMPATIBLE
+
+        # Create result
+        result = schema.Result(
+            kind=schema.ResultKind.COMPATIBILITY,
+            status=result_status,
+            producer=backend.id,
+            warnings=[],
+            errors=[],
+            checks=checks,
+            entities=entities,
+        )
+
+        return schema.StandardizedOutput(
+            schema_version=schema.SCHEMA_VERSION,
+            run_id=run_id,
+            timestamp=timestamp,
+            tool=tool,
+            target=target,
+            model=model,
+            context=context,
+            backends=[backend],
+            results=[result],
+            extensions={},
+        ).to_dict()
 
     def dump(self) -> list[dict]:
         """Dump info into a list of strings, for testing purposes."""
