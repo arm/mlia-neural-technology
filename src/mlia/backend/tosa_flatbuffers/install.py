@@ -16,8 +16,8 @@ def get_tosa_flatbuffers_installation() -> Installation:
         description="Python API for TOSA flatbuffers.",
         download_config=DownloadConfig(
             # pylint: disable=line-too-long
-            url="https://artifactory.arm.com:443/artifactory/ml-xpk.pypi/tosa-flatbuffers/tosa_flatbuffers-0.1.0-py3-none-any.whl",
-            sha256_hash="46086bd6190fb537bd3219d4dd0236010fb281c553d310492241de6491ba65b5",
+            url="https://artifactory.arm.com:443/artifactory/ml-xpk.pypi/tosa-flatbuffers/tosa_flatbuffers-0.2.0-py3-none-any.whl",
+            sha256_hash="ae93b849f635d401604dd391dcaa019bcf95201e0a9ceca07bbd570fbaf82f13",
             # pylint: enable=line-too-long
             header_gen_fn=artifactory_credential_headers,
         ),

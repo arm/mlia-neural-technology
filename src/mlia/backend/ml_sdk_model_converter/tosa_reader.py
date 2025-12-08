@@ -10,13 +10,15 @@ from pathlib import Path
 
 from mlia.backend.errors import BackendUnavailableError
 
-_TOSA_FLATBUFFERS_AVAILABLE = True
+_TOSA_FLATBUFFERS_AVAILABLE = True  # pylint: disable=invalid-name
 
 try:
     from tosa_flatbuffers.tosa import TosaGraph
     from tosa_flatbuffers.tosa import Op  # pragma: no cover
 except ImportError:  # pragma: no cover
-    _TOSA_FLATBUFFERS_AVAILABLE = False  # pragma: no cover
+    _TOSA_FLATBUFFERS_AVAILABLE = (  # pylint: disable=invalid-name
+        False  # pragma: no cover
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -120,12 +122,17 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
             block = reg.Blocks(j)
             for k in range(block.OperatorsLength()):
                 operation = block.Operators(k)
-                # op_loc = "region:block:output_0_output_1..."
-                op_loc = f"{reg.Name().decode('utf-8')}:{block.Name().decode('utf-8')}"
-                op_loc += ":"
-                for out_idx in range(operation.OutputsLength()):
-                    op_loc += operation.Outputs(out_idx).decode("utf-8") + "_"
-                op_loc = op_loc[:-1]
+                op_loc = operation.Location().Text().decode("utf-8")
+                if op_loc == "":
+                    # op_loc = "region:block:output_0_output_1..."
+                    op_loc = (
+                        f"{reg.Name().decode('utf-8')}:"
+                        + f"{block.Name().decode('utf-8')}"
+                    )
+                    op_loc += ":"
+                    for out_idx in range(operation.OutputsLength()):
+                        op_loc += operation.Outputs(out_idx).decode("utf-8") + "_"
+                    op_loc = op_loc[:-1]
                 op_name = tosa_flatbuffer_ops[operation.Op()]
                 tosa_ops.update({op_id: TosaOp(op_name, op_loc)})
                 op_id += 1

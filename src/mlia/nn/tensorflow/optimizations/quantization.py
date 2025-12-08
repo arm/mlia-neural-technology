@@ -49,7 +49,7 @@ def dequantize(
         "but it must be int."
     )
 
-    dequantized_tensor = np.subtract(
+    dequantized_tensor: np.ndarray = np.subtract(
         quantized_tensor, quant_params.zero_points, dtype=np.float32
     )
     dequantized_tensor = np.multiply(
