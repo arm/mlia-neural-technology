@@ -20,6 +20,8 @@ from mlia.core.reporting import Report
 from mlia.core.reporting import ReportItem
 from mlia.core.reporting import Table
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
+from mlia.target.neural_technology.data_collection import NXCompatibilityResult
+from mlia.target.neural_technology.data_collection import NXPerformanceResult
 from mlia.utils.misc import dict_to_list
 from mlia.utils.types import is_list_of
 
@@ -166,6 +168,13 @@ def report_nx_performance_estimator_perf_db(
 
 def neural_technology_formatters(data: Any) -> Callable[[Any], Report]:
     """Find appropriate formatter for the provided data."""
+    # Handle wrapper objects with standardized_output
+    if isinstance(data, NXPerformanceResult):
+        return lambda d: report_nx_performance_estimator_perf_db(d.legacy_info)
+
+    if isinstance(data, NXCompatibilityResult):
+        return lambda d: report_nx_compatibility(d.legacy_info)
+
     if is_list_of(data, Advice):
         return report_advice
 

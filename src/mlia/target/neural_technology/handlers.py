@@ -47,8 +47,8 @@ class NeuralTechnologyEventHandler(
                 except Exception as exc:  # pylint: disable=broad-exception-caught
                     logger.warning("Failed to save NX performance output: %s", exc)
 
-            # Extract legacy metrics for display
-            self.reporter.submit(data_item.legacy_info, delay_print=True, space=True)
+            # Submit wrapper object so JSONReporter can access standardized_output
+            self.reporter.submit(data_item, delay_print=True, space=True)
 
         elif isinstance(data_item, NXCompatibilityResult):
             # Save standardized output JSON if available
@@ -61,8 +61,8 @@ class NeuralTechnologyEventHandler(
                 except Exception as exc:  # pylint: disable=broad-exception-caught
                     logger.warning("Failed to save NX compatibility output: %s", exc)
 
-            # Extract legacy info for display
-            self.reporter.submit(data_item.legacy_info, delay_print=True, space=True)
+            # Submit wrapper object so JSONReporter can access standardized_output
+            self.reporter.submit(data_item, delay_print=True, space=True)
 
         elif isinstance(
             data_item,
