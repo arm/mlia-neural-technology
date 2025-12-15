@@ -20,6 +20,7 @@ registry.register(
         supported_systems=[System.LINUX_AMD64],
         backend_type=BackendType.CUSTOM,
         installation=get_ml_sdk_model_converter_installation(),
+        selectable=False,
     ),
     pretty_name="ML SDK Model Converter",
 )

@@ -19,6 +19,7 @@ registry.register(
         ],
         backend_type=BackendType.WHEEL,
         installation=get_tosa_flatbuffers_installation(),
+        selectable=False,
     ),
     pretty_name="Tosa Flatbuffers",
 )

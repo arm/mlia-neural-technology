@@ -460,6 +460,51 @@ def test_show_env_details(monkeypatch: pytest.MonkeyPatch) -> None:
     logger_info_mock.assert_has_calls([call("No backends installed")])
 
 
+def test_show_env_details_with_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test method show_env_details with backends that have dependencies."""
+    # Create a backend with single dependency
+    backend_with_deps = get_installation_mock(
+        name="corstone-300",
+        already_installed=True,
+        dependencies=["vela"],
+    )
+    # Create a backend with multiple dependencies
+    backend_with_multiple_deps = get_installation_mock(
+        name="ml-sdk-model-converter",
+        already_installed=True,
+        dependencies=["tosa-converter-for-tflite", "tosa-flatbuffers"],
+    )
+    # Create a backend without dependencies
+    backend_no_deps = get_installation_mock(
+        name="tosa-checker",
+        already_installed=True,
+    )
+    logger_info_mock = MagicMock()
+
+    monkeypatch.setattr("mlia.backend.manager.logger.info", logger_info_mock)
+
+    manager = get_installation_manager(
+        False,
+        [backend_with_deps, backend_with_multiple_deps, backend_no_deps],
+        monkeypatch,
+    )
+    manager.show_env_details()
+
+    # Verify that backends with dependencies show them correctly
+    logger_info_mock.assert_has_calls(
+        [
+            call("  - %s (depends on: %s)", "corstone-300", "vela"),
+            call(
+                "  - %s (depends on: %s)",
+                "ml-sdk-model-converter",
+                "tosa-converter-for-tflite, tosa-flatbuffers",
+            ),
+            call("  - %s", "tosa-checker"),
+        ],
+        any_order=False,
+    )
+
+
 @pytest.mark.parametrize(
     "dependency",
     (

@@ -12,7 +12,7 @@ from mlia.target.registry import TargetInfo
 registry.register(
     "neural-technology",
     TargetInfo(
-        supported_backends=["nx-performance-estimator", "ml-sdk-model-converter"],
+        supported_backends=["nx-performance-estimator"],
         default_backends=["nx-performance-estimator"],
         advisor_factory_func=configure_and_get_neural_technology_advisor,
         target_profile_cls=NeuralTechnologyConfiguration,

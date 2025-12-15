@@ -16,6 +16,7 @@ registry.register(
         supported_systems=[System.LINUX_AMD64],
         backend_type=BackendType.WHEEL,
         installation=get_tosa_converter_for_tflite_backend_installation(),
+        selectable=False,
     ),
     pretty_name="TOSA converter for tflite",
 )
