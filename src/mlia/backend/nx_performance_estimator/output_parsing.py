@@ -321,5 +321,25 @@ class NXDebugDatabaseParser(NXOutputParser):
             ]
             self.debug_db[headers[0]][row[0]] = op_ids_list
             if len(headers) == MAX_NUM_DEBUG_DB_HEADERS:
-                op_ids_list = [row[2].strip(";").strip()]
+                # Try to extract api_label from data in row[2] onwards
+                api_label = self._extract_torch_fx_node_name(row[2:])
+                if api_label:
+                    op_ids_list = [api_label]
+                else:
+                    # Fallback to old behavior if parsing fails
+                    op_ids_list = [row[2].strip(";").strip()]
                 self.debug_db[headers[1]][row[0]] = op_ids_list
+
+    def _extract_torch_fx_node_name(self, csv_fragments: list[str]) -> str | None:
+        """Extract the api_label (node name) from the CSV row."""
+        try:
+            # Join all fragments to reconstruct the text
+            full_text = " ".join(csv_fragments)
+
+            match = re.search(r'"node_name"\s*:\s*"([^"]+)"', full_text)
+            if match:
+                return match.group(1)
+
+            return None
+        except (AttributeError, IndexError):
+            return None

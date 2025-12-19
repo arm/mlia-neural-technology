@@ -3,7 +3,6 @@
 """Module to track stripe-level statistics to TFLite granularity."""
 from collections import defaultdict
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict
 
 from mlia.backend.nx_performance_estimator.output_parsing import (
@@ -98,49 +97,11 @@ class NXPerformanceStats:
         self,
         debug_db: DebugDatabaseContentsType,
         performance_db: PerformanceDatabaseContentsType,
-        tosa_file: Path | None = None,
     ) -> None:
-        """Initialize the class with the debug and performance database dictionaries.
-
-        Args:
-            debug_db: Debug database from NX Performance Estimator
-            performance_db: Performance database from NX Performance Estimator
-            tosa_file: Optional path to TOSA/VGF file for reading
-                location info as fallback
-        """
+        """Initialize the class with the debug and performance database dictionaries."""
         self.debug_db: DebugDatabaseContentsType = debug_db
         self.performance_db: PerformanceDatabaseContentsType = performance_db
         self.performance_stats_per_chain: Dict[str, NXOperatorPerformanceStats] = {}
-        self.tosa_ops_from_file: Dict[int, tuple[str, str]] | None = None
-
-        # Try to load location info from TOSA file if provided
-        if tosa_file and tosa_file.exists():
-            self._load_tosa_location_info(tosa_file)
-
-    def _load_tosa_location_info(self, tosa_file: Path) -> None:
-        """Load location information from TOSA flatbuffer file as fallback.
-
-        Args:
-            tosa_file: Path to TOSA or VGF file
-        """
-        try:
-            # Import here to avoid hard dependency on tosa-flatbuffers
-            # pylint: disable=import-outside-toplevel
-            from mlia.backend.ml_sdk_model_converter.tosa_reader import (
-                read_tosa_flatbuffer_ops,
-                tosa_flatbuffers_available,
-            )
-
-            if not tosa_flatbuffers_available():
-                return
-
-            tosa_ops = read_tosa_flatbuffer_ops(tosa_file)
-            # Convert to dict mapping op_id -> (op_name, location)
-            self.tosa_ops_from_file = {
-                op_id: (op.name, op.loc) for op_id, op in tosa_ops.items()
-            }
-        except Exception:  # pylint: disable=broad-except
-            self.tosa_ops_from_file = None
 
     def process_stats_per_chain(
         self,
@@ -190,9 +151,7 @@ class NXPerformanceStats:
 
         return self.performance_stats_per_chain
 
-    def track_op(
-        self, stripe_op_id: str
-    ) -> tuple[str, list[list[str]], list[list[str]]]:
+    def track_op(self, stripe_op_id: str) -> tuple[str, list, list]:
         """Track the ID of a stripe to the location string."""
         chain_op_id = self.debug_db["stripe_op_id_to_op_id"][stripe_op_id]
 
@@ -205,43 +164,12 @@ class NXPerformanceStats:
         for fused_op_id in fused_op_ids:
             tosa_op_ids.extend(self.debug_db["fused_op_id_to_tosa_op_ids"][fused_op_id])
 
-        api_labels: list[list[str]] = []
-        operator_types: list[list[str]] = []
-
+        api_labels = []
         for tosa_op_id in tosa_op_ids:
-            # Try to get location from debug database first
-            if "tosa_op_id_to_api_labels" in self.debug_db:
-                api_labels.append(self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id])
-            # Fallback to reading from TOSA file if available
-            elif self.tosa_ops_from_file and int(tosa_op_id) in self.tosa_ops_from_file:
-                _, location = self.tosa_ops_from_file[int(tosa_op_id)]
-                api_labels.append([location])  # Wrap in list to match format
-            else:
-                # If neither source available, use empty list
-                api_labels.append([])
+            api_labels.append(self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id])
 
-            # Get operator type
-            operator_type = self._get_operator_type(tosa_op_id)
-            operator_types.append(operator_type)
+        operator_types = []
+        for tosa_op_id in tosa_op_ids:
+            operator_types.append(self.debug_db["tosa_op_id_to_tosa_op"][tosa_op_id])
 
         return chain_op_id[0], api_labels, operator_types
-
-    def _get_operator_type(self, tosa_op_id: str) -> list[str]:
-        """Get operator type for a TOSA operator ID.
-
-        Args:
-            tosa_op_id: TOSA operator ID
-
-        Returns:
-            Operator type name as a list
-        """
-        if "tosa_op_id_to_tosa_op" in self.debug_db:
-            op_type = self.debug_db["tosa_op_id_to_tosa_op"][tosa_op_id]
-            return op_type
-
-        # Fallback to TOSA file
-        if self.tosa_ops_from_file and int(tosa_op_id) in self.tosa_ops_from_file:
-            op_name, _ = self.tosa_ops_from_file[int(tosa_op_id)]
-            return [op_name]
-
-        return ["UNKNOWN"]

@@ -269,7 +269,6 @@ class NXPerformanceEstimatorPerformanceEstimator(
             perf_stats = NXPerformanceStats(
                 debug_db=debug_db,
                 performance_db=performance_db,
-                tosa_file=vgf_file,  # Pass VGF file for location fallback
             )
             stats_per_chain = perf_stats.process_stats_per_chain()
             output_file_path = self.output_dir / "nx_performance_statistics.json"
