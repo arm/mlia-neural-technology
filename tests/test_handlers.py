@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the various event handlers."""
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,11 +14,9 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     NXPerformanceDatabaseParser,
 )
 from mlia.backend.nx_performance_estimator.performance import (
-    NXPerformanceEstimatorOutputFiles,
-)
-from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
+from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.backend.tosa_checker.compat import TOSACompatibilityInfo
 from mlia.core.context import ExecutionContext
 from mlia.core.events import CollectedDataEvent
@@ -57,11 +56,14 @@ from mlia.target.tosa.handlers import TOSAEventHandler
                     backend_config=NXPerformanceEstimatorConfig(
                         system_config="", compiler_config=""
                     ),
-                    output_files=NXPerformanceEstimatorOutputFiles(
-                        debug_database=Path(), performance_database=Path()
-                    ),
                     performance_db_parser=NXPerformanceDatabaseParser(),
-                    performance_metrics={},
+                    stripe_performance_metrics={
+                        "op0": MagicMock(spec=NXOperatorPerformanceStats)
+                    },
+                    chain_performance_metrics={
+                        "chain0": MagicMock(spec=NXOperatorPerformanceStats)
+                    },
+                    model_performance_stats=MagicMock(),
                 )
             ),
         ),

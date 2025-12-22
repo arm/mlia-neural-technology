@@ -12,6 +12,7 @@ import mlia.core.output_schema as schema
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
+from mlia.backend.nx_performance_estimator.performance import NXModelPerformanceStats
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorOutputFiles,
 )
@@ -76,6 +77,11 @@ def test_nx_performance_estimator_performance_estimator(
         "NXPerformanceEstimatorOutputFiles.check_exists",
         MagicMock(return_value=True),
     )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.statistics."
+        "NXModelPerformanceStats.read_from_json",
+        MagicMock(),
+    )
     operator_types_mapping = {
         "Identity": "identity_op_type",
         "model/re_lu_7/Relu": "RELU",
@@ -87,13 +93,14 @@ def test_nx_performance_estimator_performance_estimator(
 
     metrics = estimator.estimate(tmp_path / model_file)
     assert isinstance(metrics.backend_config, NXPerformanceEstimatorConfig)
-    assert all(isinstance(file, Path) for file in vars(metrics.output_files).values())
 
     json_dump_path = Path(tmp_path / "nx_performance_statistics.json")
     assert json_dump_path.exists()
 
 
-def test_nx_performance_metrics_to_standardized_output(tmp_path: Path) -> None:
+def test_nx_performance_metrics_to_standardized_output(  # pylint: disable=too-many-locals
+    tmp_path: Path,
+) -> None:
     """Test conversion of NX PerformanceMetrics to standardized output."""
     # Create mock backend config
     mock_config = NXPerformanceEstimatorConfig(
@@ -101,24 +108,81 @@ def test_nx_performance_metrics_to_standardized_output(tmp_path: Path) -> None:
         compiler_config="default",
     )
 
-    # Create mock output files
-    mock_output_files = NXPerformanceEstimatorOutputFiles(
-        performance_database=tmp_path / "perf.db",
-        debug_database=tmp_path / "debug.db",
-    )
-
     # Create mock performance database parser
     mock_parser = MagicMock()
 
-    # Create mock performance metrics with sample data
-    mock_stats = MagicMock(spec=NXOperatorPerformanceStats)
-    mock_stats.total_cycles = 5000
+    stats_chain_0 = NXOperatorPerformanceStats(
+        op_id=["0", "1"],
+        op_cycles=4500,
+        total_cycles=5000,
+        memory={
+            "DRAM": {"readBytes": 1024, "writeBytes": 512, "trafficCycles": 300},
+            "Cache": {"readBytes": 256, "writeBytes": 128, "trafficCycles": 100},
+        },
+        utilization=[
+            {"sectionName": "Compute", "cycles": "3500", "percentage": "70.0%"},
+            {"sectionName": "Memory", "cycles": "1000", "percentage": "20.0%"},
+        ],
+        operators=[
+            {"opLocation": ["OpLocation0"], "opType": ["OpType0"]},
+            {"opLocation": ["OpLocation1"], "opType": ["OpType1"]},
+        ],
+    )
+
+    stats_chain_1 = NXOperatorPerformanceStats(
+        op_id=["3", "4"],
+        op_cycles=9000,
+        total_cycles=10000,
+        memory={
+            "DRAM": {"readBytes": 2048, "writeBytes": 1024, "trafficCycles": 600},
+            "Cache": {"readBytes": 512, "writeBytes": 256, "trafficCycles": 200},
+        },
+        utilization=[
+            {"sectionName": "Compute", "cycles": "7000", "percentage": "70.0%"},
+            {"sectionName": "Memory", "cycles": "2000", "percentage": "20.0%"},
+        ],
+        operators=[
+            {"opLocation": ["OpLocation3"], "opType": ["OpType3"]},
+            {"opLocation": ["OpLocation4"], "opType": ["OpType4"]},
+        ],
+    )
+
+    stats_stripe = NXOperatorPerformanceStats(
+        op_id=["0"],
+        op_cycles=2700,
+        total_cycles=3000,
+        memory={
+            "DRAM": {"readBytes": 512, "writeBytes": 256, "trafficCycles": 150},
+            "Cache": {"readBytes": 128, "writeBytes": 64, "trafficCycles": 50},
+        },
+        utilization=[
+            {"sectionName": "Compute", "cycles": "2100", "percentage": "70.0%"},
+            {"sectionName": "Memory", "cycles": "600", "percentage": "20.0%"},
+        ],
+        operators=[{"opLocation": ["OpLocation0"], "opType": ["OpType0"]}],
+    )
+
+    model_performance = NXModelPerformanceStats(
+        compiled_size=1024000,
+        cache_cycles=2000,
+        cache_read_bytes=512000,
+        cache_write_bytes=256000,
+        compute_cycles=8000,
+        dram_cycles=5000,
+        dram_read_bytes=2048000,
+        dram_write_bytes=1024000,
+        dram_footprint=4096000,
+        inference_time=1.5,
+        infs_per_sec=666.67,
+        total_cycles=15000,
+    )
 
     perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
         backend_config=mock_config,
-        output_files=mock_output_files,
         performance_db_parser=mock_parser,
-        performance_metrics={"chain_0": mock_stats, "chain_1": mock_stats},
+        stripe_performance_metrics={"0": stats_stripe},
+        chain_performance_metrics={"chain_0": stats_chain_0, "chain_1": stats_chain_1},
+        model_performance_stats=model_performance,
     )
 
     # Create a model file for hash computation
@@ -157,12 +221,77 @@ def test_nx_performance_metrics_to_standardized_output(tmp_path: Path) -> None:
     assert result["kind"] == "performance"
     assert result["status"] == "ok"
 
-    metrics = result["metrics"]
-    metrics_dict = {m["name"]: m for m in metrics}
+    breakdowns = result["breakdowns"]
+    assert len(breakdowns) == 3
 
-    # Check that metrics for both chains exist
-    assert "chain_0_total_cycles" in metrics_dict
-    assert "chain_1_total_cycles" in metrics_dict
-    assert metrics_dict["chain_0_total_cycles"]["value"] == 5000.0
-    assert metrics_dict["chain_1_total_cycles"]["value"] == 5000.0
-    assert metrics_dict["chain_0_total_cycles"]["unit"] == "cycles"
+    assert breakdowns == [
+        {
+            "scope": "operator_chain",
+            "name": "chain_0",
+            "location": "OpLocation0;OpLocation1",
+            "metrics": [
+                {"name": "total_cycles", "value": 5000, "unit": "cycles"},
+                {"name": "op_cycles", "value": 4500, "unit": "cycles"},
+                {"name": "dram_read_bytes", "value": 1024, "unit": "bytes"},
+                {"name": "dram_write_bytes", "value": 512, "unit": "bytes"},
+                {"name": "dram_traffic_cycles", "value": 300, "unit": "cycles"},
+                {"name": "cache_read_bytes", "value": 256, "unit": "bytes"},
+                {"name": "cache_write_bytes", "value": 128, "unit": "bytes"},
+                {"name": "cache_traffic_cycles", "value": 100, "unit": "cycles"},
+                {"name": "compute_cycles", "value": 3500, "unit": "cycles"},
+                {"name": "memory_cycles", "value": 1000, "unit": "cycles"},
+            ],
+            "id": "0;1",
+        },
+        {
+            "scope": "operator_chain",
+            "name": "chain_1",
+            "location": "OpLocation3;OpLocation4",
+            "metrics": [
+                {"name": "total_cycles", "value": 10000, "unit": "cycles"},
+                {"name": "op_cycles", "value": 9000, "unit": "cycles"},
+                {"name": "dram_read_bytes", "value": 2048, "unit": "bytes"},
+                {"name": "dram_write_bytes", "value": 1024, "unit": "bytes"},
+                {"name": "dram_traffic_cycles", "value": 600, "unit": "cycles"},
+                {"name": "cache_read_bytes", "value": 512, "unit": "bytes"},
+                {"name": "cache_write_bytes", "value": 256, "unit": "bytes"},
+                {"name": "cache_traffic_cycles", "value": 200, "unit": "cycles"},
+                {"name": "compute_cycles", "value": 7000, "unit": "cycles"},
+                {"name": "memory_cycles", "value": 2000, "unit": "cycles"},
+            ],
+            "id": "3;4",
+        },
+        {
+            "scope": "operator",
+            "name": "OpType0",
+            "location": "OpLocation0",
+            "metrics": [
+                {"name": "total_cycles", "value": 3000, "unit": "cycles"},
+                {"name": "op_cycles", "value": 2700, "unit": "cycles"},
+                {"name": "dram_read_bytes", "value": 512, "unit": "bytes"},
+                {"name": "dram_write_bytes", "value": 256, "unit": "bytes"},
+                {"name": "dram_traffic_cycles", "value": 150, "unit": "cycles"},
+                {"name": "cache_read_bytes", "value": 128, "unit": "bytes"},
+                {"name": "cache_write_bytes", "value": 64, "unit": "bytes"},
+                {"name": "cache_traffic_cycles", "value": 50, "unit": "cycles"},
+                {"name": "compute_cycles", "value": 2100, "unit": "cycles"},
+                {"name": "memory_cycles", "value": 600, "unit": "cycles"},
+            ],
+            "id": "0",
+        },
+    ]
+
+    assert result["metrics"] == [
+        {"name": "inference_time", "value": 1.5, "unit": "ms"},
+        {"name": "infs_per_sec", "value": 666.67, "unit": "inferences/s"},
+        {"name": "total_cycles", "value": 15000, "unit": "cycles"},
+        {"name": "compute_cycles", "value": 8000, "unit": "cycles"},
+        {"name": "cache_cycles", "value": 2000, "unit": "cycles"},
+        {"name": "dram_cycles", "value": 5000, "unit": "cycles"},
+        {"name": "compiled_size", "value": 1024000, "unit": "bytes"},
+        {"name": "cache_read_bytes", "value": 512000, "unit": "bytes"},
+        {"name": "cache_write_bytes", "value": 256000, "unit": "bytes"},
+        {"name": "dram_read_bytes", "value": 2048000, "unit": "bytes"},
+        {"name": "dram_write_bytes", "value": 1024000, "unit": "bytes"},
+        {"name": "dram_footprint", "value": 4096000, "unit": "bytes"},
+    ]

@@ -22,6 +22,7 @@ from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabase
 from mlia.backend.nx_performance_estimator.output_parsing import (
     NXPerformanceDatabaseParser,
 )
+from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
 from mlia.backend.repo import get_backend_repository
@@ -43,6 +44,7 @@ class NXPerformanceEstimatorOutputFiles:
 
     debug_database: Path
     performance_database: Path
+    model_performance: Path
 
     @classmethod
     def from_output_dir(
@@ -52,6 +54,7 @@ class NXPerformanceEstimatorOutputFiles:
         name_to_suffix = {
             "debug_database": "_debug_database.dat",
             "performance_database": "_performance_database.dat",
+            "model_performance": "_network_performance_summary.json",
         }
         args = {
             name: output_dir / f"{output_name}{suffix}"
@@ -74,9 +77,50 @@ class NXPerformanceEstimatorPerformanceMetrics:
     """Neural Accelerator Performance Estimator configuration and performance metrics."""  # pylint: disable=line-too-long
 
     backend_config: NXPerformanceEstimatorConfig
-    output_files: NXPerformanceEstimatorOutputFiles
     performance_db_parser: NXPerformanceDatabaseParser
-    performance_metrics: dict[str, NXOperatorPerformanceStats]
+    stripe_performance_metrics: dict[str, NXOperatorPerformanceStats]
+    chain_performance_metrics: dict[str, NXOperatorPerformanceStats]
+    model_performance_stats: NXModelPerformanceStats
+
+    def _build_breakdown_metrics(
+        self, stats: NXOperatorPerformanceStats
+    ) -> list[schema.Metric]:
+        breakdown_metrics = [
+            schema.Metric(name="total_cycles", value=stats.total_cycles, unit="cycles"),
+            schema.Metric(name="op_cycles", value=stats.op_cycles, unit="cycles"),
+        ]
+
+        for mem_type, mem_data in stats.memory.items():
+            breakdown_metrics.extend(
+                [
+                    schema.Metric(
+                        name=f"{mem_type.lower()}_read_bytes",
+                        value=mem_data["readBytes"],
+                        unit="bytes",
+                    ),
+                    schema.Metric(
+                        name=f"{mem_type.lower()}_write_bytes",
+                        value=mem_data["writeBytes"],
+                        unit="bytes",
+                    ),
+                    schema.Metric(
+                        name=f"{mem_type.lower()}_traffic_cycles",
+                        value=mem_data["trafficCycles"],
+                        unit="cycles",
+                    ),
+                ]
+            )
+
+        for util in stats.utilization:
+            breakdown_metrics.append(
+                schema.Metric(
+                    name=f"{util['sectionName'].lower()}_cycles",
+                    value=int(util["cycles"]),
+                    unit="cycles",
+                )
+            )
+
+        return breakdown_metrics
 
     def to_standardized_output(  # pylint: disable=too-many-locals
         self,
@@ -180,19 +224,65 @@ class NXPerformanceEstimatorPerformanceMetrics:
             notes=None,
         )
 
-        # Create performance metrics from the statistics
+        metric_units = {
+            "inference_time": "ms",
+            "infs_per_sec": "inferences/s",
+            "total_cycles": "cycles",
+            "compute_cycles": "cycles",
+            "cache_cycles": "cycles",
+            "dram_cycles": "cycles",
+            "compiled_size": "bytes",
+            "cache_read_bytes": "bytes",
+            "cache_write_bytes": "bytes",
+            "dram_read_bytes": "bytes",
+            "dram_write_bytes": "bytes",
+            "dram_footprint": "bytes",
+        }
+
         metrics = []
-        for chain_name, stats in self.performance_metrics.items():
-            # Add total cycles metric for this chain
+        for field_name, unit in metric_units.items():
+            value = getattr(self.model_performance_stats, field_name)
             metrics.append(
                 schema.Metric(
-                    name=f"{chain_name}_total_cycles",
-                    value=float(stats.total_cycles),
-                    unit="cycles",
+                    name=field_name,
+                    value=value,
+                    unit=unit,
                 )
             )
 
-        # Create result
+        breakdowns = []
+        for chain_name, stats in self.chain_performance_metrics.items():
+            breakdown_metrics = self._build_breakdown_metrics(stats)
+
+            breakdowns.append(
+                schema.Breakdown(
+                    scope=schema.OperatorScope.OPERATOR_CHAIN,
+                    name=chain_name,
+                    location=";".join(
+                        [";".join(op["opLocation"]) for op in stats.operators]
+                    ),
+                    metrics=breakdown_metrics,
+                    id=";".join(stats.op_id),
+                    qualifiers={},
+                )
+            )
+
+        for stripe_id, stats in self.stripe_performance_metrics.items():
+            breakdown_metrics = self._build_breakdown_metrics(stats)
+
+            breakdowns.append(
+                schema.Breakdown(
+                    scope=schema.OperatorScope.OPERATOR,
+                    name=";".join([";".join(op["opType"]) for op in stats.operators]),
+                    location=";".join(
+                        [";".join(op["opLocation"]) for op in stats.operators]
+                    ),
+                    metrics=breakdown_metrics,
+                    id=stripe_id,
+                    qualifiers={},
+                )
+            )
+
         result = schema.Result(
             kind=schema.ResultKind.PERFORMANCE,
             status=schema.ResultStatus.OK,
@@ -200,7 +290,8 @@ class NXPerformanceEstimatorPerformanceMetrics:
             warnings=[],
             errors=[],
             metrics=metrics,
-            mode=None,  # NX doesn't specify simulation/measured
+            mode=None,  # NX doesn't specify simulation/measured,
+            breakdowns=breakdowns,
         )
 
         return schema.StandardizedOutput(
@@ -274,11 +365,18 @@ class NXPerformanceEstimatorPerformanceEstimator(
             output_file_path = self.output_dir / "nx_performance_statistics.json"
             self.json_dump(stats_per_chain, output_file_path)
 
+            stats_per_stripe = perf_stats.process_stats_per_stripe()
+
+            model_performance_stats = NXModelPerformanceStats.read_from_json(
+                output.model_performance
+            )
+
             return NXPerformanceEstimatorPerformanceMetrics(
                 self.backend_config,
-                output,
                 perf_db_parser,
+                stats_per_stripe,
                 stats_per_chain,
+                model_performance_stats,
             )
 
     def _run_ml_sdk_model_converter(self, model_path: Path) -> Path:

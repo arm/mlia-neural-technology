@@ -4,6 +4,7 @@
 from functools import partial
 from pathlib import Path
 from typing import List
+from unittest.mock import MagicMock
 
 import pytest
 from rich.console import Console
@@ -17,11 +18,10 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     NXPerformanceDatabaseParser,
 )
 from mlia.backend.nx_performance_estimator.performance import (
-    NXPerformanceEstimatorOutputFiles,
-)
-from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
+from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
+from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
 from mlia.core.advice_generation import Advice
 from mlia.core.reporters import report_advice
@@ -128,19 +128,15 @@ def test_nx_performance_estimator_reporting(monkeypatch: pytest.MonkeyPatch) -> 
     sys_cfg, compiler_cfg = Path("system-config"), Path("compiler-config")
     cfg = NXPerformanceEstimatorConfig(sys_cfg, compiler_cfg)
 
-    ignored_path = Path("ignored")
-
     metrics = NXPerformanceEstimatorPerformanceMetrics(
         backend_config=cfg,
-        output_files=NXPerformanceEstimatorOutputFiles(
-            ignored_path,
-            ignored_path,
-        ),
         performance_db_parser=performance_db_parser,
-        performance_metrics=NXPerformanceStats(
+        stripe_performance_metrics={"op0": MagicMock(spec=NXOperatorPerformanceStats)},
+        chain_performance_metrics=NXPerformanceStats(
             debug_db=debug_db,
             performance_db=performance_db,
         ).process_stats_per_chain(),
+        model_performance_stats=MagicMock(spec=NXModelPerformanceStats),
     )
 
     monkeypatch.setattr("mlia.utils.console.Console", partial(Console, width=80))

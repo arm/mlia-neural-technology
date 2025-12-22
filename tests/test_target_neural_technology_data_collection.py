@@ -15,11 +15,12 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     NXPerformanceDatabaseParser,
 )
 from mlia.backend.nx_performance_estimator.performance import (
-    NXPerformanceEstimatorOutputFiles,
-)
-from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
+from mlia.backend.nx_performance_estimator.statistics import (
+    NXModelPerformanceStats,
+)
+from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.core.context import ExecutionContext
 from mlia.core.errors import ConfigurationError
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
@@ -75,11 +76,14 @@ def test_neural_technology_performance_collect_data(
                 backend_config=NXPerformanceEstimatorConfig(
                     system_config=NeuralTechnologyPerformance.name(), compiler_config=""
                 ),
-                output_files=NXPerformanceEstimatorOutputFiles(
-                    debug_database=tmp_path, performance_database=tmp_path
-                ),
                 performance_db_parser=NXPerformanceDatabaseParser(),
-                performance_metrics={},
+                stripe_performance_metrics={
+                    "op0": MagicMock(spec=NXOperatorPerformanceStats)
+                },
+                chain_performance_metrics={
+                    "chain0": MagicMock(spec=NXOperatorPerformanceStats)
+                },
+                model_performance_stats=MagicMock(spec=NXModelPerformanceStats),
             )
         ),
     )

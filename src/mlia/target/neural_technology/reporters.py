@@ -88,7 +88,7 @@ def report_nx_performance_estimator_perf_db(
     metrics: NXPerformanceEstimatorPerformanceMetrics,
 ) -> Report:
     """Report Neural Accelerator performance estimators's graph DB."""
-    perf_records = dict(sorted(metrics.performance_metrics.items()))
+    perf_records = dict(sorted(metrics.chain_performance_metrics.items()))
 
     general_column = [Column("ID", alias="id", fmt=Format(wrap_width=25))]
 

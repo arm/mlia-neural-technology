@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabase
 from mlia.backend.nx_performance_estimator.output_parsing import (
     NXPerformanceDatabaseParser,
 )
+from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
 
@@ -667,3 +669,46 @@ def test_track_op_multiple_chains_per_stripe() -> None:
         ValueError, match="There should be only one chain per stripe, " "found more!"
     ):
         _ = performance_stats.track_op("26")
+
+
+def test_nx_model_performance_stats(tmp_path: Path) -> None:
+    """Test NXModelPerformanceStats class."""
+    model_performance = {
+        "compiled_size": {"unit": "bytes", "value": 17180},
+        "network_performance": {
+            "cache1": {
+                "cycles": {"unit": "cc", "value": 2},
+                "read_bytes": {"unit": "bytes", "value": 0},
+                "write_bytes": {"unit": "bytes", "value": 512},
+            },
+            "compute_cycles": {"unit": "cc", "value": 5520},
+            "dram": {
+                "cycles": {"unit": "cc", "value": 7838},
+                "read_bytes": {"unit": "bytes", "value": 302428},
+                "write_bytes": {"unit": "bytes", "value": 23808},
+            },
+            "dram_footprint": {"unit": "bytes", "value": 14784},
+            "inference_time": {"unit": "ms", "value": 0.008937333710491657},
+            "infs_per_sec": {"unit": "inf/s", "value": 111890.1953125},
+            "total_cycles": {"unit": "cc", "value": 13406},
+        },
+    }
+
+    json_path = tmp_path / "model_perf.json"
+    with open(json_path, mode="w", encoding="utf-8") as file:
+        json.dump(model_performance, file)
+
+    model_performance_statistics = NXModelPerformanceStats.read_from_json(json_path)
+
+    assert model_performance_statistics.compiled_size == 17180
+    assert model_performance_statistics.cache_cycles == 2
+    assert model_performance_statistics.cache_read_bytes == 0
+    assert model_performance_statistics.cache_write_bytes == 512
+    assert model_performance_statistics.compute_cycles == 5520
+    assert model_performance_statistics.dram_cycles == 7838
+    assert model_performance_statistics.dram_read_bytes == 302428
+    assert model_performance_statistics.dram_write_bytes == 23808
+    assert model_performance_statistics.dram_footprint == 14784
+    assert model_performance_statistics.inference_time == 0.008937333710491657
+    assert model_performance_statistics.infs_per_sec == 111890.1953125
+    assert model_performance_statistics.total_cycles == 13406

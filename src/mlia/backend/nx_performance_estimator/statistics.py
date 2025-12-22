@@ -1,8 +1,11 @@
 # SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Module to track stripe-level statistics to TFLite granularity."""
+import copy
+import json
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict
 
 from mlia.backend.nx_performance_estimator.output_parsing import (
@@ -11,6 +14,47 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
 from mlia.backend.nx_performance_estimator.output_parsing import (
     PerformanceDatabaseContentsType,
 )
+
+
+@dataclass
+class NXModelPerformanceStats:  # pylint: disable=too-many-instance-attributes
+    """Defines performance stats for entire model."""
+
+    compiled_size: int
+    cache_cycles: int
+    cache_read_bytes: int
+    cache_write_bytes: int
+    compute_cycles: int
+    dram_cycles: int
+    dram_read_bytes: int
+    dram_write_bytes: int
+    dram_footprint: int
+    inference_time: float
+    infs_per_sec: float
+    total_cycles: int
+
+    @classmethod
+    def read_from_json(cls, path: Path) -> "NXModelPerformanceStats":
+        """Parse performance stats from NX output JSON."""
+        with open(path, encoding="utf-8") as file:
+            data = json.load(file)
+
+        network_perf = data["network_performance"]
+
+        return cls(
+            compiled_size=data["compiled_size"]["value"],
+            cache_cycles=network_perf["cache1"]["cycles"]["value"],
+            cache_read_bytes=network_perf["cache1"]["read_bytes"]["value"],
+            cache_write_bytes=network_perf["cache1"]["write_bytes"]["value"],
+            compute_cycles=network_perf["compute_cycles"]["value"],
+            dram_cycles=network_perf["dram"]["cycles"]["value"],
+            dram_read_bytes=network_perf["dram"]["read_bytes"]["value"],
+            dram_write_bytes=network_perf["dram"]["write_bytes"]["value"],
+            dram_footprint=network_perf["dram_footprint"]["value"],
+            inference_time=network_perf["inference_time"]["value"],
+            infs_per_sec=network_perf["infs_per_sec"]["value"],
+            total_cycles=network_perf["total_cycles"]["value"],
+        )
 
 
 @dataclass
@@ -101,7 +145,6 @@ class NXPerformanceStats:
         """Initialize the class with the debug and performance database dictionaries."""
         self.debug_db: DebugDatabaseContentsType = debug_db
         self.performance_db: PerformanceDatabaseContentsType = performance_db
-        self.performance_stats_per_chain: Dict[str, NXOperatorPerformanceStats] = {}
 
     def process_stats_per_chain(
         self,
@@ -116,22 +159,32 @@ class NXPerformanceStats:
         stripe op_id, operations and statistics
 
         """
-        for _, row in enumerate(self.performance_db):
+        performance_stats_per_stripe = self.process_stats_per_stripe()
+        performance_stats_per_chain: Dict[str, NXOperatorPerformanceStats] = {}
+        for stripe_id, operator_stats in performance_stats_per_stripe.items():
+            chain_op_id, _, _ = self.track_op(stripe_op_id=stripe_id)
+
+            if chain_op_id in performance_stats_per_chain:
+                performance_stats_per_chain[chain_op_id].merge(operator_stats)
+            else:
+                performance_stats_per_chain[chain_op_id] = operator_stats
+
+        return performance_stats_per_chain
+
+    def process_stats_per_stripe(self) -> dict:
+        """Get performance stats per op."""
+        performance_stats_per_stripe: Dict[str, NXOperatorPerformanceStats] = {}
+        for row in self.performance_db:
+            row = copy.deepcopy(row)  # Make sure nested dicts are copied
             operators = []
 
-            # We don't have operator_types_mapping from TFLite so use the Operator
-            # Types and Locations from the debug data
-            # find the chain ID and TF location strings
-            chain_op_id, api_labels, operator_types = self.track_op(
-                stripe_op_id=str(row["id"])
-            )
+            _, api_labels, operator_types = self.track_op(stripe_op_id=str(row["id"]))
 
             for api_str, operator_str in zip(api_labels, operator_types):
                 op_location_type = {"opLocation": api_str, "opType": operator_str}
                 operators.append(op_location_type)
 
-            # create the Operator Performance Stats object and sanitize its fields
-            operator_stats = NXOperatorPerformanceStats(
+            stripe_stats = NXOperatorPerformanceStats(
                 op_id=[str(row["id"])],
                 op_cycles=row["opCycles"],
                 total_cycles=row["totalCycles"],
@@ -140,16 +193,12 @@ class NXPerformanceStats:
                 operators=operators,
             )
 
-            operator_stats.sanitize_memory_fields()
-            operator_stats.sanitize_utilization_fields()
+            stripe_stats.sanitize_memory_fields()
+            stripe_stats.sanitize_utilization_fields()
 
-            # merge stats if that same chain has been processed already
-            if chain_op_id in self.performance_stats_per_chain:
-                self.performance_stats_per_chain[chain_op_id].merge(operator_stats)
-            else:
-                self.performance_stats_per_chain[chain_op_id] = operator_stats
+            performance_stats_per_stripe[str(row["id"])] = stripe_stats
 
-        return self.performance_stats_per_chain
+        return performance_stats_per_stripe
 
     def track_op(self, stripe_op_id: str) -> tuple[str, list, list]:
         """Track the ID of a stripe to the location string."""

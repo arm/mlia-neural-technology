@@ -3,7 +3,7 @@
 """Tests for Neural Technology data analysis module."""
 from __future__ import annotations
 
-from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -14,11 +14,9 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     NXPerformanceDatabaseParser,
 )
 from mlia.backend.nx_performance_estimator.performance import (
-    NXPerformanceEstimatorOutputFiles,
-)
-from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
+from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.target.neural_technology.data_analysis import NeuralTechnologyDataAnalyzer
 from mlia.target.neural_technology.data_analysis import (
@@ -35,29 +33,14 @@ from mlia.target.neural_technology.data_analysis import (
                 backend_config=NXPerformanceEstimatorConfig(
                     "system.ini", "compiler.ini"
                 ),
-                output_files=NXPerformanceEstimatorOutputFiles.from_output_dir(
-                    Path("DOES_NOT_EXIST"), "TEST"
-                ),
                 performance_db_parser=NXPerformanceDatabaseParser(),
-                performance_metrics={
-                    "0": NXOperatorPerformanceStats(
-                        op_id=[33],
-                        op_cycles=15,
-                        total_cycles=18,
-                        memory={
-                            "L1": {
-                                "readBytes": 4,
-                                "writeBytes": 6,
-                                "trafficCycles": 43530,
-                            },
-                        },
-                        utilization=[
-                            {"sectionName": "OutputWriter", "cycles": 1},
-                            {"sectionName": "VectorEngine", "cycles": 1},
-                        ],
-                        operators=["foo"],
-                    )
+                stripe_performance_metrics={
+                    "op0": MagicMock(spec=NXOperatorPerformanceStats)
                 },
+                chain_performance_metrics={
+                    "chain0": MagicMock(spec=NXOperatorPerformanceStats)
+                },
+                model_performance_stats=MagicMock(spec=NXModelPerformanceStats),
             )
         ),
     ),
