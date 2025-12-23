@@ -11,6 +11,7 @@ from typing import Any
 
 from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.compat import PT2Model
 from mlia.backend.ml_sdk_model_converter.compat import TOSAModel
 from mlia.backend.ml_sdk_model_converter.compat import VGFModel
 from mlia.backend.nx_performance_estimator.performance import (
@@ -72,7 +73,9 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
                 is_pytorch_file(self.model),
             ]
         ):
-            raise ConfigurationError("Input must be a TFLite, TOSA or VGF file.")
+            raise ConfigurationError(
+                "Input must be a TFLite, TOSA, VGF or PyTorch file."
+            )
 
         if is_tflite_model(self.model):
             operator_types_mapping = operator_names_to_types(model_path=self.model)
@@ -141,15 +144,19 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         self,
     ) -> NXCompatibilityResult | NXModelCompatibilityInfo:
         """Run performance estimator."""
-        model: Path | TOSAModel | VGFModel | None = None
+        model: Path | TOSAModel | VGFModel | PT2Model | None = None
         if is_tflite_model(self.model):
             model = self.model
         elif is_vgf_file(self.model):
             model = VGFModel(self.model)
         elif is_tosa_file(self.model):
             model = TOSAModel(self.model)
+        elif is_pytorch_file(self.model):
+            model = PT2Model(self.model)
         else:
-            raise ConfigurationError("Input must be a TFLite, TOSA or VGF file.")
+            raise ConfigurationError(
+                "Input must be a TFLite, TOSA, VGF or PyTorch file."
+            )
 
         checker = NXCompatibilityChecker(self.context.output_dir)
 

@@ -54,7 +54,8 @@ def fixture_test_tflite_no_act_model(test_models_path: Path) -> Path:
             "test_keras_model",
             "nx-performance-estimator",
             pytest.raises(
-                ConfigurationError, match="Input must be a TFLite, TOSA or VGF file."
+                ConfigurationError,
+                match="Input must be a TFLite, TOSA, VGF or PyTorch file.",
             ),
         ),
     ],
@@ -118,7 +119,7 @@ def test_neural_technology_performance_collect_data(
             "test_keras_model",
             pytest.raises(
                 ConfigurationError,
-                match="Input must be a TFLite, TOSA or VGF file.",
+                match="Input must be a TFLite, TOSA, VGF or PyTorch file.",
             ),
         ),
     ],

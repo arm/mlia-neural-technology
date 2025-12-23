@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +13,7 @@ import pytest
 from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.ml_sdk_model_converter.compat import NXOperatorCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.compat import PT2Model
 from mlia.backend.ml_sdk_model_converter.compat import TOSAModel
 from mlia.backend.ml_sdk_model_converter.compat import VGFModel
 from mlia.backend.ml_sdk_model_converter.compat import VMCCompatibilityLogReader
@@ -194,6 +196,122 @@ def test_check_compatibility_vgf(tmp_path: Path) -> None:
     result = checker.check_compatibility(VGFModel(model_path))
     incompatible_ops = [op for op in result.get_records() if op.placement != "NX"]
     assert incompatible_ops == []  # All VGF ops should be supported
+
+
+def test_check_compatibility_pt2_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test PT2Model compatibility check with successful TOSA conversion."""
+    model_path = tmp_path / "model.pt2"
+    model_path.touch()
+
+    # Mock converter will return this path - implementation will create the directory
+    tosa_output = tmp_path / "mlia-pytorch-to-tosa" / "model.tosa"
+
+    def mock_converter(*_args: Any, **_kwargs: Any) -> Path:
+        # Converter creates the file when called
+        tosa_output.parent.mkdir(parents=True, exist_ok=True)
+        tosa_output.touch()
+        return tosa_output
+
+    monkeypatch.setattr(
+        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.MliaPytorchToTosaConverter.__call__",
+        mock_converter,
+    )
+
+    # Mock TOSA ops reading - successful conversion with supported ops
+    mock_tosa_ops = {
+        0: TosaOp(name="CONV2D", loc="layer1/conv"),
+        1: TosaOp(name="ADD", loc="layer2/add"),
+    }
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat.read_tosa_flatbuffer_ops",
+        MagicMock(return_value=mock_tosa_ops),
+    )
+
+    checker = NXCompatibilityChecker(tmp_path)
+    result = checker.check_compatibility(PT2Model(model_path))
+
+    # Should have records for converted ops
+    records = result.get_records()
+    assert len(records) == 2
+    assert all(op.compat_level == "TOSA" for op in records)
+    assert all(op.placement == "NX" for op in records)
+
+
+def test_check_compatibility_pt2_conversion_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test PT2Model compatibility check when TOSA conversion fails."""
+    model_path = tmp_path / "model.pt2"
+    model_path.touch()
+
+    monkeypatch.setattr(
+        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.MliaPytorchToTosaConverter.__call__",
+        MagicMock(
+            side_effect=RuntimeError(
+                "PyTorch to TOSA conversion failed: unsupported operator"
+            )
+        ),
+    )
+
+    checker = NXCompatibilityChecker(tmp_path)
+    result = checker.check_compatibility(PT2Model(model_path))
+
+    records = result.get_records()
+    assert len(records) == 1
+    assert records[0].location == "model_conversion"
+    assert records[0].compat_level == "Non-NX"
+    assert records[0].error is not None
+    assert "Failed to convert PyTorch model to TOSA" in records[0].error
+    assert "unsupported operator" in records[0].error
+
+
+def test_check_compatibility_pt2_with_unsupported_ops(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test PT2Model compatibility when TOSA contains unsupported operations."""
+    model_path = tmp_path / "model.pt2"
+    model_path.touch()
+
+    tosa_output = tmp_path / "mlia-pytorch-to-tosa" / "model.tosa"
+
+    def mock_converter(*_args: Any, **_kwargs: Any) -> Path:
+        tosa_output.parent.mkdir(parents=True, exist_ok=True)
+        tosa_output.touch()
+        return tosa_output
+
+    monkeypatch.setattr(
+        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.MliaPytorchToTosaConverter.__call__",
+        mock_converter,
+    )
+
+    # Mock TOSA ops reading - mix of supported and unsupported ops
+    mock_tosa_ops = {
+        0: TosaOp(name="CONV2D", loc="layer1/conv"),
+        1: TosaOp(name="UNSUPPORTED_OP", loc="layer2/unsupported"),
+        2: TosaOp(name="ADD", loc="layer3/add"),
+    }
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat.read_tosa_flatbuffer_ops",
+        MagicMock(return_value=mock_tosa_ops),
+    )
+
+    checker = NXCompatibilityChecker(tmp_path)
+    result = checker.check_compatibility(PT2Model(model_path))
+
+    records = result.get_records()
+    assert len(records) == 3
+
+    supported_locs = [op.location for op in records if op.compat_level == "TOSA"]
+    unsupported_locs = [op.location for op in records if op.compat_level == "Non-NX"]
+
+    assert len(supported_locs) == 2
+    assert len(unsupported_locs) == 1
+    assert unsupported_locs[0] == "layer2/unsupported_1"
 
 
 @pytest.mark.parametrize(

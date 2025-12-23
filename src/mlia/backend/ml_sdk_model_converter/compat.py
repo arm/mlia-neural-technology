@@ -19,6 +19,9 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_flatbuffer
 from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_mlir_ops
 from mlia.backend.ml_sdk_model_converter.tosa_reader import tosa_flatbuffers_available
 from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
+from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
+    MliaPytorchToTosaConverter,
+)
 from mlia.backend.repo import get_backend_repository
 from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
 from mlia.utils.filesystem import sha256
@@ -103,6 +106,10 @@ _SUPPORTED_TOSA_OPS = [
     # Type Conversion
     "CAST",
     "RESCALE",
+    # Shape Operators
+    "CONST_SHAPE",
+    # Data Nodes
+    "CONST",
 ]
 
 
@@ -116,6 +123,13 @@ class TOSAModel:
 @dataclass
 class VGFModel:
     """VGF model."""
+
+    path: Path
+
+
+@dataclass
+class PT2Model:
+    """PyTorch 2.0 exported model."""
 
     path: Path
 
@@ -513,3 +527,24 @@ class NXCompatibilityChecker:
                 comp_info.add_lowering_error(unique_location, "unsupported operation")
 
         return comp_info
+
+    @check_compatibility.register
+    def _(self, pt2_model: PT2Model) -> NXModelCompatibilityInfo:
+        """Check compatibility of a PyTorch 2.0 model via TOSA conversion."""
+        output_dir = self.output_dir / "mlia-pytorch-to-tosa"
+        output_dir.mkdir(exist_ok=True)
+
+        converter = MliaPytorchToTosaConverter()
+
+        try:
+            tosa_path = converter(pt2_model.path, output_dir)
+            tosa_model = TOSAModel(path=tosa_path)
+            return self.check_compatibility(tosa_model)
+
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            # Catch all exceptions as any failure in conversion means incompatibility
+            comp_info = NXModelCompatibilityInfo()
+            comp_info.add_lowering_error(
+                "model_conversion", f"Failed to convert PyTorch model to TOSA: {exc}"
+            )
+            return comp_info
