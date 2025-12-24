@@ -13,7 +13,7 @@ import mlia.core.output_schema as schema
 try:
     import jsonschema
 
-    JSONSCHEMA_AVAILABLE = True
+    JSONSCHEMA_AVAILABLE = True  # pragma: no cover
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
 
@@ -202,7 +202,11 @@ def _validate_model(data: dict[str, Any], errors: list[str]) -> None:
                     errors.append(f"Missing required field: model.{field}")
                 elif not isinstance(model[field], str):
                     errors.append(f"Field 'model.{field}' must be a string")
-            if "hash" in model and not validate_sha256_format(model["hash"]):
+            if (
+                "hash" in model
+                and isinstance(model["hash"], str)
+                and not validate_sha256_format(model["hash"])
+            ):
                 errors.append("Field 'model.hash' must be a valid SHA-256 hash")
 
 
