@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-"""Installation module for the TOSA Converter For Pytorch."""
+"""Installation module for the TOSA Converter For PyTorch."""
 from __future__ import annotations
 
 import subprocess  # nosec
@@ -59,7 +59,7 @@ class PyTorchCPUBackendInstallation(PyPackageBackendInstallation):
 
 
 def get_mlia_pytorch_to_tosa_backend_installation() -> Installation:
-    """Get MLIA pytorch to TOSA backend whl."""
+    """Get MLIA PyTorch to TOSA backend whl."""
     return PyTorchCPUBackendInstallation(
         name="mlia-pytorch-to-tosa-converter",
         description="Tool to serialize and deserialize TOSA files",

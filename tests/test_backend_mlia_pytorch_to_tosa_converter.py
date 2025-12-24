@@ -30,7 +30,7 @@ def test_backend_registered() -> None:
     assert "mlia-pytorch-to-tosa-converter" in registry.items
     assert (
         registry.pretty_name("mlia-pytorch-to-tosa-converter")
-        == "TOSA converter for pytorch"
+        == "TOSA converter for PyTorch"
     )
 
 

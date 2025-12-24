@@ -82,27 +82,27 @@ EXPECTED_OUTPUT_FILENAME = "output_tag1_TOSA-1.0+INT.tosa"
 
 
 class MliaPytorchToTosaConverter:
-    """The TOSA Converter For Pytorch class."""
+    """The TOSA Converter For PyTorch class."""
 
     def __init__(self) -> None:
-        """Set up output consumers for the TOSA Converter For Pytorch."""
+        """Set up output consumers for the TOSA Converter For PyTorch."""
         self.output_consumers: list[OutputConsumer] = [
             OutputLogger(logger, logging.INFO)
         ]
 
     def __call__(self, pytorch_file: Path, output_dir: Path) -> Path:
         """
-        Run the TOSA Converter For Pytorch with the given PyTorch file.
+        Run the TOSA Converter For PyTorch with the given PyTorch file.
 
         Returns the path of the TOSA output file created in the output dir.
         """
         if not output_dir.is_dir():
             raise NotADirectoryError(
                 f"Path '{output_dir}' is not a directory. Unable to run "
-                "TOSA Converter For Pytorch."
+                "TOSA Converter For PyTorch."
             )
-        with log_action("Running TOSA Converter For Pytorch..."):
-            logger.debug("TOSA Converter For Pytorch:")
+        with log_action("Running TOSA Converter For PyTorch..."):
+            logger.debug("TOSA Converter For PyTorch:")
 
             tosa_file = self._run_converter(pytorch_file, output_dir)
 
@@ -243,17 +243,17 @@ class MliaPytorchToTosaConverter:
 
         if not tosa_file.is_file():
             raise FileNotFoundError(
-                "No output from the TOSA Converter For Pytorch found. "
+                "No output from the TOSA Converter For PyTorch found. "
                 f"File {tosa_file} does not exist."
             )
 
         logger.debug(
-            "TOSA Converter For Pytorch run successfully. See output: %s", tosa_file
+            "TOSA Converter For PyTorch run successfully. See output: %s", tosa_file
         )
         return tosa_file
 
     def _run_converter(self, pytorch_file: Path, output_dir: Path) -> Path:
-        """Run the TOSA Converter For Pytorch and return the TOSA MLIR output file."""
+        """Run the TOSA Converter For PyTorch and return the TOSA MLIR output file."""
         # Import dependencies at runtime
         _import_dependencies()
 

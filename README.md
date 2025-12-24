@@ -95,6 +95,8 @@ permissive licenses, see [LICENSES](LICENSES/).
 - Python® is a registered trademark of the PSF.
 - Ubuntu® is a registered trademark of Canonical.
 - Microsoft and Windows are trademarks of the Microsoft group of companies.
+- PyTorch, the PyTorch logo and any related marks are
+  trademarks of The Linux Foundation.
 
 # General usage
 
@@ -164,14 +166,14 @@ the specified target.
 *Examples:*
 
 ```bash
+# Get help and further information
+mlia check --help
+
 # List operator compatibility with Ethos-U55 with 256 MAC
 mlia check ~/models/mobilenet_v1_1.0_224_quant.tflite --target-profile ethos-u55-256
 
 # List operator compatibility with Cortex-A
 mlia check ~/models/mobilenet_v1_1.0_224_quant.tflite --target-profile cortex-a
-
-# Get help and further information
-mlia check --help
 ```
 
 ### performance
@@ -182,6 +184,9 @@ statistics.
 *Examples:*
 
 ```bash
+# Get help and further information
+mlia check --help
+
 # Use default parameters
 mlia check ~/models/mobilenet_v1_1.0_224_quant.tflite \
     --target-profile ethos-u55-256 \
@@ -209,9 +214,6 @@ mlia check ~/models/mobilenet_v2_1.0_224_INT8.tflite \
     --backend "nx-performance-estimator" \
     --nx-performance-estimator.system-config ~/configs/custom-system.ini \
     --nx-performance-estimator.compiler-config ~/configs/custom-compiler.ini
-
-# Get help and further information
-mlia check --help
 ```
 
 **Output Formats**: MLIA generates results in a standardized schema containing
@@ -515,6 +517,10 @@ The *neural-technology* target profiles accept as input:
 - TFLite FlatBuffer
 - TOSA ML files
 - VGF files
+- PyTorch2.x exports in `.pt2` format.
+
+> **NOTE**
+> PyTorch models are expected to be unquantized, MLIA quantizes model during lowering to TOSA through ExecuTorch.
 
 ## TOSA
 
@@ -624,7 +630,7 @@ configuration files.
 
 ## Available backends
 
-This section lists available backends. As not all backends work on any platform
+This section lists available user-facing backends. As not all backends work on any platform
 the following table shows some compatibility information:
 
 | Backend                           | Linux                  | Windows        | Python           |
@@ -634,9 +640,11 @@ the following table shows some compatibility information:
 | Corstone-310                      | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
 | Corstone-320                      | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
 | NX Performance Estimator          | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
-| Tosa converter  for tflite        | x86_64 and  AArch64    | Not compatible | Python>=3.8      |
 | TOSA checker                      | x86_64 (manylinux2014) | Not compatible | Python>=3.8      |
 | Vela                              | x86_64 and  AArch64    | Windows 10     | Python~=3.7      |
+
+MLIA handles dependency backends that are handling conversions from supported formats to the format accepted by user-facing backend.
+These backends are listed in `mlia-backend list` output, but user is not required to explicitly install them.
 
 ### Arm NN TensorFlow Lite Delegate
 
@@ -723,25 +731,6 @@ mlia check --performance -t neural-technology -b nx-performance-estimator ~/mode
 mlia check --compatibility -t neural-technology -b nx-performance-estimator ~/model_file.tflite
 ```
 
-### TOSA Converter for TFLite
-
-The TOSA Converter for TFLite backend legalizes TFLite FlatBuffer to TOSA MLIR Bytecode or Text.
-This backend is currently required by the Neural Accelerator Performance Estimator.
-
-Please, install it into the same environment as MLIA using this command:
-
-```bash
-mlia-backend install tosa-converter-for-tflite
-```
-
-*Note*: the installation options are the same
-as for the [Neural Accelerator Performance Estimator](#neural-accelerator-performance-estimator)
-(please see detailed information there).
-
-Additional resources:
-
-- <https://gitlab.arm.com/tosa/tosa-converter-for-tflite>
-
 ### TOSA Checker
 
 > **DEPRECATION WARNING**
@@ -775,24 +764,3 @@ mlia-backend install vela
 Additional resources:
 
 - <https://pypi.org/project/ethos-u-vela/>
-
-### ML SDK Model Converter
-
-The ML SDK Model Converter is a command line application that translate TOSA ML Models to VGF files.
-
-It is currently required by the Neural Accelerator Performance Estimator to
-convert the input model from Tosa MLIR to SPIR-V.
-
-Please, install it into the same environment as MLIA using this command:
-
-```bash
-mlia-backend install ml-sdk-model-converter
-```
-
-*Note*: the installation options are the same
-as for the [Neural Accelerator Performance Estimator](#neural-accelerator-performance-estimator)
-(please see detailed information there).
-
-Additional resources:
-
-- <https://github.com/arm/ai-ml-sdk-model-converter>

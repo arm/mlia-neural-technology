@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-"""TOSA Converter For Pytorch backend module."""
+"""TOSA Converter For PyTorch backend module."""
 from mlia.backend.config import BackendConfiguration
 from mlia.backend.config import BackendType
 from mlia.backend.config import System
@@ -17,5 +17,5 @@ registry.register(
         backend_type=BackendType.WHEEL,
         installation=get_mlia_pytorch_to_tosa_backend_installation(),
     ),
-    pretty_name="TOSA converter for pytorch",
+    pretty_name="TOSA converter for PyTorch",
 )
