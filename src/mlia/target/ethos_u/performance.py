@@ -13,10 +13,8 @@ from typing import Union
 import mlia.backend.vela.compiler as vela_comp
 import mlia.backend.vela.performance as vela_perf
 from mlia.backend.corstone import is_corstone_backend
+from mlia.backend.corstone.performance import CorstonePerformanceMetrics
 from mlia.backend.corstone.performance import estimate_performance
-from mlia.backend.corstone.performance import (
-    PerformanceMetrics as CorstonePerformanceMetrics,
-)
 from mlia.backend.errors import BackendUnavailableError
 from mlia.backend.vela.performance import LayerwisePerfInfo
 from mlia.core.context import Context
@@ -286,19 +284,20 @@ class CorstonePerformanceEstimator(
                 self.target_config.mac,
                 optimized_model_path,
                 self.backend,
+                self.context.output_dir,
             )
 
             # Store the raw backend metrics for standardized output generation
             self.backend_metrics = corstone_perf_metrics
 
             return NPUCycles(
-                corstone_perf_metrics.npu_active_cycles,
-                corstone_perf_metrics.npu_idle_cycles,
-                corstone_perf_metrics.npu_total_cycles,
-                corstone_perf_metrics.npu_axi0_rd_data_beat_received,
-                corstone_perf_metrics.npu_axi0_wr_data_beat_written,
-                corstone_perf_metrics.npu_axi1_rd_data_beat_received,
-                corstone_perf_metrics.npu_axi1_wr_data_beat_written,
+                corstone_perf_metrics.npu_model_stats.npu_active_cycles,
+                corstone_perf_metrics.npu_model_stats.npu_idle_cycles,
+                corstone_perf_metrics.npu_model_stats.npu_total_cycles,
+                corstone_perf_metrics.npu_model_stats.npu_axi0_rd_data_beat_received,
+                corstone_perf_metrics.npu_model_stats.npu_axi0_wr_data_beat_written,
+                corstone_perf_metrics.npu_model_stats.npu_axi1_rd_data_beat_received,
+                corstone_perf_metrics.npu_model_stats.npu_axi1_wr_data_beat_written,
             )
 
 
