@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Module to track stripe-level statistics to TFLite granularity."""
 import copy
@@ -40,16 +40,18 @@ class NXModelPerformanceStats:  # pylint: disable=too-many-instance-attributes
             data = json.load(file)
 
         network_perf = data["network_performance"]
+        cache1 = network_perf.get("cache1", {})
+        dram = network_perf.get("dram", {})
 
         return cls(
             compiled_size=data["compiled_size"]["value"],
-            cache_cycles=network_perf["cache1"]["cycles"]["value"],
-            cache_read_bytes=network_perf["cache1"]["read_bytes"]["value"],
-            cache_write_bytes=network_perf["cache1"]["write_bytes"]["value"],
+            cache_cycles=cache1.get("cycles", {}).get("value", 0),
+            cache_read_bytes=cache1.get("read_bytes", {}).get("value", 0),
+            cache_write_bytes=cache1.get("write_bytes", {}).get("value", 0),
             compute_cycles=network_perf["compute_cycles"]["value"],
-            dram_cycles=network_perf["dram"]["cycles"]["value"],
-            dram_read_bytes=network_perf["dram"]["read_bytes"]["value"],
-            dram_write_bytes=network_perf["dram"]["write_bytes"]["value"],
+            dram_cycles=dram.get("cycles", {}).get("value", 0),
+            dram_read_bytes=dram.get("read_bytes", {}).get("value", 0),
+            dram_write_bytes=dram.get("write_bytes", {}).get("value", 0),
             dram_footprint=network_perf["dram_footprint"]["value"],
             inference_time=network_perf["inference_time"]["value"],
             infs_per_sec=network_perf["infs_per_sec"]["value"],
