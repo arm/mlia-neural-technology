@@ -1,5 +1,5 @@
 <!---
-SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 SPDX-License-Identifier: Apache-2.0
 --->
 # MLIA Releases
@@ -16,7 +16,26 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
-## Next
+## 0.10.0 (2026-01-05)
+
+### Feature changes
+
+* Add VGF, TOSA MLIR, TOSA flatbuffer support for neural-technology targets
+* Add PyTorch2.x support for neural-technology targets through ExecuTorch
+* Add unified schema output for all backends, available through --json command
+* Add mlia-target command for listing available profiles
+* Add automatic backend dependency resolution
+* Add multiple argument backend install and uninstall
+* Add backend-specific configuration options to CLI
+* Enable cascading by default for neural-technology targets
+
+### Bug fix
+
+* Improve test coverage
+* Improve operator location report for multiple backends
+* Fix test failing when testing directly through pytest
+* Clarify user-facing and dependency backends in help and installation prompts
+* Fix neural-technology targets crashing for some models due to absent cache traffic
 
 ### Internal changes
 
