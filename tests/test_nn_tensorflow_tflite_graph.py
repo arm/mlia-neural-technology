@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2026 Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the tflite_graph module."""
 import json
@@ -123,12 +123,20 @@ def test_operator_names_to_types_output(test_resources_path: Path) -> None:
     """Test that the output of the tests is as expected."""
     test_model = Path(test_resources_path / "clampnet_v2_1-int8_qat_NE.tflite")
 
-    test_dict = operator_names_to_types(test_model)
+    tensor_names, tensor_types = operator_names_to_types(test_model)
     assert (
-        test_dict["FusedBatchNormV3;BiasAdd/ReadVariableOp;BiasAdd;Conv2D"] == "CONV_2D"
-    )
-    assert (
-        test_dict["FusedBatchNormV3;BiasAdd/ReadVariableOp;BiasAdd;Conv2D1"]
+        tensor_names["FusedBatchNormV3;BiasAdd/ReadVariableOp;BiasAdd;Conv2D"]
         == "CONV_2D"
     )
-    assert test_dict["resize/ResizeNearestNeighbor1"] == "RESIZE_NEAREST_NEIGHBOR"
+    assert (
+        tensor_types["FusedBatchNormV3;BiasAdd/ReadVariableOp;BiasAdd;Conv2D"] == "INT8"
+    )
+    assert (
+        tensor_names["FusedBatchNormV3;BiasAdd/ReadVariableOp;BiasAdd;Conv2D1"]
+        == "CONV_2D"
+    )
+    assert (
+        tensor_types["FusedBatchNormV3;BiasAdd/ReadVariableOp;BiasAdd;Conv2D1"]
+        == "INT8"
+    )
+    assert tensor_names["resize/ResizeNearestNeighbor1"] == "RESIZE_NEAREST_NEIGHBOR"

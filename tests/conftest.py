@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Pytest conf module."""
 # mypy: disable-error-code=misc
@@ -151,6 +151,8 @@ TEST_MODEL_TF_SAVED_MODEL_FILE = "tf_model_test_model"
 TEST_MODEL_INVALID_FILE = "invalid.tflite"
 TEST_MODEL_TOSA_MLIR_INT8_FILE = "nx/test_model_int8.tosamlir"
 TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE = "nx/test_model_int8.tosa"
+TEST_MODEL_TOSA_MLIR_FLOAT_32_FILE = "nx/test_model_float32.tosamlir"
+TEST_MODEL_TOSA_FLATBUFFER_FLOAT_32_FILE = "nx/test_model_float32.tosa"
 TEST_MODEL_VGF_INT8_FILE = "nx/test_model_int8.vgf"
 
 
@@ -328,6 +330,34 @@ def fixture_test_tosa_mlir_model(test_resources_path: Path) -> Path:
 def fixture_test_tosa_flatbuffer_model(test_resources_path: Path) -> Path:
     """Return a TOSA flatbuffer model path."""
     return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE
+
+
+@pytest.fixture(scope="session", name="test_tosa_mlir_float32_model")
+def fixture_test_tosa_mlir_float32_model(test_resources_path: Path) -> Path:
+    """Return a TOSA MLIR float32 model path."""
+    return test_resources_path / TEST_MODEL_TOSA_MLIR_FLOAT_32_FILE
+
+
+@pytest.fixture(scope="session", name="test_tosa_flatbuffer_float32_model")
+def fixture_test_tosa_flatbuffer_float32_model(test_resources_path: Path) -> Path:
+    """Return a TOSA flatbuffer float32 model path."""
+    return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_FLOAT_32_FILE
+
+
+@pytest.fixture(scope="session", name="test_tosa_mlir_float32_model_with_length")
+def fixture_test_tosa_mlir_float32_model_with_length(
+    test_resources_path: Path,
+) -> tuple[Path, int]:
+    """Return a TOSA MLIR float32 model path and expected operation count."""
+    return test_resources_path / TEST_MODEL_TOSA_MLIR_FLOAT_32_FILE, 64
+
+
+@pytest.fixture(scope="session", name="test_tosa_flatbuffer_float32_model_with_length")
+def fixture_test_tosa_flatbuffer_float32_model_with_length(
+    test_resources_path: Path,
+) -> tuple[Path, int]:
+    """Return a TOSA flatbuffer float32 model path and expected operation count."""
+    return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_FLOAT_32_FILE, 64
 
 
 @pytest.fixture(scope="session", name="test_vgf_model")

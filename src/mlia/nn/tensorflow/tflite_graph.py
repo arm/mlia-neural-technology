@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2024, 2026 Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Utilities for TensorFlow Lite graphs."""
 from __future__ import annotations
@@ -164,7 +164,7 @@ def save_fb(model: ModelT, output_tflite_file: str | Path) -> None:
         out_file.write(model_data)
 
 
-def operator_names_to_types(model_path: Path) -> dict:
+def operator_names_to_types(model_path: Path) -> tuple[dict[str, str], dict[str, str]]:
     """Create a mapping between the output operator type and the layer name."""
     if not Path(model_path).exists():
         raise FileNotFoundError(f"TFLite file was not found at: {model_path}")
@@ -172,13 +172,16 @@ def operator_names_to_types(model_path: Path) -> dict:
     model = parse_subgraphs(model_path)
 
     tensor_names = {}
+    tensor_types = {}
     for subgraph in model:
         for layer in subgraph:
             for output_tensor in layer.outputs:
                 tensor_names[output_tensor.name] = layer.type
+                tensor_types[output_tensor.name] = output_tensor.type
         for layer in subgraph:
             for input_tensor in layer.inputs:
                 layer_type = tensor_names.get(input_tensor.name)
                 if not layer_type:
                     tensor_names[input_tensor.name] = layer.type
-    return tensor_names
+                    tensor_types[input_tensor.name] = input_tensor.type
+    return tensor_names, tensor_types

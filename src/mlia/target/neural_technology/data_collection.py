@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Data collection module for Neural Technology."""
 from __future__ import annotations
@@ -78,7 +78,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
             )
 
         if is_tflite_model(self.model):
-            operator_types_mapping = operator_names_to_types(model_path=self.model)
+            operator_types_mapping, _ = operator_names_to_types(model_path=self.model)
         else:
             operator_types_mapping = {}
 

@@ -14,6 +14,7 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_flatbuffer
 from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_mlir_ops
 from mlia.backend.ml_sdk_model_converter.tosa_reader import tosa_flatbuffers_available
 from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
 
 
 def _check_id_to_tosa_ops(id_to_tosa_ops: dict[int, TosaOp], expected_len: int) -> None:
@@ -42,6 +43,43 @@ def test_read_tosa_mlir_model(
     model_path, expected_len = test_tosa_mlir_model_with_length
     id_to_tosa_ops = read_tosa_mlir_ops(model_path)
     _check_id_to_tosa_ops(id_to_tosa_ops, expected_len)
+    for _, tosa_op in id_to_tosa_ops.items():
+        assert tosa_op.type in (TosaOpType.INT, TosaOpType.TOSA_SPECIFIC)
+
+
+def test_read_tosa_mlir_f32_model(
+    test_tosa_mlir_float32_model_with_length: tuple[Path, int],
+) -> None:
+    """Tests TOSA-MLIR file parser on a float-32 model."""
+    model_path, expected_len = test_tosa_mlir_float32_model_with_length
+    id_to_tosa_ops = read_tosa_mlir_ops(model_path)
+    _check_id_to_tosa_ops(id_to_tosa_ops, expected_len)
+    for _, tosa_op in id_to_tosa_ops.items():
+        assert tosa_op.type is not None
+
+
+@pytest.mark.parametrize(
+    "tosa_mlir_content",
+    [
+        # pylint: disable=line-too-long
+        """
+%0 = "tosa.const"() : () -> tensor<256xi8> loc(#loc1)
+%1 = "tosa.const"() : () -> tensor<3xf32> loc(#loc1)
+%2 = tosa.const_shape  {values = dense<3> : tensor<2xindex>} : () -> !tosa.shape<2> loc(#loc1)
+        """,
+        # pylint: enable=line-too-long
+    ],
+)
+def test_read_tosa_mlir_types(tosa_mlir_content: str, tmp_path: Path) -> None:
+    """Test parsing TOSA_MLIR operator types."""
+    tosa_mlir_file = tmp_path / "test.tosamlir"
+
+    with open(tosa_mlir_file, "w", encoding="utf-8") as file:
+        file.write(tosa_mlir_content)
+
+    id_to_tosa_ops = read_tosa_mlir_ops(tosa_mlir_file)
+    op_types = {tosa_op.type for _, tosa_op in id_to_tosa_ops.items()}
+    assert op_types == {TosaOpType.INT, TosaOpType.FLOAT, TosaOpType.TOSA_SPECIFIC}
 
 
 @pytest.mark.parametrize(
@@ -73,6 +111,15 @@ def test_read_tosa_mlir_model(
 %3 = "tosa.const"() : () -> tensor<1xi8> loc(#loc1)
             """,
             pytest.raises(ValueError, match="Failed to parse op"),
+        ),
+        (
+            """
+%0 = "tosa.const"() : () -> tensor<256xi8> loc(#loc1)
+%1 = "tosa.const"() : () -> tensor<3xbadtype> loc(#loc1)
+%2 = "tosa.const"() : () -> tensor<3xi32> loc(#loc1)
+%3 = "tosa.const"() : () -> tensor<1xi8> loc(#loc1)
+            """,
+            pytest.raises(ValueError, match="Unsupported type:"),
         ),
     ],
 )
@@ -139,6 +186,20 @@ def test_read_tosa_flatbuffer_model(
 
     id_to_tosa_ops = read_tosa_flatbuffer_ops(model_path)
     _check_id_to_tosa_ops(id_to_tosa_ops, expected_len)
+
+
+def test_read_tosa_flatbuffer_f32_model(
+    test_tosa_flatbuffer_float32_model_with_length: tuple[Path, int],
+) -> None:
+    """Tests TOSA flatbuffer file parser on  a float-32 model."""
+    if not tosa_flatbuffers_available():
+        pytest.skip("Tosa Flatbuffers backend not available")
+    model_path, expected_len = test_tosa_flatbuffer_float32_model_with_length
+
+    id_to_tosa_ops = read_tosa_flatbuffer_ops(model_path)
+    _check_id_to_tosa_ops(id_to_tosa_ops, expected_len)
+    for _, tosa_op in id_to_tosa_ops.items():
+        assert tosa_op.type is not None
 
 
 def test_tosa_flatbuffers_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:

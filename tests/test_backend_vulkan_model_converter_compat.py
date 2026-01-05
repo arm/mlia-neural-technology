@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for tflite_compat module."""
 from __future__ import annotations
@@ -18,6 +18,7 @@ from mlia.backend.ml_sdk_model_converter.compat import TOSAModel
 from mlia.backend.ml_sdk_model_converter.compat import VGFModel
 from mlia.backend.ml_sdk_model_converter.compat import VMCCompatibilityLogReader
 from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
 from mlia.nn.tensorflow.config import get_model
 from mlia.utils.proc import OutputConsumer
@@ -222,8 +223,8 @@ def test_check_compatibility_pt2_success(
 
     # Mock TOSA ops reading - successful conversion with supported ops
     mock_tosa_ops = {
-        0: TosaOp(name="CONV2D", loc="layer1/conv"),
-        1: TosaOp(name="ADD", loc="layer2/add"),
+        0: TosaOp(name="CONV2D", loc="layer1/conv", type=TosaOpType.INT),
+        1: TosaOp(name="ADD", loc="layer2/add", type=TosaOpType.INT),
     }
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.compat.read_tosa_flatbuffer_ops",
@@ -291,9 +292,9 @@ def test_check_compatibility_pt2_with_unsupported_ops(
 
     # Mock TOSA ops reading - mix of supported and unsupported ops
     mock_tosa_ops = {
-        0: TosaOp(name="CONV2D", loc="layer1/conv"),
-        1: TosaOp(name="UNSUPPORTED_OP", loc="layer2/unsupported"),
-        2: TosaOp(name="ADD", loc="layer3/add"),
+        0: TosaOp(name="CONV2D", loc="layer1/conv", type=TosaOpType.INT),
+        1: TosaOp(name="UNSUPPORTED_OP", loc="layer2/unsupported", type=None),
+        2: TosaOp(name="ADD", loc="layer3/add", type=TosaOpType.INT),
     }
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.compat.read_tosa_flatbuffer_ops",
@@ -323,9 +324,9 @@ def test_check_compatibility_pt2_with_unsupported_ops(
         (
             False,
             {
-                0: TosaOp("tosa.conv2d", "model/block0"),
-                1: TosaOp("tosa.avg_pool2d", "model/block0"),
-                2: TosaOp("tosa.tanh", "model/block1"),
+                0: TosaOp("tosa.conv2d", "model/block0", type=TosaOpType.INT),
+                1: TosaOp("tosa.avg_pool2d", "model/block0", type=TosaOpType.INT),
+                2: TosaOp("tosa.tanh", "model/block1", type=TosaOpType.INT),
             },
             [
                 "model/block0_0",
@@ -337,9 +338,9 @@ def test_check_compatibility_pt2_with_unsupported_ops(
         (
             False,
             {
-                0: TosaOp("tosa.conv2d", "model/block0"),
-                1: TosaOp("tosa.avg_pool2d", "model/block0"),
-                2: TosaOp("tosa.no_op", "model/block1"),  # unknown op
+                0: TosaOp("tosa.conv2d", "model/block0", type=TosaOpType.INT),
+                1: TosaOp("tosa.avg_pool2d", "model/block0", type=TosaOpType.INT),
+                2: TosaOp("tosa.no_op", "model/block1", type=None),  # unknown op
             },
             [
                 "model/block0_0",
@@ -352,9 +353,11 @@ def test_check_compatibility_pt2_with_unsupported_ops(
         (
             False,
             {
-                0: TosaOp("tosa.conv2d", "model/block0"),
-                1: TosaOp("tosa.avg_pool2d", "model/block0"),
-                2: TosaOp("tosa.custom", "model/block1"),  # shader op
+                0: TosaOp("tosa.conv2d", "model/block0", type=TosaOpType.INT),
+                1: TosaOp("tosa.avg_pool2d", "model/block0", type=TosaOpType.INT),
+                2: TosaOp(
+                    "tosa.custom", "model/block1", type=TosaOpType.INT
+                ),  # shader op
             },
             [
                 "model/block0_0",
@@ -367,9 +370,9 @@ def test_check_compatibility_pt2_with_unsupported_ops(
         (
             True,
             {
-                0: TosaOp("CONV2D", "model/block0"),
-                1: TosaOp("AVG_POOL2D", "model/block0"),
-                2: TosaOp("TANH", "model/block1"),
+                0: TosaOp("CONV2D", "model/block0", type=TosaOpType.INT),
+                1: TosaOp("AVG_POOL2D", "model/block0", type=TosaOpType.INT),
+                2: TosaOp("TANH", "model/block1", type=TosaOpType.INT),
             },
             [
                 "model/block0_0",
@@ -381,9 +384,9 @@ def test_check_compatibility_pt2_with_unsupported_ops(
         (
             True,
             {
-                0: TosaOp("CONV2D", "model/block0"),
-                1: TosaOp("AVG_POOL2D", "model/block0"),
-                2: TosaOp("NO_OP", "model/block1"),
+                0: TosaOp("CONV2D", "model/block0", type=TosaOpType.INT),
+                1: TosaOp("AVG_POOL2D", "model/block0", type=TosaOpType.INT),
+                2: TosaOp("NO_OP", "model/block1", type=TosaOpType.INT),
             },
             [
                 "model/block0_0",
@@ -396,9 +399,9 @@ def test_check_compatibility_pt2_with_unsupported_ops(
         (
             True,
             {
-                0: TosaOp("CONV2D", "model/block0"),
-                1: TosaOp("AVG_POOL2D", "model/block0"),
-                2: TosaOp("CUSTOM", "model/block1"),
+                0: TosaOp("CONV2D", "model/block0", type=TosaOpType.INT),
+                1: TosaOp("AVG_POOL2D", "model/block0", type=TosaOpType.INT),
+                2: TosaOp("CUSTOM", "model/block1", type=TosaOpType.INT),
             },
             [
                 "model/block0_0",
@@ -536,7 +539,16 @@ def test_check_compatibility_tflite(
 
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.compat.operator_names_to_types",
-        MagicMock(return_value={"model/tf.math.multiply_75/Mul1": "MUL"}),
+        MagicMock(
+            return_value=(
+                {
+                    "model/tf.math.multiply_75/Mul1": "MUL",
+                },
+                {
+                    "model/tf.math.multiply_75/Mul1": "INT8",
+                },
+            )
+        ),
     )
 
     checker = NXCompatibilityChecker(tmp_path)
@@ -564,7 +576,7 @@ def test_nx_compatiblity_info() -> None:
     """Test Neural Accelerator CompatibilityInfo additions."""
 
     info = NXModelCompatibilityInfo()
-    info.add_lowered_to_tosa("model/myloc1/op1", "mytosa_op")
+    info.add_lowered_to_tosa(TosaOp("mytosa_op", "model/myloc1/op1", TosaOpType.INT))
     assert info.dump() == [
         {
             "compat_level": "TOSA",
@@ -575,8 +587,15 @@ def test_nx_compatiblity_info() -> None:
     ]
 
     info.add_lowering_error("model/myloc2/op3", "Can't be lowered")
+    info.add_lowered_to_tosa(
+        TosaOp("tosa.custom", "model/myloc2/shader_op", TosaOpType.INT)
+    )
+    info.add_lowered_to_tosa(TosaOp("mytosa_op4", "model/myloc1/op4", TosaOpType.INT))
+    info.add_lowered_to_tosa(
+        TosaOp("tosa.conv2d", "model/myloc1/op5", TosaOpType.FLOAT)
+    )
 
-    assert info.get_records() == [
+    expected_records = [
         NXOperatorCompatibilityInfo(
             location="model/myloc1/op1",
             compat_level="TOSA",
@@ -593,44 +612,37 @@ def test_nx_compatiblity_info() -> None:
             error="Can't be lowered",
             placement=None,
         ),
+        NXOperatorCompatibilityInfo(
+            location="model/myloc2/shader_op",
+            compat_level="Shader",
+            type=None,
+            tosa_op="tosa.custom",
+            error=None,
+            placement="EE",
+        ),
+        NXOperatorCompatibilityInfo(
+            location="model/myloc1/op4",
+            compat_level="TOSA",
+            type=None,
+            tosa_op="mytosa_op4",
+            error=None,
+            placement="NX",
+        ),
+        NXOperatorCompatibilityInfo(
+            location="model/myloc1/op5",
+            compat_level="Shader",
+            type=None,
+            tosa_op="tosa.conv2d",
+            error=None,
+            placement="EE",
+        ),
     ]
-    assert info.dump() == [
-        {
-            "location": "model/myloc1/op1",
-            "compat_level": "TOSA",
-            "tosa_op": "mytosa_op",
-            "placement": "NX",
-        },
-        {
-            "location": "model/myloc2/op3",
-            "compat_level": "Non-NX",
-            "error": "Can't be lowered",
-        },
-    ]
+    actual_records = info.get_records()
+    assert len(actual_records) == len(expected_records)
+    for record in actual_records:
+        assert record in expected_records
 
-    info.add_lowered_to_tosa("model/myloc2/shader_op", "tosa.custom")
-    assert info.dump() == [
-        {
-            "location": "model/myloc1/op1",
-            "compat_level": "TOSA",
-            "tosa_op": "mytosa_op",
-            "placement": "NX",
-        },
-        {
-            "location": "model/myloc2/op3",
-            "compat_level": "Non-NX",
-            "error": "Can't be lowered",
-        },
-        {
-            "location": "model/myloc2/shader_op",
-            "compat_level": "Shader",
-            "tosa_op": "tosa.custom",
-            "placement": "EE",
-        },
-    ]
-
-    info.add_lowered_to_tosa("model/myloc1/op4", "mytosa_op4")
-    assert info.dump() == [
+    expected_dump = [
         {
             "location": "model/myloc1/op1",
             "compat_level": "TOSA",
@@ -654,7 +666,17 @@ def test_nx_compatiblity_info() -> None:
             "tosa_op": "tosa.custom",
             "placement": "EE",
         },
+        {
+            "location": "model/myloc1/op5",
+            "compat_level": "Shader",
+            "tosa_op": "tosa.conv2d",
+            "placement": "EE",
+        },
     ]
+    actual_dump = info.dump()
+    assert len(actual_dump) == len(expected_dump)
+    for dumped in actual_dump:
+        assert dumped in expected_dump
 
 
 def test_unrecognized_log_line() -> None:

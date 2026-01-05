@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Technology reporters."""
 from functools import partial
@@ -10,6 +10,8 @@ import pytest
 from rich.console import Console
 
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
@@ -212,9 +214,9 @@ def test_nx_compatibility_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
     compatibility data."""
 
     comp_info = NXModelCompatibilityInfo({"/myop1": "COMP2D", "/myop4": "NMS"})
-    comp_info.add_lowered_to_tosa("/myop1", "tosaop1")
-    comp_info.add_lowered_to_tosa("/myop2", "tosa.custom")
-    comp_info.add_lowered_to_tosa("/myop3", "tosaop3")
+    comp_info.add_lowered_to_tosa(TosaOp("tosaop1", "/myop1", TosaOpType.INT))
+    comp_info.add_lowered_to_tosa(TosaOp("tosa.custom", "/myop2", TosaOpType.INT))
+    comp_info.add_lowered_to_tosa(TosaOp("tosaop3", "/myop3", TosaOpType.INT))
     comp_info.add_lowering_error("/myop4", "Error occured when lowering")
 
     formatter = neural_technology_formatters(comp_info)

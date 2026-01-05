@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 # pylint: disable=duplicate-code
 """Neural Accelerator operator compatibility module."""
@@ -19,6 +19,7 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_flatbuffer
 from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_mlir_ops
 from mlia.backend.ml_sdk_model_converter.tosa_reader import tosa_flatbuffers_available
 from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
 from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
     MliaPytorchToTosaConverter,
 )
@@ -244,12 +245,17 @@ class NXModelCompatibilityInfo:
             self._layer_map[location] = record
         return record
 
-    def add_lowered_to_tosa(self, location: str, tosa_op: str) -> None:
+    def add_lowered_to_tosa(self, tosa_op: TosaOp) -> None:
         """Add an op to the database, that was reported to be lowered to TOSA."""
-        record = self._find_or_create_record(location)
-        record.tosa_op = tosa_op
-        is_shader_op = tosa_op in ["tosa.custom", "CUSTOM"]
-        if is_shader_op:
+        record = self._find_or_create_record(tosa_op.loc)
+        record.tosa_op = tosa_op.name
+
+        is_shader_op = tosa_op.name in ["tosa.custom", "CUSTOM"]
+        # [TODO]: Replace with a proper check once FP support is added
+        # to the performance estimator (MLIA-1640)
+        is_fp_op = tosa_op.type == TosaOpType.FLOAT
+
+        if is_shader_op or is_fp_op:
             record.compat_level = "Shader"
             record.placement = "EE"
         else:
@@ -459,6 +465,19 @@ class NXCompatibilityChecker:
             return self.tosa_mlir_to_tosa_map.get(tosa_op.name)
         return tosa_op.name if tosa_op.name in _SUPPORTED_TOSA_OPS else None
 
+    def _get_tosa_type(
+        self, tosa_op: str, tosa_loc: str, tensor_types: dict
+    ) -> TosaOpType | None:
+        if tosa_op == "tosa.const_shape":
+            return TosaOpType.TOSA_SPECIFIC
+        tensor_type = tensor_types.get(tosa_loc)
+        if tensor_type:
+            if tensor_type.startswith("FLOAT"):
+                return TosaOpType.FLOAT
+            if tensor_type.startswith("INT"):
+                return TosaOpType.INT
+        return None
+
     def tosa_flatbuffer_input_supported(self) -> bool:
         """Are TOSA and TOSA-MLIR files supported."""
         return tosa_flatbuffers_available()
@@ -475,10 +494,12 @@ class NXCompatibilityChecker:
         vmc(tflite_model_path, output_dir)
         reader: VMCCompatibilityLogReader = vmc.compatibility_log_reader
 
-        comp_info = NXModelCompatibilityInfo(operator_names_to_types(tflite_model_path))
+        tensor_names, tensor_types = operator_names_to_types(tflite_model_path)
+        comp_info = NXModelCompatibilityInfo(tensor_names)
 
         for lowered_op, tosa_op in reader.lowered_ops.items():
-            comp_info.add_lowered_to_tosa(lowered_op, tosa_op)
+            tosa_op_type = self._get_tosa_type(tosa_op, lowered_op, tensor_types)
+            comp_info.add_lowered_to_tosa(TosaOp(tosa_op, lowered_op, tosa_op_type))
 
         for location, error in reader.lowering_errors.items():
             comp_info.add_lowering_error(location, error)
@@ -513,16 +534,18 @@ class NXCompatibilityChecker:
             logger.warning("Could not find any TOSA operations.")
             return NXModelCompatibilityInfo()
 
-        location_to_types = {
+        location_to_op_names = {
             self._get_tosa_unique_location(tosa_op.loc, op_id): tosa_op.name
             for op_id, tosa_op in tosa_ops.items()
         }
-        comp_info = NXModelCompatibilityInfo(location_to_types)
+        comp_info = NXModelCompatibilityInfo(location_to_op_names)
         for op_id, tosa_op in tosa_ops.items():
             op_name = self._get_supported_tosa_op_name(tosa_op, is_mlir)
             unique_location = self._get_tosa_unique_location(tosa_op.loc, op_id)
             if op_name:
-                comp_info.add_lowered_to_tosa(unique_location, op_name)
+                comp_info.add_lowered_to_tosa(
+                    TosaOp(op_name, unique_location, tosa_op.type)
+                )
             else:
                 comp_info.add_lowering_error(unique_location, "unsupported operation")
 

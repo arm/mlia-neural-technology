@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Pre-commit hook that checks the current year is in the Copyright header of a file.
 
@@ -76,6 +76,9 @@ if __name__ == "__main__":
         "tests/test_resources/nx/test_model_int8.tosa",
         "tests/test_resources/nx/test_model_int8.tosamlir",
         "tests/test_resources/nx/test_model_int8.vgf",
+        "tests/test_resources/nx/test_model_float32.tosa",
+        "tests/test_resources/nx/test_model_float32.tosamlir",
+        "tests/test_resources/nx/test_model_float32.vgf",
     }
 
     # Also check files modified in the last commit to catch files that might have
