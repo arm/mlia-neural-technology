@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Installation module for the TOSA Converter For PyTorch."""
 from __future__ import annotations
@@ -38,9 +38,9 @@ class PyTorchCPUBackendInstallation(PyPackageBackendInstallation):
                     "pip",
                     "--disable-pip-version-check",
                     "install",
-                    "torch",
-                    "executorch",
-                    "torchao",
+                    "torch==2.9.0+cpu",
+                    "executorch==1.0.1+cpu",
+                    "torchao==0.14.0+cpu",
                     "--index-url",
                     "https://download.pytorch.org/whl/cpu",
                     "--extra-index-url",

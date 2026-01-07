@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for MLIA PyTorch to TOSA converter backend."""
 from __future__ import annotations
@@ -76,9 +76,9 @@ def test_pytorch_cpu_backend_install_calls_subprocess(
     call_args = mock_subprocess.call_args[0][0]
     assert "pip" in call_args
     assert "install" in call_args
-    assert "torch" in call_args
-    assert "executorch" in call_args
-    assert "torchao" in call_args
+    assert any("torch" in arg for arg in call_args)
+    assert any("executorch" in arg for arg in call_args)
+    assert any("torchao" in arg for arg in call_args)
     assert "https://download.pytorch.org/whl/cpu" in call_args
     assert "--index-url" in call_args
 
