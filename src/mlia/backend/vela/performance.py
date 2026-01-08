@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Vela performance module."""
 from __future__ import annotations
@@ -199,8 +199,9 @@ class PerformanceMetrics:  # pylint: disable=too-many-instance-attributes
         ]
 
         breakdowns = []
+        layer_metric = []
         for layer_info in self.layerwise_performance_info.layerwise_info:
-            metrics = [
+            layer_metric = [
                 schema.Metric(
                     name="op_cycles",
                     value=layer_info.op_cycles,
@@ -252,7 +253,7 @@ class PerformanceMetrics:  # pylint: disable=too-many-instance-attributes
                     scope=schema.OperatorScope.OPERATOR,
                     name=layer_info.tflite_operator,
                     location=layer_info.name,
-                    metrics=metrics,
+                    metrics=layer_metric,
                 )
             )
 

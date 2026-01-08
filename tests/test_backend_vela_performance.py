@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for module vela/performance."""
 import tempfile
@@ -318,7 +318,7 @@ def _get_perf_metrics() -> PerformanceMetrics:
     layerwise_perf_info = LayerwisePerfInfo(layerwise_info=layer_info)
 
     return PerformanceMetrics(
-        npu_cycles=10304,
+        npu_cycles=8642,
         sram_access_cycles=4992,
         dram_access_cycles=0,
         on_chip_flash_access_cycles=0,
@@ -380,6 +380,16 @@ def test_to_standardized_output(
     ]
     assert len(standardized_output["results"]) == 1
     results = standardized_output["results"][0]
+
+    overall_metrics = {m["name"]: m["value"] for m in results["metrics"]}
+    assert overall_metrics["npu_cycles"] == 8642
+    assert overall_metrics["sram_access_cycles"] == 4992
+    assert overall_metrics["dram_access_cycles"] == 0
+    assert overall_metrics["total_cycles"] == 41416
+    assert overall_metrics["batch_inference_time"] == pytest.approx(0.207)
+    assert overall_metrics["inferences_per_second"] == pytest.approx(4830.9)
+    assert overall_metrics["batch_size"] == 1
+
     assert len(results["breakdowns"]) == 2
     breakdowns = results["breakdowns"]
 
