@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """A tosa file parsing functionalities."""
 from __future__ import annotations
@@ -128,17 +128,8 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
                 except AttributeError:
                     # Location not available in older TOSA files
                     op_loc = ""
+                op_loc = op_loc or "unknown"
 
-                if op_loc == "":
-                    # op_loc = "region:block:output_0_output_1..."
-                    op_loc = (
-                        f"{reg.Name().decode('utf-8')}:"
-                        + f"{block.Name().decode('utf-8')}"
-                    )
-                    op_loc += ":"
-                    for out_idx in range(operation.OutputsLength()):
-                        op_loc += operation.Outputs(out_idx).decode("utf-8") + "_"
-                    op_loc = op_loc[:-1]
                 op_name = tosa_flatbuffer_ops[operation.Op()]
                 tosa_ops.update({op_id: TosaOp(op_name, op_loc)})
                 op_id += 1
