@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for tosa reader."""
 from __future__ import annotations
@@ -101,7 +101,7 @@ def test_read_tosa_mlir_missing_loc(tmp_path: Path) -> None:
 %2 = "tosa.const"() : () -> tensor<3xi32> loc(#loc1)
 %3 = "tosa.const"() : () -> tensor<1xi8> loc(#loc2)
 #loc1 = loc("layer0")
-        """
+            """
         )
 
     id_to_tosa_ops = read_tosa_mlir_ops(tosa_mlir_file)
@@ -112,6 +112,21 @@ def test_read_tosa_mlir_missing_loc(tmp_path: Path) -> None:
 
     assert all(loc == '"layer0"' for loc in known_locations)
     assert missing_location.loc == ""
+
+
+def test_read_tosa_mlir_torch_fx_locations(tmp_path: Path) -> None:
+    """Tests if node names are extracted from torch.fx debug strings"""
+    tosa_mlir_file = tmp_path / "test.tosamlir"
+
+    with open(tosa_mlir_file, "w", encoding="utf-8") as file:
+        file.write(
+            """
+%0 = "tosa.const"() : () -> tensor<256xi8> loc(#loc1)
+#loc1 = loc({"aten_info": {"node_name": "node_0"}})
+            """
+        )
+    id_to_tosa_ops = read_tosa_mlir_ops(tosa_mlir_file)
+    assert id_to_tosa_ops[0].loc == "node_0"
 
 
 def test_read_tosa_flatbuffer_model(

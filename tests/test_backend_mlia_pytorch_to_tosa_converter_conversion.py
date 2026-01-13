@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for MLIA PyTorch to TOSA converter conversion."""
 from __future__ import annotations
@@ -223,13 +223,10 @@ def test_patch_node_visitor_success() -> None:
     converter = MliaPytorchToTosaConverter()
     mock_node_visitor = MagicMock()
 
-    with patch.dict(
-        "sys.modules",
-        {
-            "executorch.backends.arm.operators.node_visitor": MagicMock(
-                NodeVisitor=mock_node_visitor
-            )
-        },
+    # Mock the global NodeVisitor variable instead of sys.modules
+    with patch(
+        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.NodeVisitor",
+        mock_node_visitor,
     ):
         # pylint: disable=protected-access
         converter._patch_node_visitor_for_location()
@@ -258,7 +255,7 @@ def test_patch_node_visitor_success() -> None:
             inputs=["input"],
             outputs=["output"],
             attributes=None,
-            location="test_node",
+            location='{"node_name": "test_node"}',
         )
 
         mock_tosa_graph.reset_mock()
@@ -276,26 +273,19 @@ def test_patch_node_visitor_import_error_logged() -> None:
     """Test that ImportError in patch_node_visitor is logged as warning."""
     converter = MliaPytorchToTosaConverter()
 
-    executorch_modules = [k for k in sys.modules if k.startswith("executorch")]
-    original_modules = {}
-    for mod in executorch_modules:
-        original_modules[mod] = sys.modules.pop(mod, None)
+    # Mock NodeVisitor as None to simulate import failure
+    with patch(
+        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.NodeVisitor", None
+    ), patch(
+        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.logger"
+    ) as mock_logger:
+        # pylint: disable=protected-access
+        converter._patch_node_visitor_for_location()
+        # pylint: enable=protected-access
 
-    try:
-        with patch(
-            "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.logger"
-        ) as mock_logger:
-            # pylint: disable=protected-access
-            converter._patch_node_visitor_for_location()
-            # pylint: enable=protected-access
-
-            mock_logger.warning.assert_called_once()
-            call_args = mock_logger.warning.call_args[0]
-            assert "Could not patch NodeVisitor" in call_args[0]
-    finally:
-        for mod, val in original_modules.items():
-            if val is not None:
-                sys.modules[mod] = val
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args[0]
+        assert "Could not patch NodeVisitor" in call_args[0]
 
 
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion._import_dependencies")
@@ -359,9 +349,15 @@ def test_setup_quantization(
         output_dir = Path(tmpdir)
         base_name = "test_base"
 
-        # pylint: disable=protected-access
-        _compile_spec, _quantizer = converter._setup_quantization(output_dir, base_name)
-        # pylint: enable=protected-access
+        with patch(
+            "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.NodeVisitor",
+            Mock(),
+        ):
+            # pylint: disable=protected-access
+            _compile_spec, _quantizer = converter._setup_quantization(
+                output_dir, base_name
+            )
+            # pylint: enable=protected-access
 
         mock_compile_spec.assert_called_once()
         mock_compile_spec_inst.dump_intermediate_artifacts_to.assert_called_once()

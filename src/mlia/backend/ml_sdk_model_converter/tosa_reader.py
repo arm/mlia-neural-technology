@@ -1,8 +1,9 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """A tosa file parsing functionalities."""
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -46,6 +47,23 @@ def tosa_flatbuffers_available() -> bool:
     return _TOSA_FLATBUFFERS_AVAILABLE
 
 
+def _try_get_torch_fx_node_name(op_loc: str) -> str | None:
+    torch_fx_node_name = None
+    try:
+        parsed = json.loads(op_loc)
+        # Try direct node_name first (from mlia-pytorch-to-tosa-converter)
+        torch_fx_node_name = parsed.get("node_name")
+        # Fall back to nested aten_info.node_name (from debug_hook)
+        if not torch_fx_node_name:
+            torch_fx_node_name = parsed.get("aten_info", {}).get("node_name")
+    except (
+        json.JSONDecodeError,
+        AttributeError,
+    ):
+        pass
+    return torch_fx_node_name
+
+
 def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
     """Read TOSA operations from a .tosamlir file.
 
@@ -81,7 +99,10 @@ def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
                 continue
 
             if match := _RE_MLIR_LOCATION.search(line):
-                loc_ref_to_loc.update({match[1]: match[2]})
+                op_loc = match[2]
+                if op_loc:
+                    op_loc = _try_get_torch_fx_node_name(op_loc) or op_loc
+                loc_ref_to_loc.update({match[1]: op_loc})
                 continue
 
             logger.debug("Line %s ignored", line)
@@ -129,16 +150,12 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
                     # Location not available in older TOSA files
                     op_loc = ""
 
-                if op_loc == "":
-                    # op_loc = "region:block:output_0_output_1..."
-                    op_loc = (
-                        f"{reg.Name().decode('utf-8')}:"
-                        + f"{block.Name().decode('utf-8')}"
-                    )
-                    op_loc += ":"
-                    for out_idx in range(operation.OutputsLength()):
-                        op_loc += operation.Outputs(out_idx).decode("utf-8") + "_"
-                    op_loc = op_loc[:-1]
+                # Handle ExecuTorch JSON location format
+                if op_loc:
+                    op_loc = _try_get_torch_fx_node_name(op_loc) or op_loc
+                else:
+                    op_loc = "unknown"
+
                 op_name = tosa_flatbuffer_ops[operation.Op()]
                 tosa_ops.update({op_id: TosaOp(op_name, op_loc)})
                 op_id += 1

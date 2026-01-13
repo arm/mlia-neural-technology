@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Convert PyTorch models to TOSA format using the PyTorch to TOSA converter."""
 from __future__ import annotations
@@ -17,7 +17,9 @@ torch: Any = None
 get_symmetric_quantization_config: Any = None
 TOSAQuantizer: Any = None
 TosaCompileSpec: Any = None
+ArmCompileSpec: Any = None
 TOSAPartitioner: Any = None
+NodeVisitor: Any = None
 EdgeCompileConfig: Any = None
 to_edge_transform_and_lower: Any = None
 convert_pt2e: Any = None
@@ -34,8 +36,8 @@ def _import_dependencies() -> None:
     """
     # pylint: disable=global-statement,import-outside-toplevel
     # Justification: Lazy loading pattern to defer heavy imports until runtime
-    global torch, get_symmetric_quantization_config, TOSAQuantizer
-    global TosaCompileSpec, TOSAPartitioner, EdgeCompileConfig
+    global torch, get_symmetric_quantization_config, TOSAQuantizer, TosaCompileSpec
+    global ArmCompileSpec, TOSAPartitioner, NodeVisitor, EdgeCompileConfig
     global to_edge_transform_and_lower, convert_pt2e, prepare_pt2e
     global DEPENDENCIES_LOADED
 
@@ -55,6 +57,12 @@ def _import_dependencies() -> None:
     from executorch.backends.arm.tosa.partitioner import (
         TOSAPartitioner as _TOSAPartitioner,
     )
+    from executorch.backends.arm.tosa.compile_spec import (
+        ArmCompileSpec as _ArmCompileSpec,
+    )
+    from executorch.backends.arm.operators.node_visitor import (
+        NodeVisitor as _NodeVisitor,
+    )
     from executorch.exir import EdgeCompileConfig as _EdgeCompileConfig
     from executorch.exir import to_edge_transform_and_lower as _to_edge
     from torchao.quantization.pt2e.quantize_pt2e import (
@@ -65,7 +73,9 @@ def _import_dependencies() -> None:
     get_symmetric_quantization_config = _get_config
     TOSAQuantizer = _TOSAQuantizer
     TosaCompileSpec = _TosaCompileSpec
+    ArmCompileSpec = _ArmCompileSpec
     TOSAPartitioner = _TOSAPartitioner
+    NodeVisitor = _NodeVisitor
     EdgeCompileConfig = _EdgeCompileConfig
     to_edge_transform_and_lower = _to_edge
     convert_pt2e = _convert_pt2e
@@ -164,12 +174,12 @@ class MliaPytorchToTosaConverter:
 
     def _patch_node_visitor_for_location(self) -> None:
         """Patch NodeVisitor node names as TOSA operator locations."""
-        try:
-            # pylint: disable=import-outside-toplevel
-            from executorch.backends.arm.operators.node_visitor import (
-                NodeVisitor,
-            )
+        # Check if NodeVisitor is available
+        if NodeVisitor is None:
+            logger.warning("Could not patch NodeVisitor: NodeVisitor is not available")
+            return
 
+        try:
             # pylint: disable=unused-argument
             def _serialize_operator_with_node_name(  # type: ignore[no-untyped-def]
                 self,
@@ -181,7 +191,25 @@ class MliaPytorchToTosaConverter:
                 attributes=None,
             ):
                 # Use node name as location for traceability
-                op_location = node.name if node else ""
+                op_location = ""
+
+                # First check if debug_hook is available and active
+                if hasattr(self, "debug_hook") and self.debug_hook:
+                    debug_info = self.debug_hook.add(
+                        node,
+                        tosa_op=outputs[0],
+                        tosa_op_id=tosa_op,
+                    )
+                    # Import to check mode
+                    try:
+                        if self.debug_hook.mode == ArmCompileSpec.DebugMode.TOSA:
+                            op_location = __import__("json").dumps(debug_info.to_dict())
+                    except (ImportError, AttributeError):
+                        pass
+
+                # If no location from debug_hook, use node name
+                if not op_location and node and node.name:
+                    op_location = f'{{"node_name": "{node.name}"}}'
 
                 tosa_graph.addOperator(
                     tosa_op,
