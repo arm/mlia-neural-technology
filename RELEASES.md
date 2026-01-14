@@ -16,7 +16,7 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
-## 0.10.0 (2026-01-05)
+## 0.10.0+internal (2026-01-14)
 
 ### Feature changes
 
@@ -28,6 +28,7 @@ scheme.
 * Add multiple argument backend install and uninstall
 * Add backend-specific configuration options to CLI
 * Enable cascading by default for neural-technology targets
+* Add EE vs NE placement for neural-technology compatibility check
 
 ### Bug fix
 
@@ -41,6 +42,11 @@ scheme.
 
 * Minimum required Python version bumped to 3.10
 * Minimum required TensorFlow version bumped to 2.20
+
+### Known issues
+
+* Location info for Ethos-U85 targets is shown in accumulative fashion
+  Vela backend provider is aware of the issue, should be fixed in the next release
 
 ## 0.9.3+internal.0 (2025-11-30)
 
