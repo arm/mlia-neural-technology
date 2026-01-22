@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Neural Technology advisor module."""
 from __future__ import annotations
@@ -72,6 +72,10 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
                 model, NeuralTechnologyConfiguration.load_profile(target_profile)
             ),
         ]
+
+    def get_pattern_analyzers(self, _context: Context) -> list:
+        """Return list of the pattern analyzers."""
+        return []
 
     def _get_target_cfg(self, context: Context) -> NeuralTechnologyConfiguration:
         """Get target configuration."""
