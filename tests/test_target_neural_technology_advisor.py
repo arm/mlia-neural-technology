@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Technology MLIA module."""
 import re
@@ -18,7 +18,6 @@ from mlia.backend.nx_performance_estimator.performance import (
 )
 from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
-from mlia.core.advice_generation import Advice
 from mlia.core.common import AdviceCategory
 from mlia.core.context import ExecutionContext
 from mlia.core.errors import ConfigurationError
@@ -149,11 +148,8 @@ def test_neural_technology_advice_producer_produce_advice() -> None:
             )
         )
     )
-    assert producer.advice == [
-        Advice(
-            [
-                "Please refer to the performance metrics shown in the report",
-                "to find possible optimizations.",
-            ]
-        )
-    ]
+    assert len(producer.advice) == 1
+    assert producer.advice[0].message == (
+        "Please refer to the performance metrics shown in the report "
+        "to find possible optimizations."
+    )

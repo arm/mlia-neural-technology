@@ -26,6 +26,8 @@ from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceS
 from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
 from mlia.core.advice_generation import Advice
+from mlia.core.output_schema import AdviceCategory as SchemaAdviceCategory
+from mlia.core.output_schema import AdviceSeverity
 from mlia.core.reporters import report_advice
 from mlia.core.reporting import Table
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
@@ -247,7 +249,16 @@ def test_nx_compatibility_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_neural_technology_formatters_advice_list() -> None:
     """Test neural_technology_formatters function with a list of Advice objects."""
-    ret = neural_technology_formatters([Advice(["Sample 1"])])
+    ret = neural_technology_formatters(
+        [
+            Advice(
+                id="0",
+                category=SchemaAdviceCategory.PERFORMANCE,
+                severity=AdviceSeverity.INFO,
+                message="Sample 1",
+            )
+        ]
+    )
     assert ret is report_advice
 
 
