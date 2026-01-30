@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 # pylint: disable=duplicate-code
 """Backend module for Neural Accelerator Performance Estimator performance estimation."""  # pylint: disable=line-too-long
@@ -423,7 +423,7 @@ class NXPerformanceEstimatorPerformanceEstimator(
             cmd=[
                 str(gc_path / "graph-compiler-performance-estimator"),
                 "-i",
-                str(vgf_file),
+                str(vgf_file.resolve()),
                 "-o",
                 str(output.name),
                 *system_config_args,
