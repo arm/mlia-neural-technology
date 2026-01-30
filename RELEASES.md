@@ -16,6 +16,12 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
+## 0.10.1+internal (2026-01-30)
+
+### Bug fix
+
+* Fix backend errors when passing .vgf files to nx-performance-estimator
+
 ## 0.10.0+internal (2026-01-14)
 
 ### Feature changes
