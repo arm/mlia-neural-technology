@@ -22,12 +22,6 @@ from mlia.core.common import AdviceCategory
     ("backend", "advices", "systems", "type_"),
     (
         (
-            "armnn-tflite-delegate",
-            [AdviceCategory.COMPATIBILITY],
-            None,
-            BackendType.BUILTIN,
-        ),
-        (
             "corstone-300",
             [
                 AdviceCategory.COMPATIBILITY,
@@ -111,7 +105,6 @@ def test_backend_registry(
 
 
 SUPPORTED_BACKENDS = {
-    "armnn-tflite-delegate",
     "corstone-300",
     "corstone-310",
     "corstone-320",

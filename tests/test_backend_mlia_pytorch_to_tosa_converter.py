@@ -14,7 +14,6 @@ from mlia.backend.install import (
     DownloadAndInstall,
     InstallationType,
     InstallFromPath,
-    InstallFromVendorPackage,
     PyPackageBackendInstallation,
 )
 from mlia.backend.mlia_pytorch_to_tosa_converter.install import (
@@ -55,7 +54,6 @@ def test_pytorch_cpu_backend_installation_instance() -> None:
     [
         DownloadAndInstall(),
         InstallFromPath(backend_path=Path("/some/path")),
-        InstallFromVendorPackage(),
     ],
 )
 @patch("subprocess.check_output")
@@ -63,7 +61,7 @@ def test_pytorch_cpu_backend_installation_instance() -> None:
 def test_pytorch_cpu_backend_install_calls_subprocess(
     mock_super_install: Mock, mock_subprocess: Mock, install_type: InstallationType
 ) -> None:
-    """Test custom install method runs CPU-only pip install for all types."""
+    """Test custom install method runs CPU-only pip install for supported types."""
     installation = get_mlia_pytorch_to_tosa_backend_installation()
 
     # Mock successful subprocess call

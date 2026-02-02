@@ -45,15 +45,6 @@ def fixture_test_tflite_no_act_model(test_models_path: Path) -> Path:
         ("test_tflite_model", "nx-performance-estimator", does_not_raise()),
         ("test_tosa_model", "nx-performance-estimator", does_not_raise()),
         (
-            "test_tflite_model",
-            "cortex-a",
-            pytest.raises(
-                ValueError,
-                match="Backend 'cortex-a' is not supported for target "
-                + "'neural-technology'",
-            ),
-        ),
-        (
             "test_keras_model",
             "nx-performance-estimator",
             pytest.raises(

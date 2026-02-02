@@ -32,9 +32,7 @@ from mlia.utils.registry import Registry
 from tests.test_backend_registry import SUPPORTED_BACKENDS
 
 
-@pytest.mark.parametrize(
-    "expected_target", ("cortex-a", "ethos-u55", "ethos-u65", "tosa")
-)
+@pytest.mark.parametrize("expected_target", ("ethos-u55", "ethos-u65", "tosa"))
 def test_target_registry(expected_target: str) -> None:
     """Test the target registry."""
     assert expected_target in registry.items, (
@@ -46,7 +44,6 @@ def test_target_registry(expected_target: str) -> None:
 @pytest.mark.parametrize(
     ("target_name", "expected_advices"),
     (
-        ("cortex-a", [AdviceCategory.COMPATIBILITY]),
         (
             "ethos-u55",
             [
@@ -78,23 +75,16 @@ def test_supported_advice(
 @pytest.mark.parametrize(
     ("backend", "target", "expected_result"),
     (
-        ("armnn-tflite-delegate", None, True),
-        ("armnn-tflite-delegate", "cortex-a", True),
-        ("armnn-tflite-delegate", "tosa", False),
         ("corstone-300", None, True),
         ("corstone-300", "ethos-u55", True),
         ("corstone-300", "ethos-u65", True),
-        ("corstone-300", "cortex-a", False),
         ("corstone-310", None, True),
         ("corstone-310", "ethos-u55", True),
         ("corstone-310", "ethos-u65", True),
-        ("corstone-310", "cortex-a", False),
         ("corstone-320", None, True),
         ("corstone-320", "ethos-u55", False),
         ("corstone-320", "ethos-u85", True),
-        ("corstone-320", "cortex-a", False),
         ("unknown_backend", None, False),
-        ("unknown_backend", "cortex-a", False),
     ),
 )
 def test_is_supported(backend: str, target: str | None, expected_result: bool) -> None:
@@ -105,7 +95,6 @@ def test_is_supported(backend: str, target: str | None, expected_result: bool) -
 @pytest.mark.parametrize(
     ("target_name", "expected_backends"),
     (
-        ("cortex-a", ["armnn-tflite-delegate"]),
         ("ethos-u55", ["corstone-300", "corstone-310", "vela"]),
         ("ethos-u65", ["corstone-300", "corstone-310", "vela"]),
         ("ethos-u85", ["corstone-320", "vela"]),
@@ -123,7 +112,6 @@ def test_supported_backends(target_name: str, expected_backends: list[str]) -> N
         (
             AdviceCategory.COMPATIBILITY,
             [
-                "cortex-a",
                 "ethos-u55",
                 "ethos-u65",
                 "ethos-u85",
@@ -152,7 +140,6 @@ def test_all_supported_backends() -> None:
 @pytest.mark.parametrize(
     ("target", "expected_default_backends", "is_subset_only"),
     [
-        ["cortex-a", ["armnn-tflite-delegate"], False],
         ["tosa", ["tosa-checker"], False],
         ["ethos-u55", ["vela"], True],
         ["ethos-u65", ["vela"], True],
@@ -171,9 +158,7 @@ def test_default_backends(
         assert default_backends(target) == expected_default_backends
 
 
-@pytest.mark.parametrize(
-    "target_profile", ("cortex-a", "tosa", "ethos-u55-128", "ethos-u65-256")
-)
+@pytest.mark.parametrize("target_profile", ("tosa", "ethos-u55-128", "ethos-u65-256"))
 def test_profile(target_profile: str) -> None:
     """Test function profile()."""
     # Test loading by built-in profile name
@@ -219,8 +204,8 @@ def test_optimization_profile_non_valid_file(
     "names, pretty_names, target_infos, expected_result",
     [
         (
-            ["cortex-a"],
-            ["Cortex-A"],
+            ["ethos-u55"],
+            ["Ethos-U55"],
             [
                 TargetInfo(
                     supported_backends=[
@@ -235,7 +220,7 @@ def test_optimization_profile_non_valid_file(
             ],
             [
                 (
-                    "Cortex-A\n<cortex-a>",
+                    "Ethos-U55\n<ethos-u55>",
                     "Neural Accelerator Performance Estimator\n"
                     "<nx-performance-estimator>"
                     "\nCorstone-300\n<corstone-300>\nunknown\n<unknown>",

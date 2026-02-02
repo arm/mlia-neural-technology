@@ -16,7 +16,17 @@ scheme.
   of Arm® Limited (or its subsidiaries) in the U.S. and/or elsewhere.
 * TensorFlow™ is a trademark of Google® LLC.
 
-## 0.10.1+internal (2026-02-02)
+## 0.11.0+internal (TBD)
+
+### Breaking changes
+
+* **Removed ArmNN TensorFlow Lite Delegate backend**: The deprecated `armnn-tflite-delegate`
+  backend has been completely removed from MLIA. This backend relied on an unmaintained
+  project and was no longer actively supported.
+* **Removed Cortex-A target profile**: The `cortex-a` target profile has been removed as
+  it was solely dependent on the removed ArmNN TensorFlow Lite Delegate backend.
+
+## 0.10.1+internal (2026-01-30)
 
 ### Bug fix
 

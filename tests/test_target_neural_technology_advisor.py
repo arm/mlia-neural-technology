@@ -115,7 +115,7 @@ def test_configure_and_get_neural_technology_advisor_invalid_backends(
             backends=[],
         )
 
-    backends = ["nx-performance-estimator", "cortex-a"]
+    backends = ["nx-performance-estimator", "vela"]
     with pytest.raises(
         ConfigurationError,
         match=f"Only one backend is supported but {len(backends)} "
