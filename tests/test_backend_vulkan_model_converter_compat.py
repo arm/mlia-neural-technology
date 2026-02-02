@@ -194,9 +194,13 @@ def test_check_compatibility_vgf(tmp_path: Path) -> None:
     model_path.touch()
 
     checker = NXCompatibilityChecker(tmp_path)
-    result = checker.check_compatibility(VGFModel(model_path))
-    incompatible_ops = [op for op in result.get_records() if op.placement != "NX"]
-    assert incompatible_ops == []  # All VGF ops should be supported
+    # Currently not supported as VGF models are not inherently NX compatible
+    # To be updated when support is added
+    with pytest.raises(
+        NotImplementedError,
+        match="Compatibility info is not supported yet for VGF models for this target.",
+    ):
+        checker.check_compatibility(VGFModel(model_path))
 
 
 def test_check_compatibility_pt2_success(

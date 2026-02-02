@@ -509,7 +509,11 @@ class NXCompatibilityChecker:
     @check_compatibility.register
     def _(self, _vgf_model: VGFModel) -> NXModelCompatibilityInfo:
         """Check compatibility of a VGF model."""
-        return NXModelCompatibilityInfo()  # all VGF ops are supported
+        # Currently not supported as VGF models are not inherently NX compatible
+        # and can contain incompatible operations, data types, etc.
+        raise NotImplementedError(
+            "Compatibility info is not supported yet for VGF models for this target."
+        )
 
     @check_compatibility.register
     def _(self, tosa_model: TOSAModel) -> NXModelCompatibilityInfo:
