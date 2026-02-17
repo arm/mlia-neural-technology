@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2023,2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023,2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Neural Accelerator Performance Estimator backend configuration."""
 from __future__ import annotations
@@ -45,9 +45,3 @@ class NXPerformanceEstimatorConfig:
 
         self.system_config = make_absolute(self.system_config)
         self.compiler_config = make_absolute(self.compiler_config)
-
-
-CONFIG_TO_CLI_OPTION = {
-    "system_config": "--system-config",
-    "compiler_config": "--compiler-config",
-}

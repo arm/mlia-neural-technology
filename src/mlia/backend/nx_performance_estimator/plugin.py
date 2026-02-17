@@ -34,6 +34,10 @@ class NXPerformanceEstimatorPlugin(BackendPlugin):
                 supported_systems=[System.LINUX_AMD64],
                 backend_type=BackendType.CUSTOM,
                 installation=get_nx_performance_estimator_installation(),
+                cli_options={
+                    "system_config": "--system-config",
+                    "compiler_config": "--compiler-config",
+                },
             ),
             pretty_name="Neural Accelerator Performance Estimator",
         )

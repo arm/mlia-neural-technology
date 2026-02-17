@@ -1,17 +1,16 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for the CLI options."""
 from __future__ import annotations
 
 import argparse
-import importlib
-import pkgutil
 from pathlib import Path
 from typing import Any
 from typing import Callable
 from typing import Sequence
 
 import mlia.backend
+from mlia.backend.config import BackendConfiguration
 from mlia.backend.corstone import is_corstone_backend
 from mlia.backend.manager import get_available_backends
 from mlia.core.common import AdviceCategory
@@ -21,6 +20,7 @@ from mlia.nn.rewrite.core.rewrite import RewritingOptimizer
 from mlia.target.registry import builtin_optimization_names
 from mlia.target.registry import builtin_profile_names
 from mlia.target.registry import registry as target_registry
+
 
 DEFAULT_PRUNING_TARGET = 0.5
 DEFAULT_CLUSTERING_TARGET = 32
@@ -411,7 +411,7 @@ def get_output_format(args: argparse.Namespace) -> OutputFormat:
 def add_backend_config_options(parser: argparse.ArgumentParser) -> None:
     """Add backend configuration options dynamically.
 
-    Discovers options from backend CONFIG_TO_CLI_OPTION mappings.
+    Discovers options from BackendConfiguration.cli_options mappings.
     """
     description = (
         "Options to override backend-specific configuration from target profiles."
@@ -423,18 +423,13 @@ def add_backend_config_options(parser: argparse.ArgumentParser) -> None:
 
     added_options: set[str] = set()
 
-    # Discover all backend modules by inspecting the mlia.backend package
-    try:
-        _discover_backend_options(backend_config_group, added_options)
-    except Exception:  # pylint: disable=broad-except  # nosec
-        # If discovery fails, continue without backend options
-        pass  # nosec
+    _discover_backend_options(backend_config_group, added_options)
 
     # If no backend config options were discovered, add a note
     if not added_options:
         backend_config_group.description = (
             "No backend configuration options available. "
-            "Backends may define CONFIG_TO_CLI_OPTION to expose "
+            "BackendConfiguration's may define cli_options to expose "
             "configuration parameters."
         )
 
@@ -444,48 +439,31 @@ def _discover_backend_options(
     added_options: set[str],
 ) -> None:
     """Discover and add backend configuration options."""
-    backend_package_path = mlia.backend.__path__
-    for _, module_name, is_pkg in pkgutil.iter_modules(backend_package_path):
-        if not is_pkg:
-            continue
-
-        # Try common module names for CONFIG_TO_CLI_OPTION
-        for submodule in ["config", "compiler", "__init__"]:
-            _try_add_backend_module_options(
-                backend_config_group, added_options, module_name, submodule
-            )
+    backend_registry = mlia.backend.registry
+    for backend_name, backend_config in backend_registry.items.items():
+        _try_add_backend_module_options(
+            backend_config_group,
+            added_options,
+            backend_name,
+            backend_config,
+        )
 
 
 def _try_add_backend_module_options(
     backend_config_group: argparse._ArgumentGroup,
     added_options: set[str],
-    module_name: str,
-    submodule: str,
+    backend_name: str,
+    backend_configuration: BackendConfiguration,
 ) -> None:
     """Try to import a backend module and add its options."""
-    try:
-        full_name = f"mlia.backend.{module_name}.{submodule}"
-        module = importlib.import_module(full_name)
+    for config_key, cli_option in backend_configuration.cli_options.items():
+        mlia_config_key = f"{backend_name.replace('-', '_')}_{config_key}"
+        mlia_cli_option = f"--{backend_name}.{cli_option.lstrip('-')}"
 
-        if not hasattr(module, "CONFIG_TO_CLI_OPTION"):
-            return
-
-        config_mapping = getattr(module, "CONFIG_TO_CLI_OPTION")
-
-        for config_key, cli_option in config_mapping.items():
-            mlia_config_key = f"{module_name}_{config_key}"
-            mlia_cli_option = (
-                f"--{module_name.replace('_', '-')}.{cli_option.lstrip('-')}"
-            )
-            if mlia_cli_option in added_options:
-                continue
-
-            backend_config_group.add_argument(
-                mlia_cli_option,
-                type=Path,
-                dest=mlia_config_key,
-                help=f"Overrides the {cli_option} backend option.",
-            )
-            added_options.add(cli_option)
-    except (ImportError, AttributeError):
-        pass
+        backend_config_group.add_argument(
+            mlia_cli_option,
+            type=Path,
+            dest=mlia_config_key,
+            help=f"Overrides the {cli_option} backend option.",
+        )
+        added_options.add(cli_option)

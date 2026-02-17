@@ -63,6 +63,7 @@ class BackendConfiguration:
         backend_type: BackendType,
         installation: Installation | None,
         selectable: bool = True,
+        cli_options: dict[str, str] | None = None,
     ) -> None:
         """Set up basic information about the backend."""
         self.supported_advice = supported_advice
@@ -70,6 +71,7 @@ class BackendConfiguration:
         self.type = backend_type
         self.installation = installation
         self.selectable = selectable
+        self.cli_options = cli_options or {}
 
     def __str__(self) -> str:
         """List supported advice."""

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 # Pre-commit checks
 #
@@ -96,7 +96,7 @@ repos:
       args: ["--skip", "B311,B101"]
 
 - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-  rev: v2.11.0
+  rev: v2.16.0
   hooks:
   - id: pretty-format-toml
     args: [--autofix, "--no-sort", --indent, "4"]

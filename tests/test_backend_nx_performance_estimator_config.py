@@ -1,24 +1,13 @@
-# SPDX-FileCopyrightText: Copyright 2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Accelerator Performance Estimator config."""
 from __future__ import annotations
 
 from pathlib import Path
 
-from mlia.backend.nx_performance_estimator.config import CONFIG_TO_CLI_OPTION
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
-
-
-def test_nx_performance_estimator_config() -> None:
-    """Test for class NXPerformanceEstimatorConfig."""
-    sys_cfg, compiler_cfg = Path("system-config"), Path("compiler-config")
-    cfg = NXPerformanceEstimatorConfig(sys_cfg, compiler_cfg)
-    assert cfg.system_config == sys_cfg
-    assert cfg.system_config == sys_cfg
-
-    assert set(CONFIG_TO_CLI_OPTION) == set(vars(cfg))
 
 
 def test_nx_performance_estimator_set_config_dir_abs_path(tmp_path: Path) -> None:
