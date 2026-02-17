@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Function-based tests for PyTorch file detection utility functions."""
+
 from __future__ import annotations
 
 import inspect
@@ -8,9 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from mlia.utils.filesystem import is_pytorch_file
-from mlia.utils.filesystem import is_tosa_file
-from mlia.utils.filesystem import is_vgf_file
+from mlia.utils.filesystem import is_pytorch_file, is_tosa_file, is_vgf_file
 
 
 def test_pt2_file_detection() -> None:
@@ -41,9 +40,9 @@ def test_non_pytorch_files() -> None:
     ]
 
     for filename in non_pytorch_files:
-        assert (
-            is_pytorch_file(filename) is False
-        ), f"File {filename} incorrectly identified as PyTorch"
+        assert is_pytorch_file(filename) is False, (
+            f"File {filename} incorrectly identified as PyTorch"
+        )
 
 
 def test_files_without_extension() -> None:
@@ -81,9 +80,9 @@ def test_special_characters_in_filename() -> None:
     ]
 
     for filename in special_files:
-        assert (
-            is_pytorch_file(filename) is True
-        ), f"File {filename} should be recognized as PyTorch"
+        assert is_pytorch_file(filename) is True, (
+            f"File {filename} should be recognized as PyTorch"
+        )
 
 
 def test_unicode_filenames() -> None:
@@ -95,9 +94,9 @@ def test_unicode_filenames() -> None:
     ]
 
     for filename in unicode_files:
-        assert (
-            is_pytorch_file(filename) is True
-        ), f"Unicode file {filename} should be recognized as PyTorch"
+        assert is_pytorch_file(filename) is True, (
+            f"Unicode file {filename} should be recognized as PyTorch"
+        )
 
 
 @pytest.mark.parametrize(

@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """TOSA Converter For Tflite backend module."""
-from mlia.backend.config import BackendConfiguration
-from mlia.backend.config import BackendType
-from mlia.backend.config import System
+
+from mlia.backend.config import BackendConfiguration, BackendType, System
 from mlia.backend.registry import BackendRegistry
 from mlia.backend.tosa_converter_for_tflite.install import (
     get_tosa_converter_for_tflite_backend_installation,

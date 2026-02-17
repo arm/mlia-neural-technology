@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for the CLI options."""
+
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any
-from typing import Callable
-from typing import Sequence
+from typing import Any, Callable, Sequence
 
 import mlia.backend
 from mlia.backend.config import BackendConfiguration
@@ -17,10 +16,8 @@ from mlia.core.common import AdviceCategory
 from mlia.core.errors import ConfigurationError
 from mlia.core.typing import OutputFormat
 from mlia.nn.rewrite.core.rewrite import RewritingOptimizer
-from mlia.target.registry import builtin_optimization_names
-from mlia.target.registry import builtin_profile_names
+from mlia.target.registry import builtin_optimization_names, builtin_profile_names
 from mlia.target.registry import registry as target_registry
-
 
 DEFAULT_PRUNING_TARGET = 0.5
 DEFAULT_CLUSTERING_TARGET = 32
@@ -292,7 +289,7 @@ def add_output_directory(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def parse_optimization_parameters(  # pylint: disable=too-many-arguments
+def parse_optimization_parameters(
     pruning: bool = False,
     clustering: bool = False,
     pruning_target: float | None = None,
@@ -377,7 +374,7 @@ def get_target_profile_opts(target_args: dict | None) -> list[str]:
 
     params_name = {
         action.dest: param_name
-        for param_name, action in parser._option_string_actions.items()  # pylint: disable=protected-access
+        for param_name, action in parser._option_string_actions.items()
     }
 
     non_default = [

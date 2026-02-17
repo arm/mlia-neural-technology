@@ -1,29 +1,30 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for module select."""
+
 from __future__ import annotations
 
 from contextlib import ExitStack as does_not_raise
 from pathlib import Path
-from typing import Any
-from typing import cast
+from typing import Any, cast
 
 import pytest
 import tensorflow_model_optimization as tfmot
 import tf_keras as keras
 
 from mlia.core.errors import ConfigurationError
-from mlia.nn.rewrite.core.rewrite import RewriteConfiguration
-from mlia.nn.rewrite.core.rewrite import RewritingOptimizer
-from mlia.nn.rewrite.core.rewrite import TrainingParameters
-from mlia.nn.select import get_optimizer
-from mlia.nn.select import MultiStageOptimizer
-from mlia.nn.select import OptimizationSettings
+from mlia.nn.rewrite.core.rewrite import (
+    RewriteConfiguration,
+    RewritingOptimizer,
+    TrainingParameters,
+)
+from mlia.nn.select import MultiStageOptimizer, OptimizationSettings, get_optimizer
 from mlia.nn.tensorflow.config import TFLiteModel
-from mlia.nn.tensorflow.optimizations.clustering import Clusterer
-from mlia.nn.tensorflow.optimizations.clustering import ClusteringConfiguration
-from mlia.nn.tensorflow.optimizations.pruning import Pruner
-from mlia.nn.tensorflow.optimizations.pruning import PruningConfiguration
+from mlia.nn.tensorflow.optimizations.clustering import (
+    Clusterer,
+    ClusteringConfiguration,
+)
+from mlia.nn.tensorflow.optimizations.pruning import Pruner, PruningConfiguration
 
 
 @pytest.mark.parametrize(
@@ -224,7 +225,6 @@ def test_get_optimizer_tflite(
     assert optimizer.get_model() is not None
 
 
-# pylint: disable=line-too-long
 @pytest.mark.parametrize(
     "rewrite_parameters, optimization_target",
     [
@@ -237,7 +237,7 @@ def test_get_optimizer_tflite(
                 "train_params": None,
                 "rewrite_specific_params": {
                     "num_clusters": 5,
-                    "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization(
+                    "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization(  # noqa: E501
                         "CentroidInitialization.LINEAR"
                     ),
                 },
@@ -254,7 +254,6 @@ def test_get_optimizer_tflite(
         ],
     ],
 )
-# pylint: enable=line-too-long
 @pytest.mark.skip_set_training_steps
 def test_get_optimizer_training_parameters(
     rewrite_parameters: dict,

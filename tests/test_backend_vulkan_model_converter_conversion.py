@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the Neural Accelerator Performance Estimator config."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -115,9 +116,7 @@ def test_ml_sdk_model_converter_create_back_end_command(
 
     in_file = tmp_path / "in"
     out_file = tmp_path / "out"
-    cmd = ml_sdk_model_converter._create_back_end_command(  # pylint: disable=protected-access
-        in_file, out_file
-    )
+    cmd = ml_sdk_model_converter._create_back_end_command(in_file, out_file)
 
     assert cmd.cmd
     assert all(isinstance(arg, str) for arg in cmd.cmd)

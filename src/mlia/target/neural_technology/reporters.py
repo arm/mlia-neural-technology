@@ -1,10 +1,10 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Reports module."""
+
 from __future__ import annotations
 
-from typing import Any
-from typing import Callable
+from typing import Any, Callable
 
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.nx_performance_estimator.performance import (
@@ -12,16 +12,20 @@ from mlia.backend.nx_performance_estimator.performance import (
 )
 from mlia.core.advice_generation import Advice
 from mlia.core.reporters import report_advice
-from mlia.core.reporting import Cell
-from mlia.core.reporting import Column
-from mlia.core.reporting import Format
-from mlia.core.reporting import NestedReport
-from mlia.core.reporting import Report
-from mlia.core.reporting import ReportItem
-from mlia.core.reporting import Table
+from mlia.core.reporting import (
+    Cell,
+    Column,
+    Format,
+    NestedReport,
+    Report,
+    ReportItem,
+    Table,
+)
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
-from mlia.target.neural_technology.data_collection import NXCompatibilityResult
-from mlia.target.neural_technology.data_collection import NXPerformanceResult
+from mlia.target.neural_technology.data_collection import (
+    NXCompatibilityResult,
+    NXPerformanceResult,
+)
 from mlia.utils.misc import dict_to_list
 from mlia.utils.types import is_list_of
 

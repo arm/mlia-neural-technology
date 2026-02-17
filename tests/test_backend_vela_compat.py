@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for module vela/compat."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,12 +11,14 @@ import pytest
 
 import mlia.core.output_schema as schema
 from mlia.backend.errors import BackendUnavailableError
-from mlia.backend.vela.compat import generate_supported_operators_report
-from mlia.backend.vela.compat import get_vela
-from mlia.backend.vela.compat import NpuSupported
-from mlia.backend.vela.compat import Operator
-from mlia.backend.vela.compat import Operators
-from mlia.backend.vela.compat import supported_operators
+from mlia.backend.vela.compat import (
+    NpuSupported,
+    Operator,
+    Operators,
+    generate_supported_operators_report,
+    get_vela,
+    supported_operators,
+)
 from mlia.target.ethos_u.config import EthosUConfiguration
 from mlia.utils.filesystem import working_directory
 from tests.conftest import TEST_MODEL_TFLITE_INT8_FILE
@@ -249,23 +252,23 @@ def test_operators_to_standardized_output(tmp_path: Path) -> None:
     )
 
     # Verify structure
-    assert "schema_version" in output  # pylint: disable=unsupported-membership-test
+    assert "schema_version" in output
     assert output["schema_version"] == schema.SCHEMA_VERSION
-    assert "backends" in output  # pylint: disable=unsupported-membership-test
-    assert "target" in output  # pylint: disable=unsupported-membership-test
-    assert "model" in output  # pylint: disable=unsupported-membership-test
-    assert "context" in output  # pylint: disable=unsupported-membership-test
-    assert "results" in output  # pylint: disable=unsupported-membership-test
+    assert "backends" in output
+    assert "target" in output
+    assert "model" in output
+    assert "context" in output
+    assert "results" in output
 
     # Verify backend
-    backends = output["backends"]  # pylint: disable=unsupported-membership-test
+    backends = output["backends"]
     assert len(backends) == 1
     backend = backends[0]
     assert backend["name"] == "Vela Compiler"
     assert "version" in backend
 
     # Verify result
-    results = output["results"]  # pylint: disable=unsupported-membership-test
+    results = output["results"]
     assert len(results) == 1
     result = results[0]
     assert result["kind"] == "compatibility"
@@ -323,7 +326,7 @@ def test_operators_to_standardized_output_all_supported(tmp_path: Path) -> None:
         model_path=model_file,
     )
 
-    results = output["results"]  # pylint: disable=unsupported-membership-test
+    results = output["results"]
     assert len(results) == 1
     result = results[0]
     assert result["status"] == "ok"  # All supported

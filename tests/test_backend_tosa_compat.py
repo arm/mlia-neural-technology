@@ -1,23 +1,25 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for TOSA compatibility."""
+
 from __future__ import annotations
 
 import importlib
 import sys
 import warnings
 from pathlib import Path
-from types import ModuleType
-from types import SimpleNamespace
-from typing import Any
+from types import ModuleType, SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
 
 from mlia.backend.errors import BackendUnavailableError
-from mlia.backend.tosa_checker.compat import get_tosa_compatibility_info
-from mlia.backend.tosa_checker.compat import Operator
-from mlia.backend.tosa_checker.compat import TOSACompatibilityInfo
+from mlia.backend.tosa_checker.compat import (
+    Operator,
+    TOSACompatibilityInfo,
+    get_tosa_compatibility_info,
+)
 
 
 def replace_get_tosa_checker_with_mock(
@@ -85,13 +87,9 @@ def test_get_tosa_compatibility_info(
     """Test getting TOSA compatibility information."""
     mock_checker = MagicMock()
     mock_checker.is_tosa_compatible.return_value = is_tosa_compatible
-    mock_checker._get_tosa_compatibility_for_ops.return_value = (  # pylint: disable=protected-access
-        operators
-    )
+    mock_checker._get_tosa_compatibility_for_ops.return_value = operators
     if exception:
-        mock_checker._get_tosa_compatibility_for_ops.side_effect = (  # pylint: disable=protected-access
-            exception
-        )
+        mock_checker._get_tosa_compatibility_for_ops.side_effect = exception
     replace_get_tosa_checker_with_mock(monkeypatch, mock_checker)
 
     returned_compatibility_info = get_tosa_compatibility_info(test_tflite_model)
@@ -125,7 +123,6 @@ def test_get_tosa_compatibility_info_exception(monkeypatch: pytest.MonkeyPatch) 
 def test_get_tosa_compatibility_info_tosa_checker() -> None:
     """Test getting an exception from a failed get_tosa_checker call."""
 
-    # pylint: disable=missing-class-docstring
     class TOSAChecker:
         def __init__(self, inp: str):
             pass
@@ -133,12 +130,11 @@ def test_get_tosa_compatibility_info_tosa_checker() -> None:
         def _get_tosa_compatibility_for_ops(self) -> list[Any]:
             return []
 
-        # pylint: disable=missing-function-docstring
         def is_tosa_compatible(self) -> bool:
             return True
 
-    tosa_checker = ModuleType("tosa_checker")
-    setattr(tosa_checker, "TOSAChecker", TOSAChecker)
+    tosa_checker = cast(Any, ModuleType("tosa_checker"))
+    tosa_checker.TOSAChecker = TOSAChecker
     sys.modules["tosa_checker"] = tosa_checker
 
     assert get_tosa_compatibility_info("model.tflite") == TOSACompatibilityInfo(
@@ -182,9 +178,9 @@ def test_backend_module_deprecation_warning() -> None:
         deprecation_warnings = [
             w for w in warning_list if issubclass(w.category, DeprecationWarning)
         ]
-        assert any(
-            deprecation_warnings
-        ), "No DeprecationWarning was issued when importing backend module"
+        assert any(deprecation_warnings), (
+            "No DeprecationWarning was issued when importing backend module"
+        )
 
         # Check the warning message content
         warning_message = str(deprecation_warnings[0].message)

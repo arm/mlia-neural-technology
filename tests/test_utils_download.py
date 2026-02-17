@@ -1,21 +1,19 @@
-# SPDX-FileCopyrightText: Copyright 2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for download functionality."""
+
 from __future__ import annotations
 
 import hashlib
 from contextlib import ExitStack as does_not_raise
 from pathlib import Path
-from typing import Any
-from typing import Iterable
-from unittest.mock import MagicMock
-from unittest.mock import PropertyMock
+from typing import Any, Iterable
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 import requests
 
-from mlia.utils.download import download
-from mlia.utils.download import DownloadConfig
+from mlia.utils.download import DownloadConfig, download
 
 
 def response_mock(
@@ -115,7 +113,6 @@ def test_chained_download(
     response1 = response_mock(content_length1, content_chunks1)
     response2 = response_mock(content_length2, content_chunks2)
 
-    # pylint: disable=unused-argument
     def mock_query(url: str, *args: int, **kwargs: int) -> MagicMock:
         return response1 if url == "www.url.1.com" else response2
 

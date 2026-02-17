@@ -1,17 +1,16 @@
-# SPDX-FileCopyrightText: Copyright 2023, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Classes for metadata."""
+
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 
-from mlia.utils.misc import get_file_checksum
-from mlia.utils.misc import get_pkg_version
+from mlia.utils.misc import get_file_checksum, get_pkg_version
 
 
-class Metadata(ABC):  # pylint: disable=too-few-public-methods
+class Metadata(ABC):
     """Base class for possbile metadata."""
 
     def __init__(self, name: str) -> None:
@@ -40,7 +39,7 @@ class ModelMetadata(Metadata):
         }
 
 
-class MLIAMetadata(Metadata):  # pylint: disable=too-few-public-methods
+class MLIAMetadata(Metadata):
     """MLIA metadata."""
 
     def __init__(self, name: str = "MLIA") -> None:

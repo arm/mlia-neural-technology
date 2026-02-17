@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: Copyright 2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Neural Technology advice generation."""
+
 from functools import singledispatchmethod
 
-from mlia.core.advice_generation import advice_category
-from mlia.core.advice_generation import FactBasedAdviceProducer
-from mlia.core.common import AdviceCategory
-from mlia.core.common import DataItem
+from mlia.core.advice_generation import FactBasedAdviceProducer, advice_category
+from mlia.core.common import AdviceCategory, DataItem
 from mlia.core.output_schema import AdviceCategory as SchemaAdviceCategory
 from mlia.core.output_schema import AdviceSeverity
 from mlia.target.neural_technology.data_analysis import (

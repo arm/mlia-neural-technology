@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Accelerator Performance Estimator performance estimation."""
+
 from __future__ import annotations
 
 import copy
@@ -9,13 +10,15 @@ from pathlib import Path
 
 import pytest
 
-from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabaseParser
 from mlia.backend.nx_performance_estimator.output_parsing import (
+    NXDebugDatabaseParser,
     NXPerformanceDatabaseParser,
 )
-from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
+from mlia.backend.nx_performance_estimator.statistics import (
+    NXModelPerformanceStats,
+    NXOperatorPerformanceStats,
+    NXPerformanceStats,
+)
 
 
 def test_nx_operator_performance_stats_to_dict() -> None:
@@ -666,7 +669,7 @@ def test_track_op_multiple_chains_per_stripe() -> None:
     )
 
     with pytest.raises(
-        ValueError, match="There should be only one chain per stripe, " "found more!"
+        ValueError, match="There should be only one chain per stripe, found more!"
     ):
         _ = performance_stats.track_op("26")
 

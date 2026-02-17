@@ -1,13 +1,16 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for the installation of ML SDK Model Converter."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-from mlia.backend.install import artifactory_credential_headers
-from mlia.backend.install import BackendInstallation
-from mlia.backend.install import PackagePathChecker
+from mlia.backend.install import (
+    BackendInstallation,
+    PackagePathChecker,
+    artifactory_credential_headers,
+)
 from mlia.utils.download import DownloadConfig
 
 
@@ -19,9 +22,7 @@ def get_ml_sdk_model_converter_installation() -> BackendInstallation:
         fvp_dir_name="ml-sdk-model-converter",
         download_config=DownloadConfig(
             url=(
-                # pylint: disable=line-too-long
-                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/vulkan-model-converter/latest/ml-sdk-model-converter-backend-1.00.tar.gz"
-                # pylint: enable=line-too-long
+                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/vulkan-model-converter/latest/ml-sdk-model-converter-backend-1.00.tar.gz"  # noqa: E501
             ),
             sha256_hash=(
                 "56d4c226d94e0aaa079bd4ea6d6b0c1951a615506ae9820942d53f9560be1677"

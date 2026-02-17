@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Accelerator Performance Estimator performance estimation."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,14 +13,10 @@ import mlia.core.output_schema as schema
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
-from mlia.backend.nx_performance_estimator.performance import NXModelPerformanceStats
 from mlia.backend.nx_performance_estimator.performance import (
+    NXModelPerformanceStats,
     NXPerformanceEstimatorOutputFiles,
-)
-from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceEstimator,
-)
-from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.backend.nx_performance_estimator.statistics import (
@@ -98,7 +95,7 @@ def test_nx_performance_estimator_performance_estimator(
     assert json_dump_path.exists()
 
 
-def test_nx_performance_metrics_to_standardized_output(  # pylint: disable=too-many-locals
+def test_nx_performance_metrics_to_standardized_output(
     tmp_path: Path,
 ) -> None:
     """Test conversion of NX PerformanceMetrics to standardized output."""

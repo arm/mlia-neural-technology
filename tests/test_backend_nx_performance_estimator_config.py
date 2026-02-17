@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Accelerator Performance Estimator config."""
+
 from __future__ import annotations
 
 from pathlib import Path

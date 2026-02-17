@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Accelerator Performance Estimator performance estimation."""
+
 from __future__ import annotations
 
 import csv
@@ -10,12 +11,12 @@ from typing import Any
 
 import pytest
 
-from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabaseParser
-from mlia.backend.nx_performance_estimator.output_parsing import NXOutputParser
 from mlia.backend.nx_performance_estimator.output_parsing import (
+    NXDebugDatabaseParser,
+    NXOutputParser,
     NXPerformanceDatabaseParser,
+    SubtableColumnParser,
 )
-from mlia.backend.nx_performance_estimator.output_parsing import SubtableColumnParser
 
 
 def test_load(test_resources_path: Path) -> None:
@@ -36,11 +37,20 @@ def test_load(test_resources_path: Path) -> None:
 
 def test_get_csv_reader() -> None:
     """Read string into csv."""
-    contents = """
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
-    26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
-    25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-    """.strip()
+    contents = (
+        '"id", "opCycles", "totalCycles", '
+        '"memoryName;readBytes;writeBytes;trafficCycles", '
+        '"sectionName;cycles"\n'
+        "26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;"
+        "SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;"
+        "VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;"
+        "TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;"
+        "InputReader;0.0625;InputReader;0.25;\n"
+        "25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;"
+        "SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;"
+        "VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;"
+        "VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;\n"
+    ).strip()
     parser = NXOutputParser()
     csv_reader = parser.get_csv_reader(table_data=contents)
     expected_csv_reader = csv.reader(contents.splitlines())
@@ -51,11 +61,20 @@ def test_get_csv_reader() -> None:
 
 def test_get_csv_headers() -> None:
     """Extract the headers from a csv reader."""
-    contents = """
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
-    26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
-    25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-    """.strip()
+    contents = (
+        '"id", "opCycles", "totalCycles", '
+        '"memoryName;readBytes;writeBytes;trafficCycles", '
+        '"sectionName;cycles"\n'
+        "26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;"
+        "SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;"
+        "VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;"
+        "TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;"
+        "InputReader;0.0625;InputReader;0.25;\n"
+        "25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;"
+        "SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;"
+        "VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;"
+        "VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;\n"
+    ).strip()
     parser = NXOutputParser()
     csv_reader = parser.get_csv_reader(table_data=contents)
     csv_headers = parser.get_csv_headers(csv_reader=csv_reader)
@@ -148,13 +167,25 @@ def test_register_sub_table() -> None:
 
 def test_parse_performance_database() -> None:
     """Testing with a CDATA xml body."""
-    contents = """
-    <![CDATA[
-    "id", "opCycles", "totalCycles", "memoryName;readBytes;writeBytes;trafficCycles", "sectionName;cycles"
-    26, 18, 212, Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;SystemCache;0;0;0;DRAM;320;12;10;, OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;InputReader;0.0625;InputReader;0.25;
-    25, 4, 13, Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;SystemCache;0;0;0;DRAM;128;4;4;, OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;InputReader;0.0625;
-    ]]>
-    """.strip()
+    contents = (
+        "<![CDATA[\n"
+        '"id", "opCycles", "totalCycles", '
+        '"memoryName;readBytes;writeBytes;trafficCycles", '
+        '"sectionName;cycles"\n'
+        "26, 18, 212, "
+        "Undefined;0;0;0;Internal;0;0;0;L1;0;0;0;L2;0;0;0;"
+        "SystemCache;0;0;0;DRAM;320;12;10;, "
+        "OutputWriter;1;VectorEngine;0.25;VectorEngine;0.25;VectorEngine;0.25;"
+        "TransformUnit;0.25;TransformUnit;0.25;InputReader;0.0625;"
+        "InputReader;0.0625;InputReader;0.25;\n"
+        "25, 4, 13, "
+        "Undefined;0;0;0;Internal;0;0;0;L1;0;4;0;L2;0;0;0;"
+        "SystemCache;0;0;0;DRAM;128;4;4;, "
+        "OutputWriter;0.0625;VectorEngine;0.125;VectorEngine;0.125;"
+        "VectorEngine;0.125;VectorEngine;0.125;InputReader;0.0625;"
+        "InputReader;0.0625;\n"
+        "]]>"
+    )
     pdb_parser = NXPerformanceDatabaseParser()
     pdb_parser.raw_xmlish = contents
 
@@ -419,18 +450,26 @@ def test_debug_database_parser_from_file(test_resources_path: Path) -> None:
         "564",
         "568",
     ]
-    # pylint: disable=line-too-long
     assert records["tosa_op_id_to_api_labels"]["372"] == ["model/re_lu/Relu"]
 
 
 def test_parse_debug_database() -> None:
     """Test the debug database has the required key-value pairs."""
-    contents = """<?xml version='1.0' encoding='utf-8' ?>
-    <![CDATA[\n"id", "api_id"\n]]>\n</table>\n<table name="fused_op_id">
-    <![CDATA[\n"id", "tosa_op_ids"\n531, 334;\n557, 335;\n499, 394;462;;\n]]>\n</table>\n<table name="chain_op_id">
-    <![CDATA[\n"id", "fused_op_ids"\n603, 531;557;\n605, 533;559;\n607, 535;561;\n637, 589;591;509;511;515;\n]]>\n<table name="stripe_op_id">
-    <![CDATA[\n"id", "chain_op_id", "cascade_op_id"\n0, 603, 1693;\n1, 605, 1691;\n]]>
-    </table>\n</debug>"""
+    contents = (
+        "<?xml version='1.0' encoding='utf-8' ?>\n"
+        '<![CDATA[\n"id", "api_id"\n]]>\n'
+        '</table>\n<table name="fused_op_id">\n'
+        '<![CDATA[\n"id", "tosa_op_ids"\n'
+        "531, 334;\n557, 335;\n499, 394;462;;\n]]>\n"
+        '</table>\n<table name="chain_op_id">\n'
+        '<![CDATA[\n"id", "fused_op_ids"\n'
+        "603, 531;557;\n605, 533;559;\n607, 535;561;\n"
+        "637, 589;591;509;511;515;\n]]>\n"
+        '<table name="stripe_op_id">\n'
+        '<![CDATA[\n"id", "chain_op_id", "cascade_op_id"\n'
+        "0, 603, 1693;\n1, 605, 1691;\n]]>\n"
+        "</table>\n</debug>"
+    )
     parser = NXDebugDatabaseParser()
     parser.raw_xmlish = contents
     records = parser.parse_debug_database()
@@ -451,10 +490,16 @@ def test_parse_debug_database() -> None:
 
 def test_parse_debug_database_invalid_num_db_headers() -> None:
     """Test error is raised if the debug database has too many headers."""
-    contents = """<?xml version='1.0' encoding='utf-8' ?>
-    <![CDATA[\n"id", "api_id"\n]]>\n</table>\n<table name="fused_op_id">
-    <![CDATA[\n"id", "api_id", "tosa_op_ids", "fused_op_ids"\n531, 334;\n557, 335;\n499, 394;462;;\n]]>\n</table>\n<table name="chain_op_id">
-    </table>\n</debug>"""
+    contents = (
+        "<?xml version='1.0' encoding='utf-8' ?>\n"
+        '<![CDATA[\n"id", "api_id"\n]]>\n'
+        '</table>\n<table name="fused_op_id">\n'
+        '<![CDATA[\n"id", "api_id", "tosa_op_ids", '
+        '"fused_op_ids"\n'
+        "531, 334;\n557, 335;\n499, 394;462;;\n]]>\n"
+        '</table>\n<table name="chain_op_id">\n'
+        "</table>\n</debug>"
+    )
     parser = NXDebugDatabaseParser()
     parser.raw_xmlish = contents
     with pytest.raises(RuntimeError, match="Unsupported number of headers"):
@@ -463,12 +508,21 @@ def test_parse_debug_database_invalid_num_db_headers() -> None:
 
 def test_make_parsed_db_debug_db() -> None:
     """Test the debug database has the required key-value pairs."""
-    contents = """<?xml version='1.0' encoding='utf-8' ?>
-    <![CDATA[\n"id", "api_id"\n]]>\n</table>\n<table name="fused_op_id">
-    <![CDATA[\n"id", "tosa_op_ids"\n531, 334;\n557, 335;\n499, 394;462;;\n]]>\n</table>\n<table name="chain_op_id">
-    <![CDATA[\n"id", "fused_op_ids"\n603, 531;557;\n605, 533;559;\n607, 535;561;\n637, 589;591;509;511;515;\n]]>\n<table name="stripe_op_id">
-    <![CDATA[\n"id", "chain_op_id", "cascade_op_id"\n0, 603, 1693;\n1, 605, 1691;\n]]>
-    </table>\n</debug>"""
+    contents = (
+        "<?xml version='1.0' encoding='utf-8' ?>\n"
+        '<![CDATA[\n"id", "api_id"\n]]>\n'
+        '</table>\n<table name="fused_op_id">\n'
+        '<![CDATA[\n"id", "tosa_op_ids"\n'
+        "531, 334;\n557, 335;\n499, 394;462;;\n]]>\n"
+        '</table>\n<table name="chain_op_id">\n'
+        '<![CDATA[\n"id", "fused_op_ids"\n'
+        "603, 531;557;\n605, 533;559;\n607, 535;561;\n"
+        "637, 589;591;509;511;515;\n]]>\n"
+        '<table name="stripe_op_id">\n'
+        '<![CDATA[\n"id", "chain_op_id", "cascade_op_id"\n'
+        "0, 603, 1693;\n1, 605, 1691;\n]]>\n"
+        "</table>\n</debug>"
+    )
     parser = NXDebugDatabaseParser()
     table_elements = contents.split('<table name="')[1:]
     for table_element in table_elements:
@@ -494,10 +548,16 @@ def test_make_parsed_db_debug_db() -> None:
 
 def test_make_parsed_db_debug_db_invalid_num_headers() -> None:
     """Test error is raised if the debug database has too many headers."""
-    contents = """<?xml version='1.0' encoding='utf-8' ?>
-    <![CDATA[\n"id", "api_id"\n]]>\n</table>\n<table name="fused_op_id">
-    <![CDATA[\n"id", "api_id", "tosa_op_ids", "fused_op_ids"\n531, 334;\n557, 335;\n499, 394;462;;\n]]>\n</table>\n<table name="chain_op_id">
-    </table>\n</debug>"""
+    contents = (
+        "<?xml version='1.0' encoding='utf-8' ?>\n"
+        '<![CDATA[\n"id", "api_id"\n]]>\n'
+        '</table>\n<table name="fused_op_id">\n'
+        '<![CDATA[\n"id", "api_id", "tosa_op_ids", '
+        '"fused_op_ids"\n'
+        "531, 334;\n557, 335;\n499, 394;462;;\n]]>\n"
+        '</table>\n<table name="chain_op_id">\n'
+        "</table>\n</debug>"
+    )
     parser = NXDebugDatabaseParser()
     table_elements = contents.split('<table name="')[1:]
 
@@ -584,7 +644,7 @@ def test_subtable_column(cell: str, expected_err: Any, expected_result: Any) -> 
 def test_column_parsers() -> None:
     """Test if column parsers are set up properly."""
     pdb = NXPerformanceDatabaseParser()
-    parsers = pdb.column_parsers  # pylint: disable=protected-access
+    parsers = pdb.column_parsers
     col1 = "memoryName;readBytes;writeBytes;trafficCycles"
     col2 = "sectionName;cycles"
     assert parsers == {

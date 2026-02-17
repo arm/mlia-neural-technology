@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Technology data collection."""
+
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from typing import Any
@@ -19,13 +20,15 @@ from mlia.backend.nx_performance_estimator.performance import (
 )
 from mlia.backend.nx_performance_estimator.statistics import (
     NXModelPerformanceStats,
+    NXOperatorPerformanceStats,
 )
-from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.core.context import ExecutionContext
 from mlia.core.errors import ConfigurationError
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
-from mlia.target.neural_technology.data_collection import NeuralTechnologyCompatibility
-from mlia.target.neural_technology.data_collection import NeuralTechnologyPerformance
+from mlia.target.neural_technology.data_collection import (
+    NeuralTechnologyCompatibility,
+    NeuralTechnologyPerformance,
+)
 
 
 @pytest.fixture(scope="session", name="test_tosa_model")

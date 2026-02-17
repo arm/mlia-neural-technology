@@ -1,24 +1,21 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for MLIA PyTorch to TOSA converter conversion."""
+
 from __future__ import annotations
 
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 import mlia.backend.mlia_pytorch_to_tosa_converter.conversion as conv_module
-from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import DEFAULT_BASE_NAME
 from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
+    DEFAULT_BASE_NAME,
     EXPECTED_OUTPUT_FILENAME,
-)
-from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
     MliaPytorchToTosaConverter,
 )
 
@@ -32,9 +29,7 @@ def test_converter_validates_inputs() -> None:
         txt_file = Path(tmpdir) / "model.txt"
         txt_file.write_text("test")
         with pytest.raises(ValueError, match="Only .pt2 files are supported"):
-            # pylint: disable=protected-access
             converter._load_pytorch_model(txt_file)
-            # pylint: enable=protected-access
 
         # Nonexistent output directory
         pt2_file = Path(tmpdir) / "model.pt2"
@@ -50,8 +45,7 @@ def test_converter_validates_inputs() -> None:
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion.prepare_pt2e")
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion.convert_pt2e")
 @patch(
-    "mlia.backend.mlia_pytorch_to_tosa_converter.conversion."
-    "to_edge_transform_and_lower"
+    "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.to_edge_transform_and_lower"
 )
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion.shutil.move")
 @patch(
@@ -60,7 +54,6 @@ def test_converter_validates_inputs() -> None:
 )
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion.TOSAPartitioner")
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion.EdgeCompileConfig")
-# pylint: disable=too-many-arguments,too-many-locals
 def test_full_conversion_process(
     _mock_edge_config: Mock,
     _mock_partitioner: Mock,
@@ -128,9 +121,7 @@ def test_load_model_failure(mock_torch: Mock) -> None:
         input_file.write_text("test", encoding="utf-8")
 
         with pytest.raises(ValueError, match="Failed to load PyTorch export file"):
-            # pylint: disable=protected-access
             converter._load_pytorch_model(input_file)
-            # pylint: enable=protected-access
 
 
 @patch(
@@ -144,9 +135,7 @@ def test_lowering_failure(_mock_partitioner: Mock, mock_transform: Mock) -> None
     converter = MliaPytorchToTosaConverter()
 
     with pytest.raises(RuntimeError, match="TOSA lowering failed"):
-        # pylint: disable=protected-access
         converter._lower_to_tosa(Mock(), Mock())
-        # pylint: enable=protected-access
 
 
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion.shutil.move")
@@ -159,11 +148,9 @@ def test_output_file_not_found(mock_move: Mock) -> None:
         with pytest.raises(
             FileNotFoundError, match="Expected TOSA output file not found"
         ):
-            # pylint: disable=protected-access
             converter._move_output_file(
                 Path(tmpdir) / "model.pt2", Path(tmpdir), DEFAULT_BASE_NAME
             )
-            # pylint: enable=protected-access
 
 
 def test_import_dependencies_loads_modules() -> None:
@@ -172,7 +159,6 @@ def test_import_dependencies_loads_modules() -> None:
     conv_module.DEPENDENCIES_LOADED = False
 
     try:
-        # pylint: disable=protected-access
         conv_module._import_dependencies()
 
         assert conv_module.torch is not None
@@ -187,7 +173,6 @@ def test_import_dependencies_loads_modules() -> None:
         assert conv_module.DEPENDENCIES_LOADED is True
 
         conv_module._import_dependencies()
-        # pylint: enable=protected-access
         assert conv_module.DEPENDENCIES_LOADED is True
 
     except ImportError:
@@ -207,9 +192,7 @@ def test_import_dependencies_raises_on_missing_torch() -> None:
 
     try:
         with pytest.raises(ImportError):
-            # pylint: disable=protected-access
             conv_module._import_dependencies()
-            # pylint: enable=protected-access
     finally:
         if original_torch is not None:
             sys.modules["torch"] = original_torch
@@ -228,15 +211,11 @@ def test_patch_node_visitor_success() -> None:
         "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.NodeVisitor",
         mock_node_visitor,
     ):
-        # pylint: disable=protected-access
         converter._patch_node_visitor_for_location()
-        # pylint: enable=protected-access
 
         assert hasattr(mock_node_visitor, "_serialize_operator")
 
-        # pylint: disable=protected-access
         patched_func = mock_node_visitor._serialize_operator
-        # pylint: enable=protected-access
         mock_node_with_name = MagicMock()
         mock_node_with_name.name = "test_node"
         mock_node_without_name = None
@@ -274,14 +253,15 @@ def test_patch_node_visitor_import_error_logged() -> None:
     converter = MliaPytorchToTosaConverter()
 
     # Mock NodeVisitor as None to simulate import failure
-    with patch(
-        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.NodeVisitor", None
-    ), patch(
-        "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.logger"
-    ) as mock_logger:
-        # pylint: disable=protected-access
+    with (
+        patch(
+            "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.NodeVisitor", None
+        ),
+        patch(
+            "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.logger"
+        ) as mock_logger,
+    ):
         converter._patch_node_visitor_for_location()
-        # pylint: enable=protected-access
 
         mock_logger.warning.assert_called_once()
         call_args = mock_logger.warning.call_args[0]
@@ -298,9 +278,7 @@ def test_run_converter_validates_file_existence(_mock_import: Mock) -> None:
         output_dir = Path(tmpdir)
 
         with pytest.raises(FileNotFoundError, match="Input file does not exist"):
-            # pylint: disable=protected-access
             converter._run_converter(nonexistent_file, output_dir)
-            # pylint: enable=protected-access
 
 
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion._import_dependencies")
@@ -314,9 +292,7 @@ def test_run_converter_validates_file_is_file(_mock_import: Mock) -> None:
         output_dir = Path(tmpdir)
 
         with pytest.raises(ValueError, match="Input path is not a file"):
-            # pylint: disable=protected-access
             converter._run_converter(fake_file, output_dir)
-            # pylint: enable=protected-access
 
 
 @patch("mlia.backend.mlia_pytorch_to_tosa_converter.conversion.TosaCompileSpec")
@@ -353,11 +329,9 @@ def test_setup_quantization(
             "mlia.backend.mlia_pytorch_to_tosa_converter.conversion.NodeVisitor",
             Mock(),
         ):
-            # pylint: disable=protected-access
             _compile_spec, _quantizer = converter._setup_quantization(
                 output_dir, base_name
             )
-            # pylint: enable=protected-access
 
         mock_compile_spec.assert_called_once()
         mock_compile_spec_inst.dump_intermediate_artifacts_to.assert_called_once()
@@ -387,11 +361,9 @@ def test_quantize_model(
 
     converter = MliaPytorchToTosaConverter()
 
-    # pylint: disable=protected-access
     result = converter._quantize_model(
         mock_graph_module, mock_quantizer, mock_example_inputs
     )
-    # pylint: enable=protected-access
 
     mock_prepare.assert_called_once_with(mock_graph_module, mock_quantizer)
     mock_quantized_graph.assert_called_once_with(*mock_example_inputs)
@@ -423,9 +395,7 @@ def test_move_output_file_success(mock_move: Mock) -> None:
 
         pytorch_file = Path(tmpdir) / "model.pt2"
 
-        # pylint: disable=protected-access
         result = converter._move_output_file(pytorch_file, output_dir, base_name)
-        # pylint: enable=protected-access
 
         assert result == output_dir / "model.tosa"
         mock_move.assert_called_once()
@@ -453,9 +423,7 @@ def test_move_output_file_target_not_created(mock_move: Mock) -> None:
         with pytest.raises(
             FileNotFoundError, match="No output from the TOSA Converter"
         ):
-            # pylint: disable=protected-access
             converter._move_output_file(pytorch_file, output_dir, base_name)
-            # pylint: enable=protected-access
 
 
 @pytest.mark.parametrize(
@@ -488,9 +456,7 @@ def test_load_pytorch_model_input_formats(
         pt2_file = Path(tmpdir) / "model.pt2"
         pt2_file.write_text("test", encoding="utf-8")
 
-        # pylint: disable=protected-access
         graph_module, result_inputs = converter._load_pytorch_model(pt2_file)
-        # pylint: enable=protected-access
 
         assert graph_module == mock_graph_module
         if isinstance(example_inputs, tuple):

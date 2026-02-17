@@ -1,25 +1,25 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for MLIA PyTorch to TOSA converter backend."""
+
 from __future__ import annotations
 
 from pathlib import Path
 from subprocess import CalledProcessError  # nosec
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-from mlia.backend.install import DownloadAndInstall
-from mlia.backend.install import InstallationType
-from mlia.backend.install import InstallFromPath
-from mlia.backend.install import InstallFromVendorPackage
-from mlia.backend.install import PyPackageBackendInstallation
-from mlia.backend.mlia_pytorch_to_tosa_converter.install import (
-    get_mlia_pytorch_to_tosa_backend_installation,
+from mlia.backend.install import (
+    DownloadAndInstall,
+    InstallationType,
+    InstallFromPath,
+    InstallFromVendorPackage,
+    PyPackageBackendInstallation,
 )
 from mlia.backend.mlia_pytorch_to_tosa_converter.install import (
     PyTorchCPUBackendInstallation,
+    get_mlia_pytorch_to_tosa_backend_installation,
 )
 from mlia.backend.registry import registry
 from mlia.core.errors import InternalError

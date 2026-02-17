@@ -1,24 +1,23 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Target configuration module."""
+
 from __future__ import annotations
 
 import sys
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-from typing import Callable
-from typing import cast
-from typing import TypeVar
+from typing import Any, Callable, TypeVar, cast
 
 from mlia.backend.registry import registry as backend_registry
 from mlia.core.advisor import InferenceAdvisor
 from mlia.core.common import AdviceCategory
-from mlia.utils.filesystem import get_mlia_target_optimization_dir
-from mlia.utils.filesystem import get_mlia_target_profiles_dir
+from mlia.utils.filesystem import (
+    get_mlia_target_optimization_dir,
+    get_mlia_target_profiles_dir,
+)
 
 if sys.version_info >= (3, 11):
     import tomllib  # pragma: no cover

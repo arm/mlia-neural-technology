@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Event handler."""
+
 from __future__ import annotations
 
 import json
@@ -13,10 +14,14 @@ from mlia.backend.nx_performance_estimator.performance import (
 )
 from mlia.core.events import CollectedDataEvent
 from mlia.core.handlers import WorkflowEventsHandler
-from mlia.target.neural_technology.data_collection import NXCompatibilityResult
-from mlia.target.neural_technology.data_collection import NXPerformanceResult
-from mlia.target.neural_technology.events import NeuralTechnologyAdvisorEventHandler
-from mlia.target.neural_technology.events import NeuralTechnologyAdvisorStartedEvent
+from mlia.target.neural_technology.data_collection import (
+    NXCompatibilityResult,
+    NXPerformanceResult,
+)
+from mlia.target.neural_technology.events import (
+    NeuralTechnologyAdvisorEventHandler,
+    NeuralTechnologyAdvisorStartedEvent,
+)
 from mlia.target.neural_technology.reporters import neural_technology_formatters
 
 logger = logging.getLogger(__name__)
@@ -44,7 +49,7 @@ class NeuralTechnologyEventHandler(
                     with open(output_path, "w", encoding="utf-8") as file_handle:
                         json.dump(data_item.standardized_output, file_handle, indent=2)
                     logger.info("Saved NX performance output to %s", output_path)
-                except Exception as exc:  # pylint: disable=broad-exception-caught
+                except Exception as exc:
                     logger.warning("Failed to save NX performance output: %s", exc)
 
             # Submit wrapper object so JSONReporter can access standardized_output
@@ -58,7 +63,7 @@ class NeuralTechnologyEventHandler(
                     with open(output_path, "w", encoding="utf-8") as file_handle:
                         json.dump(data_item.standardized_output, file_handle, indent=2)
                     logger.info("Saved NX compatibility output to %s", output_path)
-                except Exception as exc:  # pylint: disable=broad-exception-caught
+                except Exception as exc:
                     logger.warning("Failed to save NX compatibility output: %s", exc)
 
             # Submit wrapper object so JSONReporter can access standardized_output

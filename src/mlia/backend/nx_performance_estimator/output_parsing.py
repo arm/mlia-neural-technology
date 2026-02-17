@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Backend module for parsing the Neural Accellerator Performance Estimator's output."""
+
 from __future__ import annotations
 
 import csv
@@ -8,10 +9,7 @@ import re
 from abc import abstractmethod
 from itertools import islice
 from pathlib import Path
-from typing import Any
-from typing import Dict
-from typing import Iterator
-from typing import List
+from typing import Any, Dict, Iterator, List
 
 from mlia.utils.misc import list_to_dict
 

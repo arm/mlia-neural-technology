@@ -1,15 +1,14 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """TOSA compatibility module."""
+
 from __future__ import annotations
 
 import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-from typing import cast
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 import mlia
 import mlia.core.output_schema as schema
@@ -50,7 +49,7 @@ class TOSACompatibilityInfo:
     errors: list[str] | None = None
     std_out: list[str] | None = None
 
-    def to_standardized_output(  # pylint: disable=too-many-locals,too-many-branches
+    def to_standardized_output(
         self,
         model_path: Path,
         run_id: str | None = None,
@@ -84,7 +83,7 @@ class TOSACompatibilityInfo:
         # Create backend with version
         try:
             backend_version = get_pkg_version("tosa-checker")
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:
             logger.warning("Failed to get tosa-checker version: %s", exc)
             backend_version = "unknown"
 
@@ -110,7 +109,7 @@ class TOSACompatibilityInfo:
             ],
             configuration=target_config or {},
             description=(
-                "TOSA (Tensor Operator Set Architecture) " "specification compatibility"
+                "TOSA (Tensor Operator Set Architecture) specification compatibility"
             ),
         )
 
@@ -220,11 +219,12 @@ def get_tosa_compatibility_info(
     """Return list of the operators."""
     # Capture the possible exception in running get_tosa_checker
     try:
-        with capture_raw_output(sys.stdout) as std_output_pkg, capture_raw_output(
-            sys.stderr
-        ) as stderr_output_pkg:
+        with (
+            capture_raw_output(sys.stdout) as std_output_pkg,
+            capture_raw_output(sys.stderr) as stderr_output_pkg,
+        ):
             checker = get_tosa_checker(tflite_model_path)
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         return TOSACompatibilityInfo(
             tosa_compatible=False,
             operators=[],
@@ -241,14 +241,15 @@ def get_tosa_compatibility_info(
 
     # Capture the possible exception when checking ops compatibility
     try:
-        with capture_raw_output(sys.stdout) as std_output_ops, capture_raw_output(
-            sys.stderr
-        ) as stderr_output_ops:
+        with (
+            capture_raw_output(sys.stdout) as std_output_ops,
+            capture_raw_output(sys.stderr) as stderr_output_ops,
+        ):
             ops = [
                 Operator(item.location, item.name, item.is_tosa_compatible)
-                for item in checker._get_tosa_compatibility_for_ops()  # pylint: disable=protected-access
+                for item in checker._get_tosa_compatibility_for_ops()
             ]
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         return TOSACompatibilityInfo(
             tosa_compatible=False,
             operators=[],
@@ -273,9 +274,9 @@ def get_tosa_compatibility_info(
 def get_tosa_checker(tflite_model_path: str | Path) -> TOSAChecker | None:
     """Return instance of the TOSA checker."""
     try:
-        import tosa_checker as tc  # pylint: disable=import-outside-toplevel
+        import tosa_checker as tc
     except ImportError:
         return None
 
-    checker = tc.TOSAChecker(str(tflite_model_path))  # pylint: disable=no-member
+    checker = tc.TOSAChecker(str(tflite_model_path))
     return cast(TOSAChecker, checker)

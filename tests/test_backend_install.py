@@ -1,28 +1,29 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for common management functionality."""
+
 from __future__ import annotations
 
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Any
-from typing import Callable
-from unittest.mock import ANY
-from unittest.mock import MagicMock
+from typing import Any, Callable
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
-from mlia.backend.install import artifactory_credential_headers
-from mlia.backend.install import BackendInfo
-from mlia.backend.install import BackendInstallation
-from mlia.backend.install import CompoundPathChecker
-from mlia.backend.install import DownloadAndInstall
-from mlia.backend.install import InstallFromPath
-from mlia.backend.install import InstallFromVendorPackage
-from mlia.backend.install import PackagePathChecker
-from mlia.backend.install import PyPackageBackendInstallation
-from mlia.backend.install import StaticPathChecker
+from mlia.backend.install import (
+    BackendInfo,
+    BackendInstallation,
+    CompoundPathChecker,
+    DownloadAndInstall,
+    InstallFromPath,
+    InstallFromVendorPackage,
+    PackagePathChecker,
+    PyPackageBackendInstallation,
+    StaticPathChecker,
+    artifactory_credential_headers,
+)
 from mlia.backend.repo import BackendRepository
 from mlia.backend.tosa_checker.install import get_tosa_backend_installation
 from mlia.backend.vela.install import get_vela_installation
@@ -479,7 +480,6 @@ def test_filter_tar_members(
             orig_members = list(archive.getmembers())
             assert len(orig_members) == num_members_in
             filtered_members = list(
-                # pylint: disable=protected-access
                 BackendInstallation._filter_tar_members(orig_members, tmp_path)
             )
             assert len(filtered_members) == num_members_out

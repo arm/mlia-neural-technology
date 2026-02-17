@@ -1,18 +1,17 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Test for plugin interface."""
+
 import sys
 import typing
 from dataclasses import dataclass
 from os import PathLike
 from typing import Union
-from unittest.mock import call
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 
-from mlia.plugins.plugins import call_entry_points
-from mlia.plugins.plugins import logger
+from mlia.plugins.plugins import call_entry_points, logger
 
 if sys.version_info < (3, 10):
     import importlib_metadata as metadata
@@ -59,9 +58,7 @@ class FakeDistribution(metadata.Distribution):
     def _normalized_name(self) -> str:
         return self._fake_name
 
-    def locate_file(
-        self, path: Union[str, PathLike[str]]
-    ) -> metadata.SimplePath:  # type: ignore
+    def locate_file(self, path: Union[str, PathLike[str]]) -> metadata.SimplePath:  # type: ignore
         return metadata.Distribution.from_name("mlia").locate_file(path)
 
     def read_text(self, filename: str) -> str:
@@ -76,7 +73,6 @@ def _bind_entrypoint(
     entry_point: metadata.EntryPoint, distribution: metadata.Distribution
 ):
     """Accesses internal methods to fully setup an entrypoint."""
-    # pylint: disable-next=protected-access
     return entry_point._for(distribution)
 
 
@@ -104,7 +100,7 @@ def mock_logging_fixture(monkeypatch: pytest.MonkeyPatch) -> MockLogging:
 @pytest.fixture(name="single_entrypoint")
 def single_entrypoint_fixture(monkeypatch: pytest.MonkeyPatch) -> MockEntrypoints:
     """Create a single entrypoint to load in the plugin system."""
-    global mock_entrypoints  # pylint: disable=global-statement
+    global mock_entrypoints
 
     entry_point = metadata.EntryPoint(
         "plugin", "tests.test_plugins:mock_entrypoints.first_plugin", "stub.entrypoint"
@@ -133,7 +129,7 @@ def single_external_entrypoint_fixture(
     monkeypatch: pytest.MonkeyPatch,
 ) -> MockEntrypoints:
     """Create a single entrypoint for an external package to load."""
-    global mock_entrypoints  # pylint: disable=global-statement
+    global mock_entrypoints
 
     entry_point = metadata.EntryPoint(
         "plugin", "tests.test_plugins:mock_entrypoints.first_plugin", "stub.entrypoint"
@@ -159,7 +155,7 @@ def single_external_entrypoint_fixture(
 @pytest.fixture(name="multiple_entrypoint")
 def multiple_entrypoint_fixture(monkeypatch: pytest.MonkeyPatch) -> MockEntrypoints:
     """Create multiple entrypoints for testing multiple plugins."""
-    global mock_entrypoints  # pylint: disable=global-statement
+    global mock_entrypoints
 
     first_ep = metadata.EntryPoint(
         "first_plugin",

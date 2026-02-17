@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for backend integration."""
+
 from __future__ import annotations
 
 import base64
@@ -9,8 +10,7 @@ import json
 import logging
 import re
 import subprocess  # nosec
-from dataclasses import dataclass
-from dataclasses import field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +18,8 @@ import mlia
 import mlia.core.output_schema as schema
 from mlia.backend.errors import BackendExecutionFailed
 from mlia.backend.repo import get_backend_repository
-from mlia.utils.filesystem import get_mlia_resources
-from mlia.utils.filesystem import sha256
-from mlia.utils.proc import Command
-from mlia.utils.proc import OutputLogger
-from mlia.utils.proc import process_command_output
-
+from mlia.utils.filesystem import get_mlia_resources, sha256
+from mlia.utils.proc import Command, OutputLogger, process_command_output
 
 logger = logging.getLogger(__name__)
 
@@ -115,9 +111,7 @@ class CorstoneModelPerformanceMetrics:
             ],
         }
         metric_names = target_metric_maps.get(target, target_metric_maps["default"])
-        class_fields = list(
-            cls.__dataclass_fields__.keys()  # pylint: disable=no-member
-        )
+        class_fields = list(cls.__dataclass_fields__.keys())
         class_kwargs = {}
         for idx, metric_name in enumerate(metric_names):
             if metric_name in fvp_metrics and idx < len(class_fields):
@@ -144,7 +138,7 @@ class CorstonePerformanceMetrics:
             _parse_per_layer_csv(per_layer_file),
         )
 
-    def to_standardized_output(  # pylint: disable=too-many-locals
+    def to_standardized_output(
         self,
         model_path: Path,
         backend_name: str,

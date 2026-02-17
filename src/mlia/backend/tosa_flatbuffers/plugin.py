@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tosa flatbuffers API module."""
-from mlia.backend.config import BackendConfiguration
-from mlia.backend.config import BackendType
-from mlia.backend.config import System
+
+from mlia.backend.config import BackendConfiguration, BackendType, System
 from mlia.backend.registry import BackendRegistry
 from mlia.backend.tosa_flatbuffers.install import get_tosa_flatbuffers_installation
 from mlia.plugins.plugins import BackendPlugin

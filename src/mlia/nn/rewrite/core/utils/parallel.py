@@ -1,14 +1,14 @@
-# SPDX-FileCopyrightText: Copyright 2023, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Parallelize a TFLiteModel."""
+
 from __future__ import annotations
 
 import logging
 import math
 import os
 from collections import defaultdict
-from multiprocessing import cpu_count
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +22,7 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
-class ParallelTFLiteModel(TFLiteModel):  # pylint: disable=abstract-method
+class ParallelTFLiteModel(TFLiteModel):
     """A parallel version of a TFLiteModel.
 
     num_procs: 0 => detect real cores on system
@@ -54,7 +54,7 @@ class ParallelTFLiteModel(TFLiteModel):  # pylint: disable=abstract-method
             local_batch_size = int(math.ceil(batch_size / self.num_procs))
             super().__init__(filename, batch_size=local_batch_size)
             del self.interpreter
-            self.pool = Pool(  # pylint: disable=consider-using-with
+            self.pool = Pool(
                 processes=self.num_procs,
                 initializer=_pool_create_worker,
                 initargs=[filename, self.batch_size, self.num_threads],
@@ -105,7 +105,8 @@ class ParallelTFLiteModel(TFLiteModel):  # pylint: disable=abstract-method
             local_batches = [
                 {
                     key: values[
-                        i * self.batch_size : (i + 1) * self.batch_size  # noqa: E203
+                        i * self.batch_size : (i + 1)
+                        * self.batch_size  # noqa: E203
                     ]
                     for key, values in named_input.items()
                 }
@@ -127,7 +128,7 @@ _LOCAL_MODEL = None
 def _pool_create_worker(
     filename: str, local_batch_size: int = 0, num_threads: int = 0
 ) -> None:
-    global _LOCAL_MODEL  # pylint: disable=global-statement
+    global _LOCAL_MODEL
     _LOCAL_MODEL = TFLiteModel(
         filename, batch_size=local_batch_size, num_threads=num_threads
     )

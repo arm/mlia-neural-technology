@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023,2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Neural Technology data analysis module."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,8 +11,7 @@ from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.core.common import DataItem
-from mlia.core.data_analysis import Fact
-from mlia.core.data_analysis import FactExtractor
+from mlia.core.data_analysis import Fact, FactExtractor
 
 
 class NeuralTechnologyDataAnalyzer(FactExtractor):
@@ -31,6 +31,6 @@ class NeuralTechnologyDataAnalyzer(FactExtractor):
 
 @dataclass
 class NXPerformanceEstimatorModelPerformanceAnalyzed(Fact):
-    """Model performance was analyzed with the Neural Accelerator Performance Estimator."""  # pylint: disable=line-too-long
+    """Model performance was analyzed with the NX Performance Estimator."""
 
     metrics: NXPerformanceEstimatorPerformanceMetrics

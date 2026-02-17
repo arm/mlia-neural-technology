@@ -1,6 +1,11 @@
 # SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Technology reporters."""
+
+# This test contains long lines that are easier to read in the test code
+# than when wrapped by the formatter. Disable line length check for this file.
+# ruff: noqa: E501
+
 from functools import partial
 from pathlib import Path
 from typing import List
@@ -10,29 +15,32 @@ import pytest
 from rich.console import Console
 
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp, TosaOpType
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
-from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabaseParser
 from mlia.backend.nx_performance_estimator.output_parsing import (
+    NXDebugDatabaseParser,
     NXPerformanceDatabaseParser,
 )
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
-from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
+from mlia.backend.nx_performance_estimator.statistics import (
+    NXModelPerformanceStats,
+    NXOperatorPerformanceStats,
+    NXPerformanceStats,
+)
 from mlia.core.advice_generation import Advice
 from mlia.core.output_schema import AdviceCategory as SchemaAdviceCategory
 from mlia.core.output_schema import AdviceSeverity
 from mlia.core.reporters import report_advice
 from mlia.core.reporting import Table
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
-from mlia.target.neural_technology.reporters import neural_technology_formatters
-from mlia.target.neural_technology.reporters import report_target
+from mlia.target.neural_technology.reporters import (
+    neural_technology_formatters,
+    report_target,
+)
 from mlia.utils.console import remove_ascii_codes
 
 
@@ -152,7 +160,6 @@ def test_nx_performance_estimator_reporting(monkeypatch: pytest.MonkeyPatch) -> 
     assert_table_lines(
         report,
         [
-            # pylint: disable=C0301
             "Neural Accelerator raw performance report:",
             "┌────┬──────┬──────┬──────┬──────┬──────┬──────┬─────┬──────┬─────┬──────┬─────┐",
             "│    │ Ope… │ Ope… │ Ope… │ Tot… │ HW   │ Act… │ HW  │ Mem… │ Re… │ Wri… │ Tr… │",
@@ -206,7 +213,6 @@ def test_nx_performance_estimator_reporting(monkeypatch: pytest.MonkeyPatch) -> 
             "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
             "│    │ p/e… │      │      │      │      │      │     │      │     │      │     │",
             "└────┴──────┴──────┴──────┴──────┴──────┴──────┴─────┴──────┴─────┴──────┴─────┘",
-            # pylint: enable=C0301
         ],
     )
 
@@ -229,7 +235,6 @@ def test_nx_compatibility_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
     assert_table_lines(
         report,
         [
-            # pylint: disable=C0301
             "Operators:",
             "┌───┬───────────────────┬───────────────┬──────────────┬──────────────────┐",
             "│ # │ Operator location │ Operator type │ NX placement │ NX compatibility │",
@@ -242,7 +247,6 @@ def test_nx_compatibility_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
             "├───┼───────────────────┼───────────────┼──────────────┼──────────────────┤",
             "│ 4 │ /myop4            │ NMS           │ FAIL         │ Non-NX           │",
             "└───┴───────────────────┴───────────────┴──────────────┴──────────────────┘",
-            # pylint: enable=C0301
         ],
     )
 

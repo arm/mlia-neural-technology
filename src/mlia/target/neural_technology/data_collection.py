@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Data collection module for Neural Technology."""
+
 from __future__ import annotations
 
 import logging
@@ -9,15 +10,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
-from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
-from mlia.backend.ml_sdk_model_converter.compat import PT2Model
-from mlia.backend.ml_sdk_model_converter.compat import TOSAModel
-from mlia.backend.ml_sdk_model_converter.compat import VGFModel
-from mlia.backend.nx_performance_estimator.performance import (
-    NXPerformanceEstimatorPerformanceEstimator,
+from mlia.backend.ml_sdk_model_converter.compat import (
+    NXCompatibilityChecker,
+    NXModelCompatibilityInfo,
+    PT2Model,
+    TOSAModel,
+    VGFModel,
 )
 from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorPerformanceEstimator,
     NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.core.data_collection import ContextAwareDataCollector
@@ -25,11 +26,8 @@ from mlia.core.errors import ConfigurationError
 from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
 from mlia.nn.tensorflow.utils import is_tflite_model
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
-from mlia.utils.filesystem import is_pytorch_file
-from mlia.utils.filesystem import is_tosa_file
-from mlia.utils.filesystem import is_vgf_file
+from mlia.utils.filesystem import is_pytorch_file, is_tosa_file, is_vgf_file
 from mlia.utils.logging import log_action
-
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +116,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
                 legacy_info=metrics,
                 standardized_output=standardized,
             )
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:
             logger.warning(
                 "Failed to generate standardized output for NX performance: %s",
                 exc,
@@ -184,7 +182,7 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
                 legacy_info=comp_info,
                 standardized_output=standardized,
             )
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:
             logger.warning(
                 "Failed to generate standardized output for NX compatibility: %s",
                 exc,

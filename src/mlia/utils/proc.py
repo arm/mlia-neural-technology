@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Module for process management."""
+
 from __future__ import annotations
 
 import logging
@@ -8,10 +9,7 @@ import subprocess  # nosec
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any
-from typing import Callable
-from typing import Generator
-
+from typing import Any, Callable, Generator
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Validation utilities for standardized output schema."""
+
 from __future__ import annotations
 
 import json
@@ -272,7 +273,7 @@ def validate_standardized_output(
     # Perform full schema validation if requested and library is available
     if use_jsonschema:
         if not JSONSCHEMA_AVAILABLE:
-            import warnings  # pylint: disable=import-outside-toplevel
+            import warnings
 
             warnings.warn(
                 "jsonschema library not available. Using basic validation only. "

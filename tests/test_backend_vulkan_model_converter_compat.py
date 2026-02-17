@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for tflite_compat module."""
+
+# ruff: noqa: E501  # Line too long - test data strings
 from __future__ import annotations
 
 import re
@@ -10,21 +12,21 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mlia.backend.ml_sdk_model_converter.compat import NXCompatibilityChecker
-from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
-from mlia.backend.ml_sdk_model_converter.compat import NXOperatorCompatibilityInfo
-from mlia.backend.ml_sdk_model_converter.compat import PT2Model
-from mlia.backend.ml_sdk_model_converter.compat import TOSAModel
-from mlia.backend.ml_sdk_model_converter.compat import VGFModel
-from mlia.backend.ml_sdk_model_converter.compat import VMCCompatibilityLogReader
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
+from mlia.backend.ml_sdk_model_converter.compat import (
+    NXCompatibilityChecker,
+    NXModelCompatibilityInfo,
+    NXOperatorCompatibilityInfo,
+    PT2Model,
+    TOSAModel,
+    VGFModel,
+    VMCCompatibilityLogReader,
+)
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp, TosaOpType
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
 from mlia.nn.tensorflow.config import get_model
 from mlia.utils.proc import OutputConsumer
 
 
-# pylint: disable=line-too-long
 @pytest.mark.parametrize(
     "vmc_log, expected_ops, expected_errors",
     [
@@ -127,14 +129,24 @@ def test_vmc_log_parser_overall() -> None:
     assert reader.lowered_ops == {
         "arm_nss_clampnet_v1_1/split/split": "tfl.split_v",
         "cs_ne_cs_model/quant_max_pooling2d/MaxPool": "tosa.max_pool2d",
-        "inference/coefficients/global/fc2/MatMul;inference/coefficients/global/fc2/Relu;inference/coefficients/global/fc2/BiasAdd": "tfl.fully_connected",
+        (
+            "inference/coefficients/global/fc2/MatMul;"
+            "inference/coefficients/global/fc2/Relu;"
+            "inference/coefficients/global/fc2/BiasAdd"
+        ): "tfl.fully_connected",
         "inference/coefficients/splat/conv5/convolution": "tfl.pseudo_qconst",
         "tfl.custom": "tosa.custom",
     }
 
     assert reader.lowering_errors == {
-        "tfl.custom": "failed to legalize operation 'tosa.custom' that was explicitly marked illegal",
-        "model/tf.math.multiply_75/Mul1": "failed to materialize conversion for result #0 of operation 'tfl.broadcast_to' that remained live after conversion",
+        "tfl.custom": (
+            "failed to legalize operation 'tosa.custom' that was explicitly "
+            "marked illegal"
+        ),
+        "model/tf.math.multiply_75/Mul1": (
+            "failed to materialize conversion for result #0 of operation "
+            "'tfl.broadcast_to' that remained live after conversion"
+        ),
     }
 
 
@@ -149,7 +161,8 @@ def test_parse_loc_simple() -> None:
 def test_parse_loc_fused() -> None:
     """Test parse loc() string, fused case."""
     loc = VMCCompatibilityLogReader().parse_loc(
-        'loc(fused["hierarchy/dotted.dashes-semi:loc", "hierarchy/dotted.dashes-semi:loc1"])'
+        'loc(fused["hierarchy/dotted.dashes-semi:loc", '
+        '"hierarchy/dotted.dashes-semi:loc1"])'
     )
     assert loc == "hierarchy/dotted.dashes-semi:loc"
 
@@ -157,11 +170,19 @@ def test_parse_loc_fused() -> None:
 def test_parse_nested() -> None:
     """Test parse loc() string, fused case."""
     loc = VMCCompatibilityLogReader().parse_loc(
-        'loc("arm_nss_clampnet_v1/quant_conv2d_5/Relu;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd;arm_nss_clampnet_v1/quant_conv2d_9/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd/ReadVariableOp"("/filepath/arm_nss_clampnet_v1-2160_3840-int8_qat.tflite":0:0))'
+        'loc("arm_nss_clampnet_v1/quant_conv2d_5/Relu;'
+        "arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd;"
+        "arm_nss_clampnet_v1/quant_conv2d_9/Conv2D;"
+        "arm_nss_clampnet_v1/quant_conv2d_5/Conv2D;"
+        'arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd/ReadVariableOp"'
+        '("/filepath/arm_nss_clampnet_v1-2160_3840-int8_qat.tflite":0:0))'
     )
-    assert (
-        loc
-        == "arm_nss_clampnet_v1/quant_conv2d_5/Relu;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd;arm_nss_clampnet_v1/quant_conv2d_9/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/Conv2D;arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd/ReadVariableOp"
+    assert loc == (
+        "arm_nss_clampnet_v1/quant_conv2d_5/Relu;"
+        "arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd;"
+        "arm_nss_clampnet_v1/quant_conv2d_9/Conv2D;"
+        "arm_nss_clampnet_v1/quant_conv2d_5/Conv2D;"
+        "arm_nss_clampnet_v1/quant_conv2d_5/BiasAdd/ReadVariableOp"
     )
 
 
@@ -181,7 +202,7 @@ def test_tosa_flatbuffer_input_supported(tmp_path: Path) -> None:
     checker = NXCompatibilityChecker(tmp_path)
 
     try:
-        import tosa_flatbuffers  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import
+        import tosa_flatbuffers  # noqa: F401
 
         assert checker.tosa_flatbuffer_input_supported()
     except ImportError:
@@ -505,9 +526,15 @@ def test_check_compatibility_tflite(
     """Test VMC compatibity check."""
 
     back_end_output = [
-        """Successfully lowered: tosa.rescale at loc("arm_nss_clampnet_v4/quant_conv2d_7/Relu"("model.tflite":0:0))""",
-        """<unknown>:0: error: loc("model/tf.math.multiply_75/Mul1"): failed to materialize conversion for result #0 of"""
-        + """operation 'tfl.broadcast_to' that remained live after conversion"""
+        (
+            "Successfully lowered: tosa.rescale at loc("
+            '"arm_nss_clampnet_v4/quant_conv2d_7/Relu"("model.tflite":0:0))'
+        ),
+        (
+            '<unknown>:0: error: loc("model/tf.math.multiply_75/Mul1"): '
+            "failed to materialize conversion for result #0 of"
+            "operation 'tfl.broadcast_to' that remained live after conversion"
+        ),
         "",
     ]
 

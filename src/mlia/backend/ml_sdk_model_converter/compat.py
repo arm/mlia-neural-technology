@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-# pylint: disable=duplicate-code
 """Neural Accelerator operator compatibility module."""
+
 from __future__ import annotations
 
 import logging
 import re
-from dataclasses import asdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from functools import singledispatchmethod
 from pathlib import Path
 from typing import Any
@@ -15,11 +14,13 @@ from typing import Any
 import mlia
 import mlia.core.output_schema as schema
 from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverterBase
-from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_flatbuffer_ops
-from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_mlir_ops
-from mlia.backend.ml_sdk_model_converter.tosa_reader import tosa_flatbuffers_available
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
+from mlia.backend.ml_sdk_model_converter.tosa_reader import (
+    TosaOp,
+    TosaOpType,
+    read_tosa_flatbuffer_ops,
+    read_tosa_mlir_ops,
+    tosa_flatbuffers_available,
+)
 from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
     MliaPytorchToTosaConverter,
 )
@@ -277,7 +278,7 @@ class NXModelCompatibilityInfo:
         """Return an ordered list of records."""
         return [self.layer_map[loc] for loc in sorted(self.layer_map.keys())]
 
-    def to_standardized_output(  # pylint: disable=too-many-locals,too-many-branches
+    def to_standardized_output(
         self,
         model_path: Path,
         run_id: str | None = None,
@@ -568,7 +569,7 @@ class NXCompatibilityChecker:
             tosa_model = TOSAModel(path=tosa_path)
             return self.check_compatibility(tosa_model)
 
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:
             # Catch all exceptions as any failure in conversion means incompatibility
             comp_info = NXModelCompatibilityInfo()
             comp_info.add_lowering_error(

@@ -1,18 +1,16 @@
 # SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Neural Technology advisor module."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-from typing import Sequence
+from typing import Any, Sequence
 
 from mlia.core.advice_generation import AdviceProducer
-from mlia.core.advisor import DefaultInferenceAdvisor
-from mlia.core.advisor import InferenceAdvisor
+from mlia.core.advisor import DefaultInferenceAdvisor, InferenceAdvisor
 from mlia.core.common import AdviceCategory
-from mlia.core.context import Context
-from mlia.core.context import ExecutionContext
+from mlia.core.context import Context, ExecutionContext
 from mlia.core.data_analysis import DataAnalyzer
 from mlia.core.data_collection import DataCollector
 from mlia.core.errors import ConfigurationError
@@ -23,8 +21,10 @@ from mlia.target.neural_technology.advice_generation import (
 )
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.data_analysis import NeuralTechnologyDataAnalyzer
-from mlia.target.neural_technology.data_collection import NeuralTechnologyCompatibility
-from mlia.target.neural_technology.data_collection import NeuralTechnologyPerformance
+from mlia.target.neural_technology.data_collection import (
+    NeuralTechnologyCompatibility,
+    NeuralTechnologyPerformance,
+)
 from mlia.target.neural_technology.events import NeuralTechnologyAdvisorStartedEvent
 from mlia.target.neural_technology.handlers import NeuralTechnologyEventHandler
 
@@ -80,9 +80,7 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
     def _get_target_cfg(self, context: Context) -> NeuralTechnologyConfiguration:
         """Get target configuration."""
         target_profile = self.get_target_profile(context)
-        backend_options = context.config_parameters[
-            self.name()
-        ].get(  # type: ignore[index]
+        backend_options = context.config_parameters[self.name()].get(  # type: ignore[index]
             "backend_options", {}
         )
         return NeuralTechnologyConfiguration.load_profile(
@@ -140,9 +138,9 @@ def _get_config_parameters(
         )
     backend_options = extra_args.get("backend_options", {})
     advisor_parameters[NeuralTechnologyInferenceAdvisor.name()]["backends"] = backends
-    advisor_parameters[NeuralTechnologyInferenceAdvisor.name()][
-        "backend_options"
-    ] = backend_options
+    advisor_parameters[NeuralTechnologyInferenceAdvisor.name()]["backend_options"] = (
+        backend_options
+    )
 
     add_common_optimization_params(advisor_parameters, extra_args)
 

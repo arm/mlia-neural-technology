@@ -1,11 +1,10 @@
 # SPDX-FileCopyrightText: Copyright 2023,2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """ML SDK Model Converter backend module."""
+
 import logging
 
-from mlia.backend.config import BackendConfiguration
-from mlia.backend.config import BackendType
-from mlia.backend.config import System
+from mlia.backend.config import BackendConfiguration, BackendType, System
 from mlia.backend.ml_sdk_model_converter.install import (
     get_ml_sdk_model_converter_installation,
 )

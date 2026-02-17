@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Standardized output schema classes for MLIA."""
+
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from dataclasses import field
-from datetime import datetime
-from datetime import timezone
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -119,7 +118,7 @@ class Tool:
 class Backend:
     """Backend information."""
 
-    id: str  # pylint: disable=invalid-name
+    id: str
     name: str
     version: str
     configuration: dict[str, Any]
@@ -170,9 +169,7 @@ class Component:
         if self.name is not None:
             result["name"] = self.name
         if self.components:
-            result["components"] = [
-                comp.to_dict() for comp in self.components
-            ]  # type: ignore[assignment]
+            result["components"] = [comp.to_dict() for comp in self.components]  # type: ignore[assignment]
         return result
 
     @classmethod
@@ -328,7 +325,7 @@ class OperatorIdentifier:
     scope: OperatorScope
     name: str
     location: str
-    id: str | None = None  # pylint: disable=invalid-name
+    id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -360,7 +357,7 @@ class Breakdown:
     name: str
     location: str
     metrics: list[Metric]
-    id: str | None = None  # pylint: disable=invalid-name
+    id: str | None = None
     qualifiers: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -394,7 +391,7 @@ class Breakdown:
 class Check:
     """Check information."""
 
-    id: str  # pylint: disable=invalid-name
+    id: str
     status: CheckStatus
     details: dict[str, Any] = field(default_factory=dict)
 
@@ -423,7 +420,7 @@ class Entity:
     name: str
     location: str
     placement: str
-    id: str | None = None  # pylint: disable=invalid-name
+    id: str | None = None
     attributes: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -457,7 +454,7 @@ class Entity:
 class Advice:
     """Advice information."""
 
-    id: str  # pylint: disable=invalid-name
+    id: str
     category: AdviceCategory
     severity: AdviceSeverity
     message: str
@@ -495,7 +492,7 @@ class Advice:
 
 
 @dataclass(frozen=True)
-class Result:  # pylint: disable=too-many-instance-attributes
+class Result:
     """Result information."""
 
     kind: ResultKind

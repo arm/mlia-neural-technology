@@ -1,16 +1,19 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Convert TensorFlow Lite models with the TOSA Converter For Tflite."""
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 
 from mlia.utils.logging import log_action
-from mlia.utils.proc import Command
-from mlia.utils.proc import OutputConsumer
-from mlia.utils.proc import OutputLogger
-from mlia.utils.proc import process_command_output
+from mlia.utils.proc import (
+    Command,
+    OutputConsumer,
+    OutputLogger,
+    process_command_output,
+)
 
 logger = logging.getLogger(__name__)
 

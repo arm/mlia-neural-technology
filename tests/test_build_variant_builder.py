@@ -1,16 +1,14 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-# pylint: disable=redefined-outer-name,unused-argument,wrong-import-position
 """Tests for the variant builder module."""
+
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -54,7 +52,7 @@ def temp_workspace(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
 
 @pytest.fixture
 def sample_variant_config(
-    temp_workspace: tuple[Path, Path, Path, Path]
+    temp_workspace: tuple[Path, Path, Path, Path],
 ) -> tuple[Path, dict[str, Any]]:
     """
     Create a sample variant configuration.
@@ -102,7 +100,7 @@ def sample_variant_config(
     return variant_dir, config
 
 
-class TestVariantBuilder:  # pylint: disable=too-many-public-methods
+class TestVariantBuilder:
     """Test VariantBuilder class."""
 
     def test_init_default_config_dir(
@@ -120,7 +118,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         assert builder.platform == "manylinux2014_x86_64"
         assert builder.backup_dir is None
         assert not builder.backed_up_paths
-        assert not builder._current_variant_files  # pylint: disable=protected-access
+        assert not builder._current_variant_files
 
     def test_init_custom_config_dir(
         self, temp_workspace: tuple[Path, Path, Path, Path]
@@ -209,9 +207,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
     def test_get_available_variants(
         self,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test getting list of available variants."""
         mlia_root, config_base_dir, _, _ = temp_workspace
@@ -353,9 +349,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
     def test_apply_variant_config(
         self,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test applying a variant configuration."""
         mlia_root, config_base_dir, resources_dir, target_profiles_dir = temp_workspace
@@ -370,7 +364,6 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         assert (target_profiles_dir / "default-profile.toml").exists()
         assert (target_profiles_dir / "variant-profile.toml").exists()
 
-        # pylint: disable=protected-access
         assert len(builder._current_variant_files) == 3
         assert (
             resources_dir / "variant-system-config.ini"
@@ -407,9 +400,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
     def test_clean_variant_files(
         self,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test cleaning variant-specific files."""
         mlia_root, config_base_dir, resources_dir, target_profiles_dir = temp_workspace
@@ -431,7 +422,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         assert not variant_profile.exists()
         assert (resources_dir / "default-system-config.ini").exists()
         assert (target_profiles_dir / "default-profile.toml").exists()
-        assert not builder._current_variant_files  # pylint: disable=protected-access
+        assert not builder._current_variant_files
 
     def test_clean_variant_files_empty(
         self, temp_workspace: tuple[Path, Path, Path, Path]
@@ -442,7 +433,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         builder = VariantBuilder(mlia_root, config_base_dir=config_base_dir)
         builder.clean_variant_files()  # Should not raise
 
-        assert not builder._current_variant_files  # pylint: disable=protected-access
+        assert not builder._current_variant_files
 
     @patch("subprocess.run")
     @patch("shutil.rmtree")
@@ -478,7 +469,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
     @patch("shutil.rmtree")
     def test_build_wheel_variant(
         self,
-        mock_rmtree: Mock,  # pylint: disable=unused-argument
+        mock_rmtree: Mock,
         mock_run: Mock,
         temp_workspace: tuple[Path, Path, Path, Path],
     ) -> None:
@@ -510,12 +501,10 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
     @patch.object(VariantBuilder, "apply_variant_config")
     def test_build_all_variants_success(
         self,
-        mock_apply: Mock,  # pylint: disable=unused-argument
+        mock_apply: Mock,
         mock_build: Mock,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test building all variants successfully."""
         mlia_root, config_base_dir, _, _ = temp_workspace
@@ -538,9 +527,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         self,
         mock_build: Mock,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test building variants without default."""
         mlia_root, config_base_dir, _, _ = temp_workspace
@@ -560,9 +547,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         self,
         mock_build: Mock,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test handling build failures."""
         mlia_root, config_base_dir, _, _ = temp_workspace
@@ -584,9 +569,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
         mock_apply: Mock,
         mock_restore: Mock,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test that resources are restored even on exception."""
         mlia_root, config_base_dir, _, _ = temp_workspace
@@ -605,9 +588,7 @@ class TestVariantBuilder:  # pylint: disable=too-many-public-methods
     def test_build_all_variants_auto_discover(
         self,
         temp_workspace: tuple[Path, Path, Path, Path],
-        sample_variant_config: tuple[
-            Path, dict[str, Any]
-        ],  # pylint: disable=unused-argument
+        sample_variant_config: tuple[Path, dict[str, Any]],
     ) -> None:
         """Test auto-discovering variants."""
         mlia_root, config_base_dir, _, _ = temp_workspace
@@ -628,10 +609,10 @@ class TestMain:
     def test_main_list_variants(
         self,
         mock_builder_class: Mock,
-        temp_workspace: tuple[Path, Path, Path],  # pylint: disable=unused-argument
+        temp_workspace: tuple[Path, Path, Path],
     ) -> None:
         """Test listing variants through CLI."""
-        from variant_builder import main  # pylint: disable=import-outside-toplevel
+        from variant_builder import main
 
         mock_builder = MagicMock()
         mock_builder.get_available_variants.return_value = ["variant1", "variant2"]
@@ -646,7 +627,7 @@ class TestMain:
     @patch("sys.argv", ["variant_builder.py"])
     def test_main_build_all(self, mock_builder_class: Mock) -> None:
         """Test building all variants through CLI."""
-        from variant_builder import main  # pylint: disable=import-outside-toplevel
+        from variant_builder import main
 
         mock_builder = MagicMock()
         mock_builder.build_all_variants.return_value = {
@@ -665,7 +646,7 @@ class TestMain:
     @patch("sys.argv", ["variant_builder.py", "--no-default"])
     def test_main_no_default(self, mock_builder_class: Mock) -> None:
         """Test building without default wheel."""
-        from variant_builder import main  # pylint: disable=import-outside-toplevel
+        from variant_builder import main
 
         mock_builder = MagicMock()
         mock_builder.build_all_variants.return_value = {
@@ -688,7 +669,7 @@ class TestMain:
     )
     def test_main_specific_variants(self, mock_builder_class: Mock) -> None:
         """Test building specific variants."""
-        from variant_builder import main  # pylint: disable=import-outside-toplevel
+        from variant_builder import main
 
         mock_builder = MagicMock()
         mock_builder.build_all_variants.return_value = {
@@ -708,7 +689,7 @@ class TestMain:
     @patch("sys.argv", ["variant_builder.py", "--platform", "linux_aarch64"])
     def test_main_custom_platform(self, mock_builder_class: Mock) -> None:
         """Test specifying custom platform."""
-        from variant_builder import main  # pylint: disable=import-outside-toplevel
+        from variant_builder import main
 
         mock_builder = MagicMock()
         mock_builder.build_all_variants.return_value = {
@@ -731,7 +712,7 @@ class TestMain:
     )
     def test_main_custom_config_dir(self, mock_builder_class: Mock) -> None:
         """Test specifying custom config directory."""
-        from variant_builder import main  # pylint: disable=import-outside-toplevel
+        from variant_builder import main
 
         mock_builder = MagicMock()
         mock_builder.build_all_variants.return_value = {
@@ -751,7 +732,7 @@ class TestMain:
     @patch("sys.argv", ["variant_builder.py"])
     def test_main_build_failure(self, mock_builder_class: Mock) -> None:
         """Test handling build failure in main."""
-        from variant_builder import main  # pylint: disable=import-outside-toplevel
+        from variant_builder import main
 
         mock_builder = MagicMock()
         mock_builder.build_all_variants.return_value = {

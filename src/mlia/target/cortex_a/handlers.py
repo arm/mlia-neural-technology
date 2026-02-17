@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Event handler."""
+
 from __future__ import annotations
 
 import logging
@@ -9,10 +10,14 @@ from pathlib import Path
 from mlia.core.events import CollectedDataEvent
 from mlia.core.handlers import WorkflowEventsHandler
 from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityInfo
-from mlia.target.cortex_a.events import CortexAAdvisorEventHandler
-from mlia.target.cortex_a.events import CortexAAdvisorStartedEvent
-from mlia.target.cortex_a.operators import CortexACompatibilityInfo
-from mlia.target.cortex_a.operators import CortexACompatibilityResult
+from mlia.target.cortex_a.events import (
+    CortexAAdvisorEventHandler,
+    CortexAAdvisorStartedEvent,
+)
+from mlia.target.cortex_a.operators import (
+    CortexACompatibilityInfo,
+    CortexACompatibilityResult,
+)
 from mlia.target.cortex_a.reporters import cortex_a_formatters
 
 logger = logging.getLogger(__name__)
@@ -49,7 +54,7 @@ class CortexAEventHandler(WorkflowEventsHandler, CortexAAdvisorEventHandler):
                     # Save the standardized output
                     data_item.standardized_output.save(output_path)
                     logger.info("Saved standardized output to: %s", output_path)
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     logger.warning(
                         "Failed to save standardized output: %s", exc, exc_info=True
                     )

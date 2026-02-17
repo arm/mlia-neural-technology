@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Convert TensorFlow Lite models with the ML SDK Model Converter."""
+
 from __future__ import annotations
 
 import logging
@@ -10,13 +11,14 @@ from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
     MliaPytorchToTosaConverter,
 )
 from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
-from mlia.utils.filesystem import is_pytorch_file
-from mlia.utils.filesystem import is_tosa_file
+from mlia.utils.filesystem import is_pytorch_file, is_tosa_file
 from mlia.utils.logging import log_action
-from mlia.utils.proc import Command
-from mlia.utils.proc import OutputConsumer
-from mlia.utils.proc import OutputLogger
-from mlia.utils.proc import process_command_output
+from mlia.utils.proc import (
+    Command,
+    OutputConsumer,
+    OutputLogger,
+    process_command_output,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +121,6 @@ class MLSDKModelConverterBase:
         return []
 
 
-# pylint: disable=too-few-public-methods
 class MLSDKModelConverter(MLSDKModelConverterBase):
     """Run the ML SDK Model Converter to produce a SPIR-v file."""
 

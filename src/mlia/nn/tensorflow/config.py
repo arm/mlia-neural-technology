@@ -1,36 +1,35 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Model configuration."""
+
 from __future__ import annotations
 
 import logging
 import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
-from typing import Callable
-from typing import cast
-from typing import Dict
-from typing import List
+from typing import Any, Callable, Dict, List, cast
 
 import numpy as np
 import tensorflow as tf
 import tf_keras as keras
 
 from mlia.core.context import Context
-from mlia.nn.tensorflow.optimizations.quantization import dequantize
-from mlia.nn.tensorflow.optimizations.quantization import is_quantized
-from mlia.nn.tensorflow.optimizations.quantization import QuantizationParameters
-from mlia.nn.tensorflow.optimizations.quantization import quantize
+from mlia.nn.tensorflow.optimizations.quantization import (
+    QuantizationParameters,
+    dequantize,
+    is_quantized,
+    quantize,
+)
 from mlia.nn.tensorflow.tflite_convert import convert_to_tflite
-from mlia.nn.tensorflow.tflite_graph import load_fb
-from mlia.nn.tensorflow.tflite_graph import save_fb
-from mlia.nn.tensorflow.utils import check_tflite_datatypes
-from mlia.nn.tensorflow.utils import is_keras_model
-from mlia.nn.tensorflow.utils import is_saved_model
-from mlia.nn.tensorflow.utils import is_tflite_model
+from mlia.nn.tensorflow.tflite_graph import load_fb, save_fb
+from mlia.nn.tensorflow.utils import (
+    check_tflite_datatypes,
+    is_keras_model,
+    is_saved_model,
+    is_tflite_model,
+)
 from mlia.utils.logging import log_action
-
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +99,7 @@ TFLiteIODetailsList = List[TFLiteIODetails]
 NameToTensorMap = Dict[str, np.ndarray]
 
 
-class TFLiteModel(ModelConfiguration):  # pylint: disable=abstract-method
+class TFLiteModel(ModelConfiguration):
     """TensorFlow Lite model configuration."""
 
     def __init__(
@@ -188,9 +187,7 @@ class TFLiteModel(ModelConfiguration):  # pylint: disable=abstract-method
                 )
         if remainder:
             for name, x_batch in named_input.items():
-                x_tensor = np.zeros(  # pylint: disable=invalid-name
-                    self.shape_from_name[name]
-                ).astype(x_batch.dtype)
+                x_tensor = np.zeros(self.shape_from_name[name]).astype(x_batch.dtype)
                 x_tensor[:remainder] = x_batch[-remainder:]
                 self.interpreter.set_tensor(self.handle_from_name[name], x_tensor)
             self.interpreter.invoke()
@@ -280,7 +277,7 @@ class TFLiteModel(ModelConfiguration):  # pylint: disable=abstract-method
         return quant_inputs
 
 
-class TfModel(ModelConfiguration):  # pylint: disable=abstract-method
+class TfModel(ModelConfiguration):
     """TensorFlow model configuration.
 
     Supports models supported by TensorFlow API (not Keras)

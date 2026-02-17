@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for tflite_compat module."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -10,12 +11,14 @@ import tensorflow as tf
 import tf_keras as keras
 from tensorflow.lite.python import convert
 
-from mlia.nn.tensorflow.tflite_compat import converter_error_data_pb2
-from mlia.nn.tensorflow.tflite_compat import TFLiteChecker
-from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityInfo
-from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityStatus
-from mlia.nn.tensorflow.tflite_compat import TFLiteConversionError
-from mlia.nn.tensorflow.tflite_compat import TFLiteConversionErrorCode
+from mlia.nn.tensorflow.tflite_compat import (
+    TFLiteChecker,
+    TFLiteCompatibilityInfo,
+    TFLiteCompatibilityStatus,
+    TFLiteConversionError,
+    TFLiteConversionErrorCode,
+    converter_error_data_pb2,
+)
 
 
 def test_not_fully_compatible_model_flex_ops() -> None:
@@ -69,7 +72,6 @@ def _get_tflite_conversion_error(
     error_data = converter_error_data_pb2.ConverterErrorData
     convert_error = convert.ConverterError(error_message)
 
-    # pylint: disable=no-member
     def _add_error(operator: str, error_code: int) -> None:
         convert_error.append_error(
             error_data(
@@ -93,12 +95,10 @@ def _get_tflite_conversion_error(
 
     if unknown_reason:
         _add_error("unknown_op", None)  # type: ignore
-    # pylint: enable=no-member
 
     return convert_error
 
 
-# pylint: disable=undefined-variable,unused-variable
 @pytest.mark.parametrize(
     "conversion_error, expected_result",
     [
@@ -220,7 +220,6 @@ def _get_tflite_conversion_error(
         ),
     ],
 )
-# pylint: enable=undefined-variable,unused-variable
 def test_tflite_compatibility(
     conversion_error: convert.ConverterError | ValueError | None,
     expected_result: TFLiteCompatibilityInfo,

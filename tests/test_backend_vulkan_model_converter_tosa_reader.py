@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for tosa reader."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,11 +11,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from mlia.backend.errors import BackendUnavailableError
-from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_flatbuffer_ops
-from mlia.backend.ml_sdk_model_converter.tosa_reader import read_tosa_mlir_ops
-from mlia.backend.ml_sdk_model_converter.tosa_reader import tosa_flatbuffers_available
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOpType
+from mlia.backend.ml_sdk_model_converter.tosa_reader import (
+    TosaOp,
+    TosaOpType,
+    read_tosa_flatbuffer_ops,
+    read_tosa_mlir_ops,
+    tosa_flatbuffers_available,
+)
 
 
 def _check_id_to_tosa_ops(id_to_tosa_ops: dict[int, TosaOp], expected_len: int) -> None:
@@ -36,7 +39,7 @@ def _check_id_to_tosa_ops(id_to_tosa_ops: dict[int, TosaOp], expected_len: int) 
 
 
 def test_read_tosa_mlir_model(
-    test_tosa_mlir_model_with_length: tuple[Path, int]
+    test_tosa_mlir_model_with_length: tuple[Path, int],
 ) -> None:
     """Tests TOSA-MLIR file parser on a valid model
     (all locations defined, correct variable names, etc)."""
@@ -61,13 +64,12 @@ def test_read_tosa_mlir_f32_model(
 @pytest.mark.parametrize(
     "tosa_mlir_content",
     [
-        # pylint: disable=line-too-long
-        """
-%0 = "tosa.const"() : () -> tensor<256xi8> loc(#loc1)
-%1 = "tosa.const"() : () -> tensor<3xf32> loc(#loc1)
-%2 = tosa.const_shape  {values = dense<3> : tensor<2xindex>} : () -> !tosa.shape<2> loc(#loc1)
-        """,
-        # pylint: enable=line-too-long
+        (
+            '%0 = "tosa.const"() : () -> tensor<256xi8> loc(#loc1)\n'
+            '%1 = "tosa.const"() : () -> tensor<3xf32> loc(#loc1)\n'
+            "%2 = tosa.const_shape  {values = dense<3> : tensor<2xindex>} "
+            ": () -> !tosa.shape<2> loc(#loc1)\n"
+        ),
     ],
 )
 def test_read_tosa_mlir_types(tosa_mlir_content: str, tmp_path: Path) -> None:
@@ -177,7 +179,7 @@ def test_read_tosa_mlir_torch_fx_locations(tmp_path: Path) -> None:
 
 
 def test_read_tosa_flatbuffer_model(
-    test_tosa_flatbuffer_model_with_length: tuple[Path, int]
+    test_tosa_flatbuffer_model_with_length: tuple[Path, int],
 ) -> None:
     """Tests TOSA flatbuffer file parser."""
     if not tosa_flatbuffers_available():

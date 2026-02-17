@@ -1,9 +1,8 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Collection of Cortex-A operator compatibility information."""
-from __future__ import annotations
 
-# pylint: disable=duplicate-code
+from __future__ import annotations
 
 VERSION = "22.08"
 OPERATORS = {

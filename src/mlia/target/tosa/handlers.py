@@ -1,7 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """TOSA Advisor event handlers."""
-# pylint: disable=R0801
+
 from __future__ import annotations
 
 import logging
@@ -12,8 +12,7 @@ from mlia.core.events import CollectedDataEvent
 from mlia.core.handlers import WorkflowEventsHandler
 from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityInfo
 from mlia.target.tosa.data_collection import TOSACompatibilityResult
-from mlia.target.tosa.events import TOSAAdvisorEventHandler
-from mlia.target.tosa.events import TOSAAdvisorStartedEvent
+from mlia.target.tosa.events import TOSAAdvisorEventHandler, TOSAAdvisorStartedEvent
 from mlia.target.tosa.reporters import tosa_formatters
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ class TOSAEventHandler(WorkflowEventsHandler, TOSAAdvisorEventHandler):
                     # Save the standardized output
                     data_item.standardized_output.save(output_path)
                     logger.info("Saved standardized output to: %s", output_path)
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     logger.warning(
                         "Failed to save standardized output: %s", exc, exc_info=True
                     )

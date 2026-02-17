@@ -1,15 +1,15 @@
-# SPDX-FileCopyrightText: Copyright 2022-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2024, 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Various util functions."""
+
 from functools import lru_cache
 from importlib import metadata
 from pathlib import Path
-from subprocess import CalledProcessError  # nosec
-from subprocess import run  # nosec
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Union
+from subprocess import (
+    CalledProcessError,  # nosec
+    run,  # nosec
+)
+from typing import Any, Dict, List, Union
 
 from mlia.utils.filesystem import sha256
 

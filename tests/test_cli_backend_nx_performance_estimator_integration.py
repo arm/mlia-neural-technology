@@ -1,12 +1,12 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Integration tests for backend configuration via CLI."""
+
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from unittest.mock import ANY
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
@@ -55,7 +55,6 @@ def test_backend_options_flow_through_check_command(
     ctx = ExecutionContext()
 
     # Call check command with parsed args
-    # pylint: disable=line-too-long
     check(
         ctx,
         args.target_profile,
@@ -65,7 +64,6 @@ def test_backend_options_flow_through_check_command(
         nx_performance_estimator_system_config=args.nx_performance_estimator_system_config,
         nx_performance_estimator_compiler_config=args.nx_performance_estimator_compiler_config,
     )
-    # pylint: enable=line-too-long
 
     # Verify get_advice was called with expected parameters
     mock_get_advice.assert_called_once_with(
@@ -96,7 +94,7 @@ def test_cli_option_names_use_hyphens() -> None:
 
     # Get all option strings
     all_options: list[str] = []
-    for action in parser._actions:  # pylint: disable=protected-access
+    for action in parser._actions:
         if action.option_strings:
             all_options.extend(action.option_strings)
 
@@ -107,9 +105,9 @@ def test_cli_option_names_use_hyphens() -> None:
     for opt in backend_options:
         if opt.startswith("--"):
             # Should not contain underscores after the --
-            assert (
-                "_" not in opt
-            ), f"CLI option {opt} should use hyphens, not underscores"
+            assert "_" not in opt, (
+                f"CLI option {opt} should use hyphens, not underscores"
+            )
 
 
 def test_backend_options_converted_to_absolute_paths() -> None:

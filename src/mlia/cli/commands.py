@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """CLI commands module.
 
@@ -16,25 +16,23 @@ be configured. Function 'setup_logging' from module
 >>> mlia.check(ExecutionContext(), "ethos-u55-256",
                    "path/to/model")
 """
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any
 
-from mlia.api import ExecutionContext
-from mlia.api import get_advice
-from mlia.backend.manager import get_available_backends
-from mlia.backend.manager import get_installation_manager
-from mlia.cli.command_validators import validate_backend
-from mlia.cli.command_validators import validate_check_target_profile
-from mlia.cli.command_validators import validate_optimize_target_profile
+from mlia.api import ExecutionContext, get_advice
+from mlia.backend.manager import get_available_backends, get_installation_manager
+from mlia.cli.command_validators import (
+    validate_backend,
+    validate_check_target_profile,
+    validate_optimize_target_profile,
+)
 from mlia.cli.options import parse_optimization_parameters
-from mlia.core.reporting import Column
-from mlia.core.reporting import Format
-from mlia.core.reporting import Table
-from mlia.target.config import get_builtin_target_profile_path
-from mlia.target.config import load_profile
+from mlia.core.reporting import Column, Format, Table
+from mlia.target.config import get_builtin_target_profile_path, load_profile
 from mlia.target.registry import profiles_by_target
 from mlia.utils.console import create_section_header
 
@@ -43,7 +41,7 @@ logger = logging.getLogger(__name__)
 CONFIG = create_section_header("ML Inference Advisor configuration")
 
 
-def check(  # pylint: disable=too-many-locals
+def check(
     ctx: ExecutionContext,
     target_profile: str,
     model: str | None = None,
@@ -138,7 +136,7 @@ def check(  # pylint: disable=too-many-locals
     )
 
 
-def optimize(  # pylint: disable=too-many-locals,too-many-arguments
+def optimize(
     ctx: ExecutionContext,
     target_profile: str,
     model: str,
@@ -187,19 +185,17 @@ def optimize(  # pylint: disable=too-many-locals,too-many-arguments
                          clustering=False, pruning_target=0.5,
                          clustering_target=None)
     """
-    opt_params = (
-        parse_optimization_parameters(  # pylint: disable=too-many-function-args
-            pruning,
-            clustering,
-            pruning_target,
-            clustering_target,
-            rewrite,
-            rewrite_target,
-            rewrite_start,
-            rewrite_end,
-            layers_to_optimize,
-            dataset,
-        )
+    opt_params = parse_optimization_parameters(
+        pruning,
+        clustering,
+        pruning_target,
+        clustering_target,
+        rewrite,
+        rewrite_target,
+        rewrite_start,
+        rewrite_end,
+        layers_to_optimize,
+        dataset,
     )
 
     validate_optimize_target_profile(target_profile)
@@ -273,7 +269,7 @@ def target_list() -> None:
 
                 rows.append((profile_name, description if description else "-"))
 
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 rows.append((profile_name, "-"))
 
         table = Table(

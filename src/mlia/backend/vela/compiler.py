@@ -1,29 +1,25 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Vela compiler wrapper module."""
+
 from __future__ import annotations
 
 import csv
 import logging
 import re
 import sys
-from dataclasses import dataclass
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from io import StringIO
 from pathlib import Path
-from typing import Any
-from typing import Literal
+from typing import Any, Literal
 
 from mlia.backend.errors import BackendUnavailableError
 from mlia.utils.filesystem import get_vela_config
-from mlia.utils.logging import redirect_output
-from mlia.utils.logging import redirect_raw_output
+from mlia.utils.logging import redirect_output, redirect_raw_output
 
 try:
-    from ethosu.vela.model_reader import ModelReaderOptions
-    from ethosu.vela.model_reader import read_model
-    from ethosu.vela.nn_graph import Graph
-    from ethosu.vela.nn_graph import NetworkType
+    from ethosu.vela.model_reader import ModelReaderOptions, read_model
+    from ethosu.vela.nn_graph import Graph, NetworkType
     from ethosu.vela.operation import CustomType
     from ethosu.vela.vela import main
 
@@ -32,10 +28,8 @@ except ImportError:
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
-        from ethosu.vela.model_reader import ModelReaderOptions
-        from ethosu.vela.model_reader import read_model
-        from ethosu.vela.nn_graph import Graph
-        from ethosu.vela.nn_graph import NetworkType
+        from ethosu.vela.model_reader import ModelReaderOptions, read_model
+        from ethosu.vela.nn_graph import Graph, NetworkType
         from ethosu.vela.operation import CustomType
         from ethosu.vela.vela import main
     else:
@@ -69,7 +63,7 @@ class VelaInitMemoryData:
 
 
 @dataclass
-class VelaInitData:  # pylint: disable=too-many-instance-attributes
+class VelaInitData:
     """Data gathered from the vela.ini file we provide to vela."""
 
     system_config: str
@@ -88,7 +82,7 @@ class VelaInitData:  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass
-class VelaSummary:  # pylint: disable=too-many-instance-attributes
+class VelaSummary:
     """Data gathered from the summary CSV file that Vela produces."""
 
     cycles_total: float
@@ -221,7 +215,7 @@ OptimizationStrategyType = Literal["Performance", "Size"]
 
 
 @dataclass
-class VelaCompilerOptions:  # pylint: disable=too-many-instance-attributes
+class VelaCompilerOptions:
     """Vela compiler options."""
 
     config_file: str | None = None
@@ -238,7 +232,7 @@ class VelaCompilerOptions:  # pylint: disable=too-many-instance-attributes
     verbose_performance: bool = True
 
 
-class VelaCompiler:  # pylint: disable=too-many-instance-attributes
+class VelaCompiler:
     """Vela compiler wrapper."""
 
     def __init__(self, compiler_options: VelaCompilerOptions):
@@ -411,12 +405,10 @@ def parse_summary_csv_file(vela_summary_csv_file: Path) -> VelaSummary:
         except StopIteration as err:
             raise RuntimeError("Generated Vela Summary CSV is empty") from err
         try:
-            # pylint: disable=eval-used
             key_types = {
                 field.name: eval(field.type)  # type: ignore # nosec
                 for field in fields(VelaSummary)
             }
-            # pylint: enable=eval-used
             summary_data = VelaSummary(
                 **{key: key_types[key](row[title]) for key, title in summary_metrics}
             )
@@ -427,7 +419,7 @@ def parse_summary_csv_file(vela_summary_csv_file: Path) -> VelaSummary:
     return summary_data
 
 
-def parse_vela_initialisation_file(  # pylint: disable=too-many-locals
+def parse_vela_initialisation_file(
     vela_init_file: Path, system_config: str, memory_mode: str
 ) -> VelaInitData:
     """Parse the vela.ini to retrieve data for the target information table."""

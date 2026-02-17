@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Helper functions for the rewrite library."""
+
 import math
 from typing import Any
 
@@ -33,7 +34,7 @@ def get_activation_function(
     return activation_function, activation_function_extra_args
 
 
-def compute_conv2d_parameters(  # pylint: disable=dangerous-default-value
+def compute_conv2d_parameters(
     input_shape: np.ndarray,
     output_shape: np.ndarray,
     kernel_size_input: list[int] = [3, 3],

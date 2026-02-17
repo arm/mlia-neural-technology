@@ -1,7 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2024, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2024, 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Save subgraph data."""
-# pylint: disable=too-many-locals
+
 from __future__ import annotations
 
 import math
@@ -12,9 +12,11 @@ from pathlib import Path
 import tensorflow as tf
 from rich.progress import track
 
-from mlia.nn.rewrite.core.utils.numpy_tfrecord import numpytf_count
-from mlia.nn.rewrite.core.utils.numpy_tfrecord import numpytf_read
-from mlia.nn.rewrite.core.utils.numpy_tfrecord import NumpyTFWriter
+from mlia.nn.rewrite.core.utils.numpy_tfrecord import (
+    NumpyTFWriter,
+    numpytf_count,
+    numpytf_read,
+)
 from mlia.nn.rewrite.core.utils.parallel import ParallelTFLiteModel
 from mlia.nn.tensorflow.config import NameToTensorMap
 
@@ -32,7 +34,7 @@ def dequantized_path(filename: str | Path) -> Path:
     return path
 
 
-def record_model(  # pylint: disable=too-many-arguments
+def record_model(
     input_filename: str | Path,
     model_filename: str | Path,
     output_filename: str | Path,

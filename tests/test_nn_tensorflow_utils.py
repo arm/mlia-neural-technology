@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2022-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Test for module utils/test_utils."""
+
 import re
 from pathlib import Path
 from typing import Dict
@@ -12,12 +13,14 @@ import tensorflow as tf
 import tf_keras as keras
 
 from mlia.nn.tensorflow.tflite_convert import convert_to_tflite
-from mlia.nn.tensorflow.utils import check_tflite_datatypes
-from mlia.nn.tensorflow.utils import get_tf_tensor_shape
-from mlia.nn.tensorflow.utils import get_tflite_model_type_map
-from mlia.nn.tensorflow.utils import is_keras_model
-from mlia.nn.tensorflow.utils import is_tflite_model
-from mlia.nn.tensorflow.utils import save_keras_model
+from mlia.nn.tensorflow.utils import (
+    check_tflite_datatypes,
+    get_tf_tensor_shape,
+    get_tflite_model_type_map,
+    is_keras_model,
+    is_tflite_model,
+    save_keras_model,
+)
 
 
 def test_save_keras_model(tmp_path: Path, test_keras_model: Path) -> None:
@@ -78,14 +81,11 @@ def test_get_tf_tensor_shape(
     """Test get_tf_tensor_shape with test model."""
     assert get_tf_tensor_shape(str(test_tf_model)) == [1, 28, 28, 1]
 
-    # pylint: disable=too-few-public-methods
     class LoadedModel:
         """Test Model class."""
 
         def __init__(self) -> None:
             self.signatures: Dict[str, str] = {}
-
-    # pylint: enable=too-few-public-methods
 
     monkeypatch.setattr(
         "tensorflow.saved_model.load", MagicMock(return_value=LoadedModel())

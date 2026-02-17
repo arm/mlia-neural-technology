@@ -1,9 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Sequential trainer."""
-# pylint: disable=too-many-arguments
-# pylint: disable=too-many-locals
-# pylint: disable=too-many-statements
+
 from __future__ import annotations
 
 import logging
@@ -14,32 +12,28 @@ from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-from typing import Callable
-from typing import cast
+from typing import Any, Callable, Literal, cast, get_args
 from typing import Generator as GeneratorType
-from typing import get_args
-from typing import Literal
 
 import numpy as np
 import tensorflow as tf
 import tf_keras as keras
 from numpy.random import Generator
 
-from mlia.nn.rewrite.core.extract import extract
-from mlia.nn.rewrite.core.extract import ExtractPaths
+from mlia.nn.rewrite.core.extract import ExtractPaths, extract
 from mlia.nn.rewrite.core.graph_edit.diff import diff_stats
 from mlia.nn.rewrite.core.graph_edit.join import join_models
 from mlia.nn.rewrite.core.graph_edit.record import record_model
-from mlia.nn.rewrite.core.utils.numpy_tfrecord import numpytf_count
-from mlia.nn.rewrite.core.utils.numpy_tfrecord import numpytf_read
-from mlia.nn.rewrite.core.utils.numpy_tfrecord import NumpyTFWriter
+from mlia.nn.rewrite.core.utils.numpy_tfrecord import (
+    NumpyTFWriter,
+    numpytf_count,
+    numpytf_read,
+)
 from mlia.nn.rewrite.core.utils.parallel import ParallelTFLiteModel
 from mlia.nn.rewrite.library.helper_functions import ACTIVATION_FUNCTION_LIST
 from mlia.nn.tensorflow.config import TFLiteModel
 from mlia.nn.tensorflow.tflite_convert import convert_to_tflite
-from mlia.nn.tensorflow.tflite_graph import load_fb
-from mlia.nn.tensorflow.tflite_graph import save_fb
+from mlia.nn.tensorflow.tflite_graph import load_fb, save_fb
 from mlia.utils.logging import log_action
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -93,7 +87,7 @@ def generate_random_dataset(source_model: str, dataset_path: str) -> str:
     return rand_data_path
 
 
-def train(  # pylint: disable=too-many-arguments
+def train(
     source_model: str,
     unmodified_model: Any,
     output_model: str,
@@ -112,14 +106,10 @@ def train(  # pylint: disable=too-many-arguments
         logger.info(
             "INFO: No dataset given, using random data to perform the rewrite! "
         )
-        rand_data_dir_path = (
-            tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        )
+        rand_data_dir_path = tempfile.TemporaryDirectory()
         input_tfrec = generate_random_dataset(source_model, rand_data_dir_path.name)
     if unmodified_model:
-        unmodified_model_dir = (
-            tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        )
+        unmodified_model_dir = tempfile.TemporaryDirectory()
         unmodified_model_dir_path = unmodified_model_dir.name
         extract(
             unmodified_model_dir_path,
@@ -250,15 +240,15 @@ def join_in_dir(model_dir: str, new_part: str, output_model: str) -> None:
 
 
 def _get_io_tensors(model: TFLiteModel) -> tuple[str, str]:
-    assert (
-        len(model.input_tensors()) == 1
-    ), f"Can only train replacements with a single input tensor right now, \
+    assert len(model.input_tensors()) == 1, (
+        f"Can only train replacements with a single input tensor right now, \
         found {model.input_tensors()}"
+    )
 
-    assert (
-        len(model.output_tensors()) == 1
-    ), f"Can only train replacements with a single output tensor right now, \
+    assert len(model.output_tensors()) == 1, (
+        f"Can only train replacements with a single output tensor right now, \
         found {model.output_tensors()}"
+    )
 
     input_name = model.input_tensors()[0]
     output_name = model.output_tensors()[0]
@@ -267,19 +257,21 @@ def _get_io_tensors(model: TFLiteModel) -> tuple[str, str]:
 
 def _check_model_compatibility(teacher: TFLiteModel, replace: TFLiteModel) -> None:
     """Assert that teacher and replaced sub-graph are compatible."""
-    assert len(teacher.shape_from_name) == len(
-        replace.shape_from_name
-    ), f"Baseline and train models must have the same number of inputs and outputs. \
+    assert len(teacher.shape_from_name) == len(replace.shape_from_name), (
+        f"Baseline and train models must have the same number of inputs and outputs. \
         Teacher: {teacher.shape_from_name}\nTrain dir: {replace.shape_from_name}"
+    )
 
     assert all(
         tn == rn and (ts[1:] == rs[1:]).all()
         for (tn, ts), (rn, rs) in zip(
             teacher.shape_from_name.items(), replace.shape_from_name.items()
         )
-    ), "Baseline and train models must have the same input and output shapes for the \
+    ), (
+        "Baseline and train models must have the same input and output shapes for the \
         subgraph being replaced. Teacher: {teacher.shape_from_name}\n \
         Train dir: {replace.shape_from_name}"
+    )
 
 
 def set_up_data_pipeline(
@@ -334,7 +326,8 @@ def set_up_data_pipeline(
         augment_train, augment_teacher = augment_fn_twins(dict_inputs, augmentations)
 
         def get_augment_results(
-            train: Any, teach: Any  # pylint: disable=redefined-outer-name
+            train: Any,
+            teach: Any,
         ) -> tuple:
             """Return results of train and teach based on augmentations."""
             augmented_train = augment_train({input_name: train})[input_name]
@@ -399,7 +392,10 @@ def detect_activation_from_rewrite_function(model_path: str) -> str:
                 ):
                     act_func_match_list.append(
                         tensor_name[
-                            act_func_idx : act_func_idx + len(act_func)  # noqa: E203
+                            act_func_idx : act_func_idx
+                            + len(
+                                act_func
+                            )  # noqa: E203
                         ]
                     )
     act_func_match = "relu"
@@ -493,7 +489,8 @@ def train_in_dir(
     steps_so_far = 0
 
     def cosine_decay(
-        epoch_step: int, logs: Any  # pylint: disable=unused-argument
+        epoch_step: int,
+        logs: Any,
     ) -> None:
         """Cosine decay from learning rate at start of the run to zero at the end."""
         current_step = epoch_step + steps_so_far
@@ -505,7 +502,8 @@ def train_in_dir(
         keras.backend.set_value(optimizer.learning_rate, cd_learning_rate)
 
     def late_decay(
-        epoch_step: int, logs: Any  # pylint: disable=unused-argument
+        epoch_step: int,
+        logs: Any,
     ) -> None:
         """Constant until the last 20% of the run, then linear decay to zero."""
         current_step = epoch_step + steps_so_far
@@ -606,7 +604,7 @@ def model_compile(
     return model
 
 
-def create_model(  # pylint: disable=too-many-arguments
+def create_model(
     rewrite: Callable,
     input_shape: int,
     output_shape: int,
@@ -629,7 +627,7 @@ def create_model(  # pylint: disable=too-many-arguments
     return model
 
 
-def model_fit(  # pylint: disable=too-many-arguments
+def model_fit(
     model: keras.Model,
     train_params: TrainingParameters,
     checkpoints: list,
@@ -826,7 +824,7 @@ def augment_fn(
         return lambda x: augments[1](augments[0](x))
 
     raise RuntimeError(
-        "Unexpected number of augmentation functions (must be <=2): " f"{len(augments)}"
+        f"Unexpected number of augmentation functions (must be <=2): {len(augments)}"
     )
 
 

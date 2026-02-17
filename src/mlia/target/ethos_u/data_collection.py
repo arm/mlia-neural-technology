@@ -1,33 +1,32 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Data collection module for Ethos-U."""
+
 from __future__ import annotations
 
 import logging
 import sys
 from pathlib import Path
-from typing import Any
-from typing import cast
+from typing import Any, cast
 
 from mlia.backend.corstone import is_corstone_backend
-from mlia.backend.vela.compat import supported_operators
-from mlia.backend.vela.compat import VelaCompatibilityResult
+from mlia.backend.vela.compat import VelaCompatibilityResult, supported_operators
 from mlia.core.data_collection import ContextAwareDataCollector
-from mlia.core.performance import P
-from mlia.core.performance import PerformanceEstimator
+from mlia.core.performance import P, PerformanceEstimator
 from mlia.nn.tensorflow.config import get_tflite_model
-from mlia.nn.tensorflow.tflite_compat import TFLiteChecker
-from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityInfo
+from mlia.nn.tensorflow.tflite_compat import TFLiteChecker, TFLiteCompatibilityInfo
 from mlia.nn.tensorflow.utils import is_tflite_model
 from mlia.target.common.optimization import OptimizingPerformaceDataCollector
 from mlia.target.ethos_u.config import EthosUConfiguration
-from mlia.target.ethos_u.performance import CombinedPerformanceResult
-from mlia.target.ethos_u.performance import CorstonePerformanceResult
-from mlia.target.ethos_u.performance import EthosUPerformanceEstimator
-from mlia.target.ethos_u.performance import merge_performance_outputs
-from mlia.target.ethos_u.performance import OptimizationPerformanceMetrics
-from mlia.target.ethos_u.performance import PerformanceMetrics
-from mlia.target.ethos_u.performance import VelaPerformanceResult
+from mlia.target.ethos_u.performance import (
+    CombinedPerformanceResult,
+    CorstonePerformanceResult,
+    EthosUPerformanceEstimator,
+    OptimizationPerformanceMetrics,
+    PerformanceMetrics,
+    VelaPerformanceResult,
+    merge_performance_outputs,
+)
 from mlia.utils.logging import log_action
 
 logger = logging.getLogger(__name__)
@@ -169,7 +168,7 @@ class EthosUPerformance(ContextAwareDataCollector):
                         backend_config=backend_config,
                         cli_arguments=cli_args,
                     )
-            except Exception as exc:  # pylint: disable=broad-exception-caught
+            except Exception as exc:
                 logger.warning(
                     "Failed to generate standardized output for Vela performance: %s",
                     exc,
@@ -201,7 +200,7 @@ class EthosUPerformance(ContextAwareDataCollector):
                     cli_arguments=cli_args,
                     backend_config=backend_config,
                 )
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             # Be resilient and fall back to legacy metrics on any error
             logger.exception(
                 "Failed to build standardized output from corstone metrics"
@@ -261,7 +260,6 @@ class EthosUPerformance(ContextAwareDataCollector):
         return "ethos_u_performance"
 
 
-# pylint: disable=too-many-ancestors
 class EthosUOptimizationPerformance(OptimizingPerformaceDataCollector):
     """Collect performance metrics for performance optimizations."""
 

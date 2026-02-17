@@ -6,6 +6,7 @@ Checks both staged files and files modified in the last commit to catch cases
 where files might have been committed with --no-verify and outdated headers.
 If the header is out of date it will print a warning.
 """
+
 import datetime
 import os
 import subprocess  # nosec
@@ -85,9 +86,7 @@ if __name__ == "__main__":
     # been committed with --no-verify and outdated copyright headers
     try:
         recently_modified_files = (
-            subprocess.check_output(
-                ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
-            )  # nosec
+            subprocess.check_output(["git", "diff", "--name-only", "HEAD~1", "HEAD"])  # nosec
             .decode()
             .splitlines()
         )
@@ -102,7 +101,6 @@ if __name__ == "__main__":
     ]
 
     checker = CopyrightHeaderChecker()
-    # pylint: disable-next=invalid-name
     headers_are_valid = checker.check_files_have_updated_header(
         filenames=all_files_to_check
     )

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Module to track stripe-level statistics to TFLite granularity."""
+
 import copy
 import json
 from collections import defaultdict
@@ -10,14 +11,12 @@ from typing import Dict
 
 from mlia.backend.nx_performance_estimator.output_parsing import (
     DebugDatabaseContentsType,
-)
-from mlia.backend.nx_performance_estimator.output_parsing import (
     PerformanceDatabaseContentsType,
 )
 
 
 @dataclass
-class NXModelPerformanceStats:  # pylint: disable=too-many-instance-attributes
+class NXModelPerformanceStats:
     """Defines performance stats for entire model."""
 
     compiled_size: int

@@ -1,14 +1,14 @@
-# SPDX-FileCopyrightText: Copyright 2022, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Vela operator compatibility module."""
+
 from __future__ import annotations
 
 import itertools
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import mlia
 import mlia.core.output_schema as schema
@@ -24,7 +24,7 @@ try:
     from ethosu.vela.tflite_supported_operators import TFLiteSupportedOperators
     from ethosu.vela.vela import generate_supported_ops
 
-    from mlia.backend.vela.compiler import VelaCompiler  # pylint: disable=C0412
+    from mlia.backend.vela.compiler import VelaCompiler
 
     _VELA_INSTALLED = True
 
@@ -36,6 +36,7 @@ except ImportError:
         from ethosu.vela.tflite_model_semantic import TFLiteSemantic
         from ethosu.vela.tflite_supported_operators import TFLiteSupportedOperators
         from ethosu.vela.vela import generate_supported_ops
+
         from mlia.backend.vela.compiler import VelaCompiler
     else:
 
@@ -116,7 +117,7 @@ class Operators:
         """Return number of npu supported operators."""
         return sum(op.run_on_npu.supported for op in self.ops)
 
-    def to_standardized_output(  # pylint: disable=too-many-locals
+    def to_standardized_output(
         self,
         model_path: Path,
         run_id: str | None = None,
@@ -138,7 +139,6 @@ class Operators:
         Returns:
             Standardized output dictionary
         """
-        # pylint: disable=duplicate-code
         # Generate run_id and timestamp if not provided
         if run_id is None:
             run_id = schema.StandardizedOutput.create_run_id()
@@ -151,7 +151,7 @@ class Operators:
         # Create backend with version
         try:
             backend_version = ethosu_vela_version
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:
             logger.warning("Failed to get vela version: %s", exc)
             backend_version = "unknown"
 

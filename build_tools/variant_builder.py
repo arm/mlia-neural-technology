@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Build multiple wheel variants with different configurations."""
+
 from __future__ import annotations
 
 import argparse
@@ -279,7 +280,7 @@ class VariantBuilder:
             "-m",
             "build",
             "--wheel",
-            "--config-setting=--build-option=" f"--plat-name={self.platform}",
+            f"--config-setting=--build-option=--plat-name={self.platform}",
         ]
 
         # Run build
@@ -297,7 +298,7 @@ class VariantBuilder:
         print(f"Successfully built wheel for variant: {variant or 'default'}")
         return 0
 
-    def build_all_variants(  # pylint: disable=too-many-branches
+    def build_all_variants(
         self, variants: list[str] | None = None, include_default: bool = True
     ) -> dict[str, Any]:
         """
@@ -331,7 +332,7 @@ class VariantBuilder:
                 for copy_spec in config["copy_paths"]:
                     dst_rel = copy_spec["dst"]
                     paths_to_backup.add(Path(dst_rel))
-            except Exception as error:  # pylint: disable=broad-exception-caught
+            except Exception as error:
                 print(f"Warning: Could not load config for {variant}: {error}")
 
         try:
@@ -376,7 +377,7 @@ class VariantBuilder:
                         results["failed"].append(variant)
                         results["success"] = False
 
-                except Exception as error:  # pylint: disable=broad-exception-caught
+                except Exception as error:
                     print(f"Error building variant {variant}: {error}")
                     results["failed"].append(variant)
                     results["success"] = False

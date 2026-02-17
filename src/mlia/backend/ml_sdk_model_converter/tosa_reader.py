@@ -1,29 +1,29 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """A tosa file parsing functionalities."""
+
 from __future__ import annotations
 
 import json
 import logging
 import re
 from dataclasses import dataclass
-from enum import auto
-from enum import Enum
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
 from mlia.backend.errors import BackendUnavailableError
 
-_TOSA_FLATBUFFERS_AVAILABLE = True  # pylint: disable=invalid-name
+_TOSA_FLATBUFFERS_AVAILABLE = True
 
 try:
-    from tosa_flatbuffers.tosa import TosaGraph
-    from tosa_flatbuffers.tosa import Op  # pragma: no cover
-    from tosa_flatbuffers.tosa import DType  # pragma: no cover
-except ImportError:  # pragma: no cover
-    _TOSA_FLATBUFFERS_AVAILABLE = (  # pylint: disable=invalid-name
-        False  # pragma: no cover
+    from tosa_flatbuffers.tosa import (
+        DType,  # pragma: no cover
+        Op,  # pragma: no cover
+        TosaGraph,
     )
+except ImportError:  # pragma: no cover
+    _TOSA_FLATBUFFERS_AVAILABLE = False  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def _get_tosa_flatbuffer_op_type(operation: Any, block: Any) -> TosaOpType | Non
         v: k for k, v in DType.DType.__dict__.items() if isinstance(v, int)
     }
 
-    #  https://gitlab.arm.com/tosa/tosa-tools/-/blob/v2025.11.0/serialization/schema/tosa.fbs?ref_type=tags#L26  # pylint: disable=line-too-long
+    #  https://gitlab.arm.com/tosa/tosa-tools/-/blob/v2025.11.0/serialization/schema/tosa.fbs?ref_type=tags#L26  # noqa: E501  # Line too long
     int_dtypes = {"INT4", "INT8", "INT16", "INT32", "INT48", "INT64", "MXINT8", "BOOL"}
     float_dtypes = {
         "FP32",
@@ -181,7 +181,6 @@ def _get_tosa_flatbuffer_op_type(operation: Any, block: Any) -> TosaOpType | Non
     return None
 
 
-# pylint: disable=too-many-locals
 def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
     """Read TOSA operations from a flatbuffer file.
 

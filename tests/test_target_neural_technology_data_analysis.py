@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Technology data analysis module."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -16,10 +17,12 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
-from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
-from mlia.target.neural_technology.data_analysis import NeuralTechnologyDataAnalyzer
+from mlia.backend.nx_performance_estimator.statistics import (
+    NXModelPerformanceStats,
+    NXOperatorPerformanceStats,
+)
 from mlia.target.neural_technology.data_analysis import (
+    NeuralTechnologyDataAnalyzer,
     NXPerformanceEstimatorModelPerformanceAnalyzed,
 )
 

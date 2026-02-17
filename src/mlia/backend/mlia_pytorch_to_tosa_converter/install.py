@@ -1,15 +1,18 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Installation module for the TOSA Converter For PyTorch."""
+
 from __future__ import annotations
 
 import subprocess  # nosec
 import sys
 
-from mlia.backend.install import artifactory_credential_headers
-from mlia.backend.install import Installation
-from mlia.backend.install import InstallationType
-from mlia.backend.install import PyPackageBackendInstallation
+from mlia.backend.install import (
+    Installation,
+    InstallationType,
+    PyPackageBackendInstallation,
+    artifactory_credential_headers,
+)
 from mlia.core.errors import InternalError
 from mlia.utils.download import DownloadConfig
 
@@ -65,9 +68,7 @@ def get_mlia_pytorch_to_tosa_backend_installation() -> Installation:
         description="Tool to serialize and deserialize TOSA files",
         download_config=DownloadConfig(
             url=(
-                # pylint: disable=line-too-long
-                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/tosa-tools/tosa_serialization_lib-0.0.0-cp310-cp310-linux_x86_64.whl"
-                # pylint: enable=line-too-long
+                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/tosa-tools/tosa_serialization_lib-0.0.0-cp310-cp310-linux_x86_64.whl"  # noqa: E501
             ),
             sha256_hash=(
                 "82dee9b2695c23ee309837a6f74d5ac363da032e629a480377f41ce496e94d3e"

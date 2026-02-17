@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the various event handlers."""
+
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -19,11 +20,12 @@ from mlia.backend.nx_performance_estimator.performance import (
 from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
 from mlia.backend.tosa_checker.compat import TOSACompatibilityInfo
 from mlia.core.context import ExecutionContext
-from mlia.core.events import CollectedDataEvent
-from mlia.core.events import ExecutionStartedEvent
+from mlia.core.events import CollectedDataEvent, ExecutionStartedEvent
 from mlia.core.handlers import WorkflowEventsHandler
-from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityInfo
-from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityStatus
+from mlia.nn.tensorflow.tflite_compat import (
+    TFLiteCompatibilityInfo,
+    TFLiteCompatibilityStatus,
+)
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.events import NeuralTechnologyAdvisorStartedEvent
 from mlia.target.neural_technology.handlers import NeuralTechnologyEventHandler

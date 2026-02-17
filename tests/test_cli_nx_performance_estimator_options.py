@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for CLI backend configuration options."""
+
 from __future__ import annotations
 
 import argparse
@@ -19,7 +20,7 @@ def test_add_backend_config_options_creates_group() -> None:
     # Check that a group was added
     groups = [
         g
-        for g in parser._action_groups  # pylint: disable=protected-access
+        for g in parser._action_groups
         if g.title and "backend configuration" in g.title
     ]
     assert len(groups) == 1
@@ -50,7 +51,7 @@ def test_backend_config_option_types() -> None:
     add_backend_config_options(parser)
 
     # system-config and compiler-config should be Path type
-    for action in parser._actions:  # pylint: disable=protected-access
+    for action in parser._actions:
         if action.dest in ["system_config", "compiler_config"]:
             assert action.type == Path
 

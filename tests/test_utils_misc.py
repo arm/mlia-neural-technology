@@ -1,19 +1,22 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Tests for misc util functions."""
+
 import copy
 from subprocess import CalledProcessError  # nosec
 from unittest.mock import MagicMock
 
 import pytest
 
-from mlia.utils.misc import dict_to_list
-from mlia.utils.misc import get_pkg_version
-from mlia.utils.misc import is_docker_available
-from mlia.utils.misc import is_docker_available_cached
-from mlia.utils.misc import list_to_dict
-from mlia.utils.misc import MetadataError
-from mlia.utils.misc import yes
+from mlia.utils.misc import (
+    MetadataError,
+    dict_to_list,
+    get_pkg_version,
+    is_docker_available,
+    is_docker_available_cached,
+    list_to_dict,
+    yes,
+)
 
 
 @pytest.mark.parametrize(

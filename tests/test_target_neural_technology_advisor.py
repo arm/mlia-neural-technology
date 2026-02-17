@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Technology MLIA module."""
+
 import re
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -16,8 +17,10 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceMetrics,
 )
-from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
+from mlia.backend.nx_performance_estimator.statistics import (
+    NXModelPerformanceStats,
+    NXOperatorPerformanceStats,
+)
 from mlia.core.common import AdviceCategory
 from mlia.core.context import ExecutionContext
 from mlia.core.errors import ConfigurationError
@@ -26,9 +29,9 @@ from mlia.target.neural_technology.advice_generation import (
     NeuralTechnologyAdviceProducer,
 )
 from mlia.target.neural_technology.advisor import (
+    NeuralTechnologyInferenceAdvisor,
     configure_and_get_neural_technology_advisor,
 )
-from mlia.target.neural_technology.advisor import NeuralTechnologyInferenceAdvisor
 from mlia.target.neural_technology.data_analysis import (
     NXPerformanceEstimatorModelPerformanceAnalyzed,
 )

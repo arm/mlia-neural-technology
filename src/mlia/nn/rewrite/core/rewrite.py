@@ -1,44 +1,41 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Contains class RewritingOptimizer to replace a subgraph/layer of a model."""
+
 from __future__ import annotations
 
 import logging
 import tempfile
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from inspect import getfullargspec
 from pathlib import Path
 from statistics import fmean
-from typing import Any
-from typing import Callable
-from typing import Generator
+from typing import Any, Callable, Generator
 
 import numpy as np
 import tensorflow as tf
 import tensorflow_model_optimization as tfmot
 import tf_keras as keras
-from tensorflow_model_optimization.python.core.sparsity.keras.pruning_utils import (  # pylint: disable=no-name-in-module
+from tensorflow_model_optimization.python.core.sparsity.keras.pruning_utils import (
     is_pruned_m_by_n,
 )
 
 from mlia.core.errors import ConfigurationError
-from mlia.core.reporting import Column
-from mlia.core.reporting import Format
-from mlia.core.reporting import Table
-from mlia.nn.common import Optimizer
-from mlia.nn.common import OptimizerConfiguration
-from mlia.nn.rewrite.core.train import train
-from mlia.nn.rewrite.core.train import TrainingParameters
-from mlia.nn.rewrite.library.clustering import conv2d_clustering_rewrite
-from mlia.nn.rewrite.library.clustering import fc_clustering_rewrite
-from mlia.nn.rewrite.library.layers import conv2d_rewrite
-from mlia.nn.rewrite.library.layers import fc_rewrite
-from mlia.nn.rewrite.library.sparsity import conv2d_sparsity_rewrite
-from mlia.nn.rewrite.library.sparsity import conv2d_sparsity_unstructured_rewrite
-from mlia.nn.rewrite.library.sparsity import fc_sparsity_rewrite
-from mlia.nn.rewrite.library.sparsity import fc_sparsity_unstructured_rewrite
+from mlia.core.reporting import Column, Format, Table
+from mlia.nn.common import Optimizer, OptimizerConfiguration
+from mlia.nn.rewrite.core.train import TrainingParameters, train
+from mlia.nn.rewrite.library.clustering import (
+    conv2d_clustering_rewrite,
+    fc_clustering_rewrite,
+)
+from mlia.nn.rewrite.library.layers import conv2d_rewrite, fc_rewrite
+from mlia.nn.rewrite.library.sparsity import (
+    conv2d_sparsity_rewrite,
+    conv2d_sparsity_unstructured_rewrite,
+    fc_sparsity_rewrite,
+    fc_sparsity_unstructured_rewrite,
+)
 from mlia.nn.tensorflow.config import TFLiteModel
 from mlia.utils.registry import Registry
 
@@ -378,7 +375,7 @@ class RewritingOptimizer(Optimizer):
         """Return all registered rewrite names."""
         return cls.registry.names()
 
-    def apply_optimization(self) -> None:  # pylint: disable=too-many-locals
+    def apply_optimization(self) -> None:
         """Apply the rewrite flow."""
         rewrite = RewritingOptimizer.registry.items[
             self.optimizer_configuration.optimization_target
@@ -407,7 +404,7 @@ class RewritingOptimizer(Optimizer):
             input_tensors=[self.optimizer_configuration.layers_to_optimize[0]],
             output_tensors=[self.optimizer_configuration.layers_to_optimize[1]],
             train_params=self.optimizer_configuration.train_params,
-            rewrite_specific_params=self.optimizer_configuration.rewrite_specific_params,  # pylint: disable=line-too-long
+            rewrite_specific_params=self.optimizer_configuration.rewrite_specific_params,
             detect_activation_function=(
                 "activation" in rewrite.return_rewrite_func_args()
             ),

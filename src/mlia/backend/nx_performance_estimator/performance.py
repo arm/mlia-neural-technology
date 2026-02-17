@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
-# pylint: disable=duplicate-code
-"""Backend module for Neural Accelerator Performance Estimator performance estimation."""  # pylint: disable=line-too-long
+"""Backend module for NX Performance Estimator performance estimation."""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,8 +9,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-from typing import Union
+from typing import Any, Union
 
 import mlia
 import mlia.core.output_schema as schema
@@ -18,22 +17,21 @@ from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverter
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
-from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabaseParser
 from mlia.backend.nx_performance_estimator.output_parsing import (
+    NXDebugDatabaseParser,
     NXPerformanceDatabaseParser,
 )
-from mlia.backend.nx_performance_estimator.statistics import NXModelPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXOperatorPerformanceStats
-from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
+from mlia.backend.nx_performance_estimator.statistics import (
+    NXModelPerformanceStats,
+    NXOperatorPerformanceStats,
+    NXPerformanceStats,
+)
 from mlia.backend.repo import get_backend_repository
 from mlia.core.performance import PerformanceEstimator
 from mlia.nn.tensorflow.config import ModelConfiguration
-from mlia.utils.filesystem import get_mlia_resources
-from mlia.utils.filesystem import is_vgf_file
+from mlia.utils.filesystem import get_mlia_resources, is_vgf_file
 from mlia.utils.logging import log_action
-from mlia.utils.proc import Command
-from mlia.utils.proc import OutputLogger
-from mlia.utils.proc import process_command_output
+from mlia.utils.proc import Command, OutputLogger, process_command_output
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +72,7 @@ class NXPerformanceEstimatorOutputFiles:
 
 @dataclass
 class NXPerformanceEstimatorPerformanceMetrics:
-    """Neural Accelerator Performance Estimator configuration and performance metrics."""  # pylint: disable=line-too-long
+    """NX Performance Estimator configuration and performance metrics."""
 
     backend_config: NXPerformanceEstimatorConfig
     performance_db_parser: NXPerformanceDatabaseParser
@@ -122,7 +120,7 @@ class NXPerformanceEstimatorPerformanceMetrics:
 
         return breakdown_metrics
 
-    def to_standardized_output(  # pylint: disable=too-many-locals
+    def to_standardized_output(
         self,
         model_path: Path,
         backend_name: str = "nx-performance-estimator",
@@ -393,7 +391,7 @@ class NXPerformanceEstimatorPerformanceEstimator(
     def _run_nx_performance_estimator(
         self, vgf_file: Path, output_name: str
     ) -> NXPerformanceEstimatorOutputFiles:
-        """Run the Neural Accelerator Performance Estimator and return the output files."""  # pylint: disable=line-too-long
+        """Run the NX Performance Estimator and return the output files."""
         backend_repo = get_backend_repository()
         gc_path, _ = backend_repo.get_backend_settings("nx-performance-estimator")
         output_dir = self.output_dir / "nx-performance-estimator"

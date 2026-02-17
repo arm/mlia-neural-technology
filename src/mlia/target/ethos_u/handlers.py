@@ -2,25 +2,28 @@
 # and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Event handler."""
+
 from __future__ import annotations
 
 import json
 import logging
 from pathlib import Path
 
-from mlia.backend.vela.compat import Operators
-from mlia.backend.vela.compat import VelaCompatibilityResult
-from mlia.core.events import AdviceStageFinishedEvent
-from mlia.core.events import CollectedDataEvent
+from mlia.backend.vela.compat import Operators, VelaCompatibilityResult
+from mlia.core.events import AdviceStageFinishedEvent, CollectedDataEvent
 from mlia.core.handlers import WorkflowEventsHandler
 from mlia.nn.tensorflow.tflite_compat import TFLiteCompatibilityInfo
-from mlia.target.ethos_u.events import EthosUAdvisorEventHandler
-from mlia.target.ethos_u.events import EthosUAdvisorStartedEvent
-from mlia.target.ethos_u.performance import CombinedPerformanceResult
-from mlia.target.ethos_u.performance import CorstonePerformanceResult
-from mlia.target.ethos_u.performance import OptimizationPerformanceMetrics
-from mlia.target.ethos_u.performance import PerformanceMetrics
-from mlia.target.ethos_u.performance import VelaPerformanceResult
+from mlia.target.ethos_u.events import (
+    EthosUAdvisorEventHandler,
+    EthosUAdvisorStartedEvent,
+)
+from mlia.target.ethos_u.performance import (
+    CombinedPerformanceResult,
+    CorstonePerformanceResult,
+    OptimizationPerformanceMetrics,
+    PerformanceMetrics,
+    VelaPerformanceResult,
+)
 from mlia.target.ethos_u.reporters import ethos_u_formatters
 
 logger = logging.getLogger(__name__)
@@ -38,7 +41,7 @@ class EthosUEventHandler(WorkflowEventsHandler, EthosUAdvisorEventHandler):
         self.vela_performance_result: VelaPerformanceResult | None = None
         self.corstone_performance_result: CorstonePerformanceResult | None = None
 
-    def on_collected_data(  # pylint: disable=too-many-branches,too-many-statements  # noqa: C901
+    def on_collected_data(  # noqa: C901
         self, event: CollectedDataEvent
     ) -> None:
         """Handle CollectedDataEvent event."""
@@ -167,5 +170,5 @@ class EthosUEventHandler(WorkflowEventsHandler, EthosUAdvisorEventHandler):
             with open(output_path, "w", encoding="utf-8") as file_handle:
                 json.dump(output, file_handle, indent=2)
             logger.info("Saved output with advice to %s", output_path)
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:
             logger.warning("Failed to save output to %s: %s", filename, exc)

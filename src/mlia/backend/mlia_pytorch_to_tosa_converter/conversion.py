@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 """Convert PyTorch models to TOSA format using the PyTorch to TOSA converter."""
+
 from __future__ import annotations
 
 import logging
@@ -9,8 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from mlia.utils.logging import log_action
-from mlia.utils.proc import OutputConsumer
-from mlia.utils.proc import OutputLogger
+from mlia.utils.proc import OutputConsumer, OutputLogger
 
 # Lazy imports - populated on first use to avoid import errors during backend discovery
 torch: Any = None
@@ -34,8 +34,6 @@ def _import_dependencies() -> None:
     during backend discovery, while still allowing the imports to happen
     lazily when actually needed.
     """
-    # pylint: disable=global-statement,import-outside-toplevel
-    # Justification: Lazy loading pattern to defer heavy imports until runtime
     global torch, get_symmetric_quantization_config, TOSAQuantizer, TosaCompileSpec
     global ArmCompileSpec, TOSAPartitioner, NodeVisitor, EdgeCompileConfig
     global to_edge_transform_and_lower, convert_pt2e, prepare_pt2e
@@ -47,9 +45,17 @@ def _import_dependencies() -> None:
     import torch as _torch
 
     torch = _torch
+    from executorch.backends.arm.operators.node_visitor import (
+        NodeVisitor as _NodeVisitor,
+    )
+    from executorch.backends.arm.quantizer import (
+        TOSAQuantizer as _TOSAQuantizer,
+    )
     from executorch.backends.arm.quantizer import (
         get_symmetric_quantization_config as _get_config,
-        TOSAQuantizer as _TOSAQuantizer,
+    )
+    from executorch.backends.arm.tosa.compile_spec import (
+        ArmCompileSpec as _ArmCompileSpec,
     )
     from executorch.backends.arm.tosa.compile_spec import (
         TosaCompileSpec as _TosaCompileSpec,
@@ -57,16 +63,12 @@ def _import_dependencies() -> None:
     from executorch.backends.arm.tosa.partitioner import (
         TOSAPartitioner as _TOSAPartitioner,
     )
-    from executorch.backends.arm.tosa.compile_spec import (
-        ArmCompileSpec as _ArmCompileSpec,
-    )
-    from executorch.backends.arm.operators.node_visitor import (
-        NodeVisitor as _NodeVisitor,
-    )
     from executorch.exir import EdgeCompileConfig as _EdgeCompileConfig
     from executorch.exir import to_edge_transform_and_lower as _to_edge
     from torchao.quantization.pt2e.quantize_pt2e import (
         convert_pt2e as _convert_pt2e,
+    )
+    from torchao.quantization.pt2e.quantize_pt2e import (
         prepare_pt2e as _prepare_pt2e,
     )
 
@@ -131,9 +133,7 @@ class MliaPytorchToTosaConverter:
         # can execute arbitrary code. However this is designed to convert .pt2
         # files so we have to load them.
         try:
-            loaded = torch.export.load(
-                pytorch_file
-            )  # nosec B614  # type: ignore[union-attr]
+            loaded = torch.export.load(pytorch_file)  # nosec B614  # type: ignore[union-attr]
         except Exception as exc:
             raise ValueError(
                 f"Failed to load PyTorch export file {pytorch_file}: {exc}"
@@ -180,7 +180,7 @@ class MliaPytorchToTosaConverter:
             return
 
         try:
-            # pylint: disable=unused-argument
+
             def _serialize_operator_with_node_name(  # type: ignore[no-untyped-def]
                 self,
                 node,
@@ -219,7 +219,6 @@ class MliaPytorchToTosaConverter:
                     location=op_location,
                 )
 
-            # pylint: disable=protected-access
             NodeVisitor._serialize_operator = _serialize_operator_with_node_name
             logger.debug("Patched NodeVisitor to include node names in TOSA locations")
 

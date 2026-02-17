@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: Copyright 2023,2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023, 2025-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Neural Technology MLIA module events."""
+
 from dataclasses import dataclass
 from pathlib import Path
 
-from mlia.core.events import Event
-from mlia.core.events import EventDispatcher
+from mlia.core.events import Event, EventDispatcher
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 
 

@@ -1,13 +1,16 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Module for the installation of the Neural Accelerator Performance Estimator."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-from mlia.backend.install import artifactory_credential_headers
-from mlia.backend.install import BackendInstallation
-from mlia.backend.install import PackagePathChecker
+from mlia.backend.install import (
+    BackendInstallation,
+    PackagePathChecker,
+    artifactory_credential_headers,
+)
 from mlia.utils.download import DownloadConfig
 
 
@@ -19,9 +22,7 @@ def get_nx_performance_estimator_installation() -> BackendInstallation:
         fvp_dir_name="nx-performance-estimator",
         download_config=DownloadConfig(
             url=(
-                # pylint: disable=line-too-long
-                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/nx-graph-compiler/r55p0_00eac0_mlia_4/graph_compiler_performance_estimator_r55p0_00eac0_mlia_4.tar.gz"
-                # pylint: enable=line-too-long
+                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/nx-graph-compiler/r55p0_00eac0_mlia_4/graph_compiler_performance_estimator_r55p0_00eac0_mlia_4.tar.gz"  # noqa: E501
             ),
             sha256_hash=(
                 "1705a76b4b3175531572004361593b3d8c6924c047026885e19e354d254fc9f1"
