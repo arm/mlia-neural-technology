@@ -15,7 +15,6 @@ from mlia.core.data_analysis import DataAnalyzer
 from mlia.core.data_collection import DataCollector
 from mlia.core.errors import ConfigurationError
 from mlia.core.events import Event
-from mlia.target.common.optimization import add_common_optimization_params
 from mlia.target.neural_technology.advice_generation import (
     NeuralTechnologyAdviceProducer,
 )
@@ -141,7 +140,5 @@ def _get_config_parameters(
     advisor_parameters[NeuralTechnologyInferenceAdvisor.name()]["backend_options"] = (
         backend_options
     )
-
-    add_common_optimization_params(advisor_parameters, extra_args)
 
     return advisor_parameters

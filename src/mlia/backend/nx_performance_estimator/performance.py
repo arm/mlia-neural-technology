@@ -28,8 +28,8 @@ from mlia.backend.nx_performance_estimator.statistics import (
 )
 from mlia.backend.repo import get_backend_repository
 from mlia.core.performance import PerformanceEstimator
-from mlia.nn.tensorflow.config import ModelConfiguration
-from mlia.utils.filesystem import get_mlia_resources, is_vgf_file
+from mlia.nx_utils.filesystem import is_vgf_file
+from mlia.utils.filesystem import get_mlia_resource_dirs, get_mlia_resources
 from mlia.utils.logging import log_action
 from mlia.utils.proc import Command, OutputLogger, process_command_output
 
@@ -306,14 +306,20 @@ class NXPerformanceEstimatorPerformanceMetrics:
         ).to_dict()
 
 
+def _get_nx_resource_dir() -> Path:
+    for resources_dir in get_mlia_resource_dirs():
+        candidate = resources_dir / "nx-performance-estimator"
+        if candidate.exists():
+            return candidate
+    return get_mlia_resources() / "nx-performance-estimator"
+
+
 class NXPerformanceEstimatorPerformanceEstimator(
-    PerformanceEstimator[
-        Union[Path, ModelConfiguration], NXPerformanceEstimatorPerformanceMetrics
-    ]
+    PerformanceEstimator[Union[Path, Any], NXPerformanceEstimatorPerformanceMetrics]
 ):
     """Performance estimator for the Neural Accelerator Performance Estimator."""
 
-    resource_dir = get_mlia_resources() / "nx-performance-estimator"
+    resource_dir = _get_nx_resource_dir()
 
     def __init__(
         self, output_dir: Path, backend_config: dict, operator_types_mapping: dict
@@ -328,14 +334,12 @@ class NXPerformanceEstimatorPerformanceEstimator(
 
     def estimate(
         self,
-        model: Path | ModelConfiguration,
+        model: Path | Any,
     ) -> NXPerformanceEstimatorPerformanceMetrics:
         """Estimate performance."""
         with log_action("Getting the performance data..."):
             model_path = (
-                Path(model.model_path)
-                if isinstance(model, ModelConfiguration)
-                else model
+                Path(model.model_path) if hasattr(model, "model_path") else model
             )
 
             # Check the file extension to see if we've been given a vgf file

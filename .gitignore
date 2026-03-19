@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2022, 2025, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 *.pyc
 *~
@@ -9,9 +9,13 @@ dist
 src/*.egg-info
 .vscode
 venv
-e2e_config
 mlia-output
 report
 .ipynb_checkpoints
 .tox
-src/mlia/_vendor/artifacts/*
+uv.lock
+coverage.xml
+src/mlia/_vendor/artifacts/**/*.whl
+src/mlia/_vendor/artifacts/**/*.tar.gz
+src/mlia/_vendor/artifacts/**/model-converter
+src/mlia/_vendor/artifacts/**/graph-compiler-performance-estimator

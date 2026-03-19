@@ -21,11 +21,6 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import (
     read_tosa_mlir_ops,
     tosa_flatbuffers_available,
 )
-from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
-    MliaPytorchToTosaConverter,
-)
-from mlia.backend.repo import get_backend_repository
-from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
 from mlia.utils.filesystem import sha256
 
 logger = logging.getLogger(__name__)
@@ -130,12 +125,6 @@ class VGFModel:
 
 
 @dataclass
-class PT2Model:
-    """PyTorch 2.0 exported model."""
-
-    path: Path
-
-
 class VMCCompatibilityLogReader:
     """Read log from VMC and extract low-level NX compatibility information."""
 
@@ -484,30 +473,6 @@ class NXCompatibilityChecker:
         return tosa_flatbuffers_available()
 
     @check_compatibility.register
-    def _(self, tflite_model_path: Path) -> NXModelCompatibilityInfo:
-        """Run compabitlity check for TFLite using ML SDK Model Converter."""
-        backend_repo = get_backend_repository()
-        vmc_path, _ = backend_repo.get_backend_settings("ml-sdk-model-converter")
-        output_dir = self.output_dir / "ml-sdk-model-converter"
-        output_dir.mkdir()
-
-        vmc = VMCCompatbilityChecker(vmc_path)
-        vmc(tflite_model_path, output_dir)
-        reader: VMCCompatibilityLogReader = vmc.compatibility_log_reader
-
-        tensor_names, tensor_types = operator_names_to_types(tflite_model_path)
-        comp_info = NXModelCompatibilityInfo(tensor_names)
-
-        for lowered_op, tosa_op in reader.lowered_ops.items():
-            tosa_op_type = self._get_tosa_type(tosa_op, lowered_op, tensor_types)
-            comp_info.add_lowered_to_tosa(TosaOp(tosa_op, lowered_op, tosa_op_type))
-
-        for location, error in reader.lowering_errors.items():
-            comp_info.add_lowering_error(location, error)
-
-        return comp_info
-
-    @check_compatibility.register
     def _(self, _vgf_model: VGFModel) -> NXModelCompatibilityInfo:
         """Check compatibility of a VGF model."""
         # Currently not supported as VGF models are not inherently NX compatible
@@ -555,24 +520,3 @@ class NXCompatibilityChecker:
                 comp_info.add_lowering_error(unique_location, "unsupported operation")
 
         return comp_info
-
-    @check_compatibility.register
-    def _(self, pt2_model: PT2Model) -> NXModelCompatibilityInfo:
-        """Check compatibility of a PyTorch 2.0 model via TOSA conversion."""
-        output_dir = self.output_dir / "mlia-pytorch-to-tosa"
-        output_dir.mkdir(exist_ok=True)
-
-        converter = MliaPytorchToTosaConverter()
-
-        try:
-            tosa_path = converter(pt2_model.path, output_dir)
-            tosa_model = TOSAModel(path=tosa_path)
-            return self.check_compatibility(tosa_model)
-
-        except Exception as exc:
-            # Catch all exceptions as any failure in conversion means incompatibility
-            comp_info = NXModelCompatibilityInfo()
-            comp_info.add_lowering_error(
-                "model_conversion", f"Failed to convert PyTorch model to TOSA: {exc}"
-            )
-            return comp_info

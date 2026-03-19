@@ -1,3 +1,0 @@
-# SPDX-FileCopyrightText: Copyright 2025-2026, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: Apache-2.0
-"""TOSA Converter For PyTorch backend module."""

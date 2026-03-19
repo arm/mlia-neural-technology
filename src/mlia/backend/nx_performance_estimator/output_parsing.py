@@ -11,7 +11,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
-from mlia.utils.misc import list_to_dict
+from mlia.nx_utils.misc import list_to_dict
 
 PerformanceDatabaseContentsType = List[Dict[str, Any]]
 DebugDatabaseContentsType = Dict[str, Dict[str, List]]

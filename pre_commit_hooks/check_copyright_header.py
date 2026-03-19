@@ -9,8 +9,12 @@ If the header is out of date it will print a warning.
 
 import datetime
 import os
-import subprocess  # nosec
+import subprocess
 import sys
+
+BUILD_FILES = [
+    ".python-version",
+]
 
 
 class CopyrightHeaderChecker:
@@ -32,9 +36,20 @@ class CopyrightHeaderChecker:
             # Skip deleted or missing files (e.g. after git rm)
             if not os.path.exists(filename):
                 continue
+            # License texts don't carry year headers; skip them.
+            if filename.startswith("LICENSES/"):
+                continue
+            # Skip vendored artifacts (binary and generated files).
+            if filename.startswith("src/mlia/_vendor/artifacts/"):
+                continue
 
-            # For JSON files, check for sidecar .license file
-            if filename.endswith(".json"):
+            # For JSON files or specific build files, check for sidecar .license file
+            if (
+                filename.endswith(".json")
+                or filename.endswith(".sha256")
+                or filename.endswith(".whl")
+                or filename in BUILD_FILES
+            ):
                 license_file = filename + ".license"
                 if os.path.exists(license_file):
                     filename = license_file
@@ -67,26 +82,16 @@ class CopyrightHeaderChecker:
 if __name__ == "__main__":
     # Check staged files
     staged_files = (
-        subprocess.check_output(["git", "diff", "--cached", "--name-only"])  # nosec
+        subprocess.check_output(["git", "diff", "--cached", "--name-only"])
         .decode()
         .splitlines()
     )
-
-    # Check the *.license file if the license cannot be put in the original file
-    license_substitutions = {
-        "tests/test_resources/nx/test_model_int8.tosa",
-        "tests/test_resources/nx/test_model_int8.tosamlir",
-        "tests/test_resources/nx/test_model_int8.vgf",
-        "tests/test_resources/nx/test_model_float32.tosa",
-        "tests/test_resources/nx/test_model_float32.tosamlir",
-        "tests/test_resources/nx/test_model_float32.vgf",
-    }
 
     # Also check files modified in the last commit to catch files that might have
     # been committed with --no-verify and outdated copyright headers
     try:
         recently_modified_files = (
-            subprocess.check_output(["git", "diff", "--name-only", "HEAD~1", "HEAD"])  # nosec
+            subprocess.check_output(["git", "diff", "--name-only", "HEAD~1", "HEAD"])
             .decode()
             .splitlines()
         )
@@ -95,12 +100,10 @@ if __name__ == "__main__":
         recently_modified_files = []
 
     # Combine and deduplicate files to check
-    all_files_to_check = [
-        f + ".license" if f in license_substitutions else f
-        for f in set(staged_files + recently_modified_files)
-    ]
+    all_files_to_check = list(set(staged_files + recently_modified_files))
 
     checker = CopyrightHeaderChecker()
+    # pylint: disable-next=invalid-name
     headers_are_valid = checker.check_files_have_updated_header(
         filenames=all_files_to_check
     )

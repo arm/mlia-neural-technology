@@ -6,12 +6,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Callable, cast
 
-from mlia.backend.mlia_pytorch_to_tosa_converter.conversion import (
-    MliaPytorchToTosaConverter,
-)
-from mlia.backend.tosa_converter_for_tflite.conversion import TosaConverterForTflite
-from mlia.utils.filesystem import is_pytorch_file, is_tosa_file
+from mlia.core.errors import ConfigurationError
+from mlia.plugins.converter_registry import ConverterRegistry
+from mlia.plugins.plugins import load_converter_plugins
+from mlia.nx_utils.filesystem import is_pytorch_file, is_tosa_file
 from mlia.utils.logging import log_action
 from mlia.utils.proc import (
     Command,
@@ -21,6 +21,31 @@ from mlia.utils.proc import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_tflite_file(model: Path) -> bool:
+    return model.suffix == ".tflite"
+
+
+ConverterFn = Callable[[Path, Path], Path]
+
+
+def _get_converter(name: str) -> ConverterFn:
+    registry = ConverterRegistry()
+    load_converter_plugins(registry)
+    converter = registry.get(name)
+    if converter is None:
+        if name == "tflite_to_tosa":
+            raise ConfigurationError(
+                "TFLite conversion requires the 'mlia-converters-tflite' plugin "
+                "to be installed."
+            )
+        if name == "pt2_to_tosa":
+            raise ConfigurationError(
+                "PyTorch conversion requires the 'mlia-converters-pytorch' plugin to be installed."
+            )
+        raise ConfigurationError(f"Converter '{name}' is not available.")
+    return cast(ConverterFn, converter)
 
 
 class MLSDKModelConverterBase:
@@ -56,16 +81,6 @@ class MLSDKModelConverterBase:
 
         return vgf_file
 
-    def _convert_pytorch_file(self, pytorch_file: Path, output_dir: Path) -> Path:
-        """Run the TosaConverterForTflite to convert the tflite file to tosa."""
-        model_converter = MliaPytorchToTosaConverter()
-        return model_converter(pytorch_file, output_dir)
-
-    def _convert_tflite_file(self, tflite_file: Path, output_dir: Path) -> Path:
-        """Run the TosaConverterForTflite to convert the tflite file to tosa."""
-        model_converter = TosaConverterForTflite()
-        return model_converter(tflite_file, output_dir)
-
     def run_front_end(self, model_file: Path, output_dir: Path) -> Path:
         """Run the TosaConverterForTflite frontend."""
         # Check the file extension to see if we've been given a tosa file
@@ -73,9 +88,13 @@ class MLSDKModelConverterBase:
             tosa_file = model_file
         # Otherwise try to convert the file to tosa
         elif is_pytorch_file(model_file):
-            tosa_file = self._convert_pytorch_file(model_file, output_dir)
+            converter = _get_converter("pt2_to_tosa")
+            tosa_file = converter(model_file, output_dir)
+        elif _is_tflite_file(model_file):
+            converter = _get_converter("tflite_to_tosa")
+            tosa_file = converter(model_file, output_dir)
         else:
-            tosa_file = self._convert_tflite_file(model_file, output_dir)
+            raise ConfigurationError("Input must be a TOSA, TFLite or PyTorch file.")
 
         if not tosa_file.is_file():
             raise FileNotFoundError(

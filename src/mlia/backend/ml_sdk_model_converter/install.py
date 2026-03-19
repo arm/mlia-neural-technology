@@ -4,14 +4,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
-from mlia.backend.install import (
-    BackendInstallation,
-    PackagePathChecker,
-    artifactory_credential_headers,
-)
-from mlia.utils.download import DownloadConfig
+from mlia.backend.install import BackendInstallation, PackagePathChecker
 
 
 def get_ml_sdk_model_converter_installation() -> BackendInstallation:
@@ -20,15 +14,7 @@ def get_ml_sdk_model_converter_installation() -> BackendInstallation:
         name="ml-sdk-model-converter",
         description="ML SDK Model Converter",
         fvp_dir_name="ml-sdk-model-converter",
-        download_config=DownloadConfig(
-            url=(
-                "https://artifactory.arm.com:443/artifactory/ml-tooling.misc/mlia/vulkan-model-converter/latest/ml-sdk-model-converter-backend-1.00.tar.gz"  # noqa: E501
-            ),
-            sha256_hash=(
-                "56d4c226d94e0aaa079bd4ea6d6b0c1951a615506ae9820942d53f9560be1677"
-            ),
-            header_gen_fn=artifactory_credential_headers,
-        ),
+        download_config=None,
         supported_platforms=["Linux"],
         path_checker=PackagePathChecker(
             expected_files=[
@@ -36,12 +22,8 @@ def get_ml_sdk_model_converter_installation() -> BackendInstallation:
             ],
         ),
         backend_installer=None,
-        dependencies=[
-            "tosa-converter-for-tflite",
-            "tosa-flatbuffers",
-            "mlia-pytorch-to-tosa-converter",
-        ],
-        vendor_path=str(Path("ml-sdk-model-converter") / "model-converter"),
+        dependencies=[],
+        vendor_path="ml-sdk-model-converter",
     )
 
     return ml_sdk_model_converter_installation

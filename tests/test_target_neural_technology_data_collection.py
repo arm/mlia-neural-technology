@@ -49,7 +49,7 @@ def fixture_test_tflite_no_act_model(test_models_path: Path) -> Path:
             "nx-performance-estimator",
             pytest.raises(
                 ConfigurationError,
-                match="Input must be a TFLite, TOSA, VGF or PyTorch file.",
+                match="Input must be a TOSA, VGF, TFLite or PyTorch file.",
             ),
         ),
     ],
@@ -63,6 +63,11 @@ def test_neural_technology_performance_collect_data(
     request: pytest.FixtureRequest,
 ) -> None:
     """Tests for the NeuralTechnologyPerformance class."""
+    try:
+        from mlia.nn.tensorflow import tflite_graph
+    except ImportError:
+        pytest.skip("mlia.nn.tensorflow.tflite_graph not available")
+
     monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance."
         + "NXPerformanceEstimatorPerformanceEstimator.estimate",
@@ -83,7 +88,8 @@ def test_neural_technology_performance_collect_data(
         ),
     )
     monkeypatch.setattr(
-        "mlia.nn.tensorflow.tflite_graph.operator_names_to_types",
+        tflite_graph,
+        "operator_names_to_types",
         MagicMock(return_value={}),
     )
 
@@ -113,7 +119,7 @@ def test_neural_technology_performance_collect_data(
             "test_keras_model",
             pytest.raises(
                 ConfigurationError,
-                match="Input must be a TFLite, TOSA, VGF or PyTorch file.",
+                match="Input must be a TOSA, VGF, TFLite or PyTorch file.",
             ),
         ),
     ],
@@ -131,6 +137,17 @@ def test_neural_technology_compatibility_collect_data(
         "mlia.backend.ml_sdk_model_converter.compat."
         + "NXCompatibilityChecker.check_compatibility",
         mock_check_compatibility,
+    )
+
+    def _fake_converter(model: Path, output_dir: Path) -> Path:
+        output_dir.mkdir(exist_ok=True)
+        tosa_path = output_dir / f"{model.stem}.tosa"
+        tosa_path.touch()
+        return tosa_path
+
+    monkeypatch.setattr(
+        "mlia.target.neural_technology.data_collection._get_converter",
+        MagicMock(return_value=_fake_converter),
     )
 
     model = request.getfixturevalue(model_fixture)

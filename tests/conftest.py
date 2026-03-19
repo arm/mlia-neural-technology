@@ -1,105 +1,30 @@
-# SPDX-FileCopyrightText: Copyright 2022-2026, Arm Limited and/or its affiliates.
+# SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-"""Pytest conf module."""
+"""Pytest config for MLIA Neural Technology plugin tests."""
 
 # mypy: disable-error-code=misc
 import shutil
 from pathlib import Path
-from typing import Callable, Generator
-from unittest.mock import MagicMock
+from typing import Generator
 
 import numpy as np
 import pytest
 import tensorflow as tf
 import tf_keras as keras
 
-from mlia.core.context import ExecutionContext  # noqa: E402
-from mlia.nn.rewrite.core.utils.numpy_tfrecord import NumpyTFWriter  # noqa: E402
-from mlia.nn.tensorflow.tflite_convert import convert_to_tflite  # noqa: E402
-from mlia.nn.tensorflow.utils import save_keras_model  # noqa: E402
-from tests.utils.rewrite import MockTrainingParameters  # noqa: E402
+
+def save_keras_model(model: keras.Model, path: Path) -> None:
+    """Save a Keras model to the given path."""
+    model.save(path)
 
 
-@pytest.fixture(scope="session", name="test_resources_path")
-def fixture_test_resources_path() -> Path:
-    """Return test resources path."""
-    return Path(__file__).parent / "test_resources"
-
-
-@pytest.fixture(name="sample_context")
-def fixture_sample_context(tmpdir: str) -> ExecutionContext:
-    """Return sample context fixture."""
-    return ExecutionContext(output_dir=tmpdir)
-
-
-@pytest.fixture(scope="session")
-def non_optimised_input_model_file(test_tflite_model: Path) -> Path:
-    """Provide the path to a quantized test model file."""
-    return test_tflite_model
-
-
-@pytest.fixture(scope="session")
-def optimised_input_model_file(test_tflite_vela_model: Path) -> Path:
-    """Provide path to Vela-optimised test model file."""
-    return test_tflite_vela_model
-
-
-@pytest.fixture(scope="session")
-def invalid_input_model_file(test_tflite_invalid_model: Path) -> Path:
-    """Provide the path to an invalid test model file."""
-    return test_tflite_invalid_model
-
-
-@pytest.fixture(scope="session", name="empty_test_csv_file")
-def fixture_empty_test_csv_file(
-    test_csv_path: Path,
-) -> Path:
-    """Return empty test csv file path."""
-    return test_csv_path / "empty_test_csv_file.csv"
-
-
-@pytest.fixture(scope="session", name="test_csv_file")
-def fixture_test_csv_file(
-    test_csv_path: Path,
-) -> Path:
-    """Return test csv file path."""
-    return test_csv_path / "test_csv_file.csv"
-
-
-@pytest.fixture(scope="session", name="test_csv_path")
-def fixture_test_csv_path(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> Generator[Path, None, None]:
-    """Return test csv file path."""
-    tmp_path = tmp_path_factory.mktemp("csv_files")
-    yield tmp_path
-    shutil.rmtree(tmp_path)
-
-
-@pytest.fixture(scope="session", name="test_vela_path")
-def fixture_test_vela_path(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> Generator[Path, None, None]:
-    """Return test vela file path."""
-    tmp_path = tmp_path_factory.mktemp("vela_file")
-    yield tmp_path
-    shutil.rmtree(tmp_path)
-
-
-@pytest.fixture(scope="session", name="empty_vela_ini_file")
-def fixture_empty_vela_ini_file(
-    test_vela_path: Path,
-) -> Path:
-    """Return empty test vela file path."""
-    return test_vela_path / "empty_vela.ini"
-
-
-@pytest.fixture(scope="session", name="vela_ini_file")
-def fixture_vela_ini_file(
-    test_vela_path: Path,
-) -> Path:
-    """Return empty test vela file path."""
-    return test_vela_path / "vela.ini"
+def convert_to_tflite(model: keras.Model, quantized: bool, output_path: Path) -> None:
+    """Convert a Keras model to a TFLite file."""
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    if quantized:
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    tflite_model = converter.convert()
+    output_path.write_bytes(tflite_model)
 
 
 def get_test_keras_model() -> keras.Model:
@@ -125,7 +50,7 @@ def get_test_keras_model() -> keras.Model:
 
 
 def get_test_keras_model_no_activation() -> keras.Model:
-    """Return test Keras model."""
+    """Return test Keras model without activations."""
     model = keras.Sequential(
         [
             keras.Input(shape=(28, 28, 1), batch_size=1, name="input"),
@@ -146,14 +71,10 @@ TEST_MODEL_KERAS_FILE = "test_model.h5"
 TEST_MODEL_TFLITE_FP32_FILE = "test_model_fp32.tflite"
 TEST_MODEL_TFLITE_INT8_FILE = "test_model_int8.tflite"
 TEST_MODEL_TFLITE_NO_ACT_FILE = "test_model_no_act.tflite"
-TEST_MODEL_TFLITE_VELA_FILE = "test_model_vela.tflite"
-TEST_MODEL_TF_SAVED_MODEL_FILE = "tf_model_test_model"
+TEST_MODEL_TOSA_FILE = "model.tosa"
+TEST_MODEL_TOSA_MLIR_FILE = "model.tosa.mlir"
+TEST_MODEL_VGF_FILE = "model.vgf"
 TEST_MODEL_INVALID_FILE = "invalid.tflite"
-TEST_MODEL_TOSA_MLIR_INT8_FILE = "nx/test_model_int8.tosamlir"
-TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE = "nx/test_model_int8.tosa"
-TEST_MODEL_TOSA_MLIR_FLOAT_32_FILE = "nx/test_model_float32.tosamlir"
-TEST_MODEL_TOSA_FLATBUFFER_FLOAT_32_FILE = "nx/test_model_float32.tosa"
-TEST_MODEL_VGF_INT8_FILE = "nx/test_model_int8.vgf"
 
 
 @pytest.fixture(scope="session", name="test_models_path")
@@ -163,30 +84,25 @@ def fixture_test_models_path(
     """Provide path to the test models."""
     tmp_path = tmp_path_factory.mktemp("models")
 
-    # Need an output directory for verbose performance
-    Path("output").mkdir(exist_ok=True)
-
-    # Keras Model
     keras_model = get_test_keras_model()
     save_keras_model(keras_model, tmp_path / TEST_MODEL_KERAS_FILE)
 
-    # Un-quantized TensorFlow Lite model (fp32)
     convert_to_tflite(
         keras_model, quantized=False, output_path=tmp_path / TEST_MODEL_TFLITE_FP32_FILE
     )
 
-    # Un-quantized TensorFlow Lite model with ReLU activation (fp32)
     convert_to_tflite(
         get_test_keras_model_no_activation(),
         quantized=False,
         output_path=tmp_path / TEST_MODEL_TFLITE_NO_ACT_FILE,
     )
 
-    # Quantized TensorFlow Lite model (int8)
     tflite_model_path = tmp_path / TEST_MODEL_TFLITE_INT8_FILE
     convert_to_tflite(keras_model, quantized=True, output_path=tflite_model_path)
 
-    tf.saved_model.save(keras_model, str(tmp_path / TEST_MODEL_TF_SAVED_MODEL_FILE))
+    (tmp_path / TEST_MODEL_TOSA_FILE).write_text("tosa", encoding="utf-8")
+    (tmp_path / TEST_MODEL_TOSA_MLIR_FILE).write_text("tosa", encoding="utf-8")
+    (tmp_path / TEST_MODEL_VGF_FILE).write_text("vgf", encoding="utf-8")
 
     invalid_tflite_model = tmp_path / TEST_MODEL_INVALID_FILE
     invalid_tflite_model.touch()
@@ -194,6 +110,12 @@ def fixture_test_models_path(
     yield tmp_path
 
     shutil.rmtree(tmp_path)
+
+
+@pytest.fixture(scope="session", name="test_resources_path")
+def fixture_test_resources_path() -> Path:
+    """Return test resources path."""
+    return Path(__file__).parent / "test_resources"
 
 
 @pytest.fixture(scope="session", name="test_keras_model")
@@ -214,54 +136,28 @@ def fixture_test_tflite_model_fp32(test_models_path: Path) -> Path:
     return test_models_path / TEST_MODEL_TFLITE_FP32_FILE
 
 
-@pytest.fixture(scope="session", name="test_tflite_vela_model")
-def fixture_test_tflite_vela_model(test_models_path: Path) -> Path:
-    """Return test Vela-optimized TensorFlow Lite model."""
-    return test_models_path / TEST_MODEL_TFLITE_VELA_FILE
-
-
 @pytest.fixture(scope="session", name="test_tflite_no_act_model")
 def fixture_test_tflite_no_act_model(test_models_path: Path) -> Path:
-    """Return test TensorFlow Lite model with relu activation."""
+    """Return test TensorFlow Lite model with no activation."""
     return test_models_path / TEST_MODEL_TFLITE_NO_ACT_FILE
 
 
-@pytest.fixture(scope="session", name="test_tf_model")
-def fixture_test_tf_model(test_models_path: Path) -> Path:
-    """Return test TensorFlow Lite model."""
-    return test_models_path / TEST_MODEL_TF_SAVED_MODEL_FILE
+@pytest.fixture(scope="session", name="test_tosa_mlir_model")
+def fixture_test_tosa_mlir_model(test_models_path: Path) -> Path:
+    """Return test TOSA model."""
+    return test_models_path / TEST_MODEL_TOSA_FILE
+
+
+@pytest.fixture(scope="session", name="test_vgf_model")
+def fixture_test_vgf_model(test_models_path: Path) -> Path:
+    """Return test VGF model."""
+    return test_models_path / TEST_MODEL_VGF_FILE
 
 
 @pytest.fixture(scope="session", name="test_tflite_invalid_model")
 def fixture_test_tflite_invalid_model(test_models_path: Path) -> Path:
     """Return test invalid TensorFlow Lite model."""
     return test_models_path / TEST_MODEL_INVALID_FILE
-
-
-def _write_tfrecord(
-    tfrecord_file: Path,
-    data_generator: Callable,
-    input_name: str = "serving_default_input:0",
-    num_records: int = 3,
-) -> None:
-    """Write data to a tfrecord."""
-    with NumpyTFWriter(str(tfrecord_file)) as writer:
-        for _ in range(num_records):
-            writer.write({input_name: data_generator()})
-
-
-def create_tfrecord(
-    tmp_path_factory: pytest.TempPathFactory, random_data: Callable
-) -> Generator[Path, None, None]:
-    """Create a tfrecord with random data matching fixture 'test_tflite_model'."""
-    tmp_path = tmp_path_factory.mktemp("tfrecords")
-    tfrecord_file = tmp_path / "test.tfrecord"
-
-    _write_tfrecord(tfrecord_file, random_data)
-
-    yield tfrecord_file
-
-    shutil.rmtree(tmp_path)
 
 
 @pytest.fixture(scope="session", name="test_tfrecord")
@@ -273,94 +169,24 @@ def fixture_test_tfrecord(
     def random_data() -> np.ndarray:
         return np.random.randint(low=-127, high=128, size=(1, 28, 28, 1), dtype=np.int8)
 
-    yield from create_tfrecord(tmp_path_factory, random_data)
+    tmp_path = tmp_path_factory.mktemp("tfrecords")
+    tfrecord_file = tmp_path / "test.tfrecord"
 
-
-@pytest.fixture(scope="session", name="test_tfrecord_fp32")
-def fixture_test_tfrecord_fp32(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> Generator[Path, None, None]:
-    """Create tfrecord with random data matching fixture 'test_tflite_model_fp32'."""
-
-    def random_data() -> np.ndarray:
-        return np.random.rand(1, 28, 28, 1).astype(np.float32)
-
-    yield from create_tfrecord(tmp_path_factory, random_data)
-
-
-@pytest.fixture(scope="function", autouse=True)
-def set_training_steps(
-    request: pytest.FixtureRequest,
-) -> Generator[None, None, None]:
-    """Speed up tests by using MockTrainingParameters."""
-    if "skip_set_training_steps" not in request.keywords:
-        with pytest.MonkeyPatch.context() as monkeypatch:
-            monkeypatch.setattr(
-                "mlia.nn.select._get_rewrite_params",
-                MagicMock(return_value=MockTrainingParameters()),
+    with tf.io.TFRecordWriter(str(tfrecord_file)) as writer:
+        for _ in range(3):
+            tensor = random_data()
+            serialized = tf.io.serialize_tensor(tensor).numpy()
+            example = tf.train.Example(
+                features=tf.train.Features(
+                    feature={
+                        "serving_default_input:0": tf.train.Feature(
+                            bytes_list=tf.train.BytesList(value=[serialized])
+                        )
+                    }
+                )
             )
-            yield
-    else:
-        yield
+            writer.write(example.SerializeToString())
 
+    yield tfrecord_file
 
-@pytest.fixture(scope="session", name="test_tosa_mlir_model_with_length")
-def fixture_test_tosa_mlir_model_with_length(
-    test_resources_path: Path,
-) -> tuple[Path, int]:
-    """Return a TOSA MLIR model path and expected operation count."""
-    return test_resources_path / TEST_MODEL_TOSA_MLIR_INT8_FILE, 158
-
-
-@pytest.fixture(scope="session", name="test_tosa_flatbuffer_model_with_length")
-def fixture_test_tosa_flatbuffer_model_with_length(
-    test_resources_path: Path,
-) -> tuple[Path, int]:
-    """Return a TOSA flatbuffer model path and expected operation count."""
-    return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE, 158
-
-
-@pytest.fixture(scope="session", name="test_tosa_mlir_model")
-def fixture_test_tosa_mlir_model(test_resources_path: Path) -> Path:
-    """Return a TOSA MLIR model path."""
-    return test_resources_path / TEST_MODEL_TOSA_MLIR_INT8_FILE
-
-
-@pytest.fixture(scope="session", name="test_tosa_flatbuffer_model")
-def fixture_test_tosa_flatbuffer_model(test_resources_path: Path) -> Path:
-    """Return a TOSA flatbuffer model path."""
-    return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_INT8_FILE
-
-
-@pytest.fixture(scope="session", name="test_tosa_mlir_float32_model")
-def fixture_test_tosa_mlir_float32_model(test_resources_path: Path) -> Path:
-    """Return a TOSA MLIR float32 model path."""
-    return test_resources_path / TEST_MODEL_TOSA_MLIR_FLOAT_32_FILE
-
-
-@pytest.fixture(scope="session", name="test_tosa_flatbuffer_float32_model")
-def fixture_test_tosa_flatbuffer_float32_model(test_resources_path: Path) -> Path:
-    """Return a TOSA flatbuffer float32 model path."""
-    return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_FLOAT_32_FILE
-
-
-@pytest.fixture(scope="session", name="test_tosa_mlir_float32_model_with_length")
-def fixture_test_tosa_mlir_float32_model_with_length(
-    test_resources_path: Path,
-) -> tuple[Path, int]:
-    """Return a TOSA MLIR float32 model path and expected operation count."""
-    return test_resources_path / TEST_MODEL_TOSA_MLIR_FLOAT_32_FILE, 64
-
-
-@pytest.fixture(scope="session", name="test_tosa_flatbuffer_float32_model_with_length")
-def fixture_test_tosa_flatbuffer_float32_model_with_length(
-    test_resources_path: Path,
-) -> tuple[Path, int]:
-    """Return a TOSA flatbuffer float32 model path and expected operation count."""
-    return test_resources_path / TEST_MODEL_TOSA_FLATBUFFER_FLOAT_32_FILE, 64
-
-
-@pytest.fixture(scope="session", name="test_vgf_model")
-def fixture_test_vgf_model(test_resources_path: Path) -> Path:
-    """Return a VGF model path."""
-    return test_resources_path / TEST_MODEL_VGF_INT8_FILE
+    shutil.rmtree(tmp_path)

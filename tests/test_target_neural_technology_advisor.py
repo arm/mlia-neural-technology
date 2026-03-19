@@ -64,33 +64,11 @@ def test_configure_and_get_neural_technology_advisor(
     assert isinstance(advisor, NeuralTechnologyInferenceAdvisor)
 
     assert ctx.event_handlers is not None
-    assert ctx.config_parameters == {
-        "common_optimizations": {
-            "optimizations": [
-                [
-                    {
-                        "layers_to_optimize": None,
-                        "optimization_target": 0.5,
-                        "optimization_type": "pruning",
-                    },
-                    {
-                        "layers_to_optimize": None,
-                        "optimization_target": 32,
-                        "optimization_type": "clustering",
-                    },
-                ]
-            ],
-            "rewrite_parameters": {
-                "rewrite_specific_params": None,
-                "train_params": None,
-            },
-        },
-        "neural_technology_inference_advisor": {
-            "backend_options": {},
-            "backends": ["nx-performance-estimator"],
-            "model": str(test_tflite_model),
-            "target_profile": "neural-technology",
-        },
+    assert ctx.config_parameters["neural_technology_inference_advisor"] == {
+        "backend_options": {},
+        "backends": ["nx-performance-estimator"],
+        "model": str(test_tflite_model),
+        "target_profile": "neural-technology",
     }
 
     assert isinstance(workflow, DefaultWorkflowExecutor)

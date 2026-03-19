@@ -8,12 +8,11 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, cast
 
 from mlia.backend.ml_sdk_model_converter.compat import (
     NXCompatibilityChecker,
     NXModelCompatibilityInfo,
-    PT2Model,
     TOSAModel,
     VGFModel,
 )
@@ -23,13 +22,38 @@ from mlia.backend.nx_performance_estimator.performance import (
 )
 from mlia.core.data_collection import ContextAwareDataCollector
 from mlia.core.errors import ConfigurationError
-from mlia.nn.tensorflow.tflite_graph import operator_names_to_types
-from mlia.nn.tensorflow.utils import is_tflite_model
+from mlia.plugins.converter_registry import ConverterRegistry
+from mlia.plugins.plugins import load_converter_plugins
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
-from mlia.utils.filesystem import is_pytorch_file, is_tosa_file, is_vgf_file
+from mlia.nx_utils.filesystem import is_pytorch_file, is_tosa_file, is_vgf_file
 from mlia.utils.logging import log_action
 
 logger = logging.getLogger(__name__)
+
+
+def _is_tflite_file(model: Path) -> bool:
+    return model.suffix == ".tflite"
+
+
+ConverterFn = Callable[[Path, Path], Path]
+
+
+def _get_converter(name: str) -> ConverterFn:
+    registry = ConverterRegistry()
+    load_converter_plugins(registry)
+    converter = registry.get(name)
+    if converter is None:
+        if name == "tflite_to_tosa":
+            raise ConfigurationError(
+                "TFLite conversion requires the 'mlia-converters-tflite' plugin "
+                "to be installed."
+            )
+        if name == "pt2_to_tosa":
+            raise ConfigurationError(
+                "PyTorch conversion requires the 'mlia-torch' plugin to be installed."
+            )
+        raise ConfigurationError(f"Converter '{name}' is not available.")
+    return cast(ConverterFn, converter)
 
 
 @dataclass
@@ -65,20 +89,16 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
         """Run performance estimator."""
         if not any(
             [
-                is_tflite_model(self.model),
+                _is_tflite_file(self.model),
                 is_tosa_file(self.model),
                 is_vgf_file(self.model),
                 is_pytorch_file(self.model),
             ]
         ):
             raise ConfigurationError(
-                "Input must be a TFLite, TOSA, VGF or PyTorch file."
+                "Input must be a TOSA, VGF, TFLite or PyTorch file."
             )
-
-        if is_tflite_model(self.model):
-            operator_types_mapping, _ = operator_names_to_types(model_path=self.model)
-        else:
-            operator_types_mapping = {}
+        operator_types_mapping: dict[str, str] = {}
 
         estimator: NXPerformanceEstimatorPerformanceEstimator
         if self.backend == "nx-performance-estimator":
@@ -142,18 +162,26 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         self,
     ) -> NXCompatibilityResult | NXModelCompatibilityInfo:
         """Run performance estimator."""
-        model: Path | TOSAModel | VGFModel | PT2Model | None = None
-        if is_tflite_model(self.model):
-            model = self.model
+        model: TOSAModel | VGFModel | None = None
+        if _is_tflite_file(self.model):
+            converter = _get_converter("tflite_to_tosa")
+            output_dir = self.context.output_dir / "tflite-to-tosa"
+            output_dir.mkdir(exist_ok=True)
+            tosa_path = converter(self.model, output_dir)
+            model = TOSAModel(tosa_path)
         elif is_vgf_file(self.model):
             model = VGFModel(self.model)
         elif is_tosa_file(self.model):
             model = TOSAModel(self.model)
         elif is_pytorch_file(self.model):
-            model = PT2Model(self.model)
+            converter = _get_converter("pt2_to_tosa")
+            output_dir = self.context.output_dir / "pt2-to-tosa"
+            output_dir.mkdir(exist_ok=True)
+            tosa_path = converter(self.model, output_dir)
+            model = TOSAModel(tosa_path)
         else:
             raise ConfigurationError(
-                "Input must be a TFLite, TOSA, VGF or PyTorch file."
+                "Input must be a TOSA, VGF, TFLite or PyTorch file."
             )
 
         checker = NXCompatibilityChecker(self.context.output_dir)

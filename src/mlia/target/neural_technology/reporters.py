@@ -26,7 +26,7 @@ from mlia.target.neural_technology.data_collection import (
     NXCompatibilityResult,
     NXPerformanceResult,
 )
-from mlia.utils.misc import dict_to_list
+from mlia.nx_utils.misc import dict_to_list
 from mlia.utils.types import is_list_of
 
 

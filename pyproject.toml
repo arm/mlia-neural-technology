@@ -1,82 +1,115 @@
-# SPDX-FileCopyrightText: Copyright 2022-2023, 2025-2026, Arm Limited
-# and/or its affiliates.
-# SPDX-FileCopyrightText: Copyright (c) 2012-2022 Jukka Lehtosalo and contributors
-# SPDX-FileCopyrightText: Copyright (c) 2015-2022 Dropbox, Inc.
-# SPDX-License-Identifier: Apache-2.0 AND MIT
+# SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "mlia-neural-technology"
+dynamic = ["version"]
+description = "ML Inference Advisor NX Plugin"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mlia>=0.11.0.dev0"
+]
+keywords = ["ml", "arm", "nx", "neural-technology"]
+authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
+license = {file = "LICENSES/Apache-2.0.txt"}
+license-files = ["LICENSES/*.txt"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+
+[project.urls]
+Homepage = "https://github.com/arm/mlia-neural-technology.git"
+
+[project.entry-points."mlia.plugin.target"]
+neural_technology = "mlia.target.neural_technology.plugin:NeuralTechnologyTargetPlugin"
+
+[project.entry-points."mlia.plugin.backend"]
+nx_performance_estimator = "mlia.backend.nx_performance_estimator.plugin:NXPerformanceEstimatorPlugin"
+ml_sdk_model_converter = "mlia.backend.ml_sdk_model_converter.plugin:MLSDKModelConverterPlugin"
+tosa_flatbuffers = "mlia.backend.tosa_flatbuffers.plugin:TosaFlatBuffersPlugin"
 
 [build-system]
 requires = [
-    "setuptools>=42",
-    "wheel",
-    "setuptools_scm[toml]>=6.2"
+    "hatchling>=1.27.0",
+    "uv-dynamic-versioning>=0.8.2,<0.9.0"
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "hatchling.build"
 
-# Enable setuptools_scm
-[tool.setuptools_scm]
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
 
-[tool.pytest.ini_options]
-testpaths = "tests"
-markers = [
-    "e2e",  # e2e tests
-    "install",  # installation tests
-    "command",  # command tests
-    "model_gen",  # model generation tests
-    "slow"  # slow tests that take a long time to run
+[tool.hatch.build]
+include = ["src/mlia/resources/**"]
+
+[tool.hatch.build.targets.wheel]
+# Include implicit namespace packages under src/.
+only-include = ["src/mlia"]
+sources = ["src"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/mlia/**",
+    "src/mlia/_vendor/artifacts/**/.sha256",
+    "src/mlia/_vendor/artifacts/**/.sha256.license",
+    "LICENSES/*.txt",
+    "README.md",
+    "hatch_build.py",
+    "pyproject.toml"
 ]
-junit_logging = "all"
 
-[tool.ruff.lint]
-select = ["B", "E", "F", "I", "W"]
-ignore = ["B905", "B028", "B027", "B017", "B008", "B006"]
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+pattern = "default-unprefixed"
+bump = true
+fallback-version = "0.0.0.dev0"
 
 [tool.mypy]
-# Suppresses error messages about imports that cannot be resolved
+# Suppress errors for optional dependencies and cross-repo imports.
 ignore_missing_imports = true
-# Shows a warning when encountering any code inferred to be unreachable or redundant after performing type analysis
-warn_unreachable = true
-# Shows errors for missing return statements on some execution paths
-warn_no_return = true
-# Shows a warning when returning a value with type Any from a function declared with a non- Any return type
-warn_return_any = true
-# Warns about unneeded # type: ignore comments
-warn_unused_ignores = true
-# Warns about casting an expression to its inferred type
-warn_redundant_casts = true
-# Disallows calling functions without type annotations from functions with type annotations
-disallow_untyped_calls = true
-# Disallows defining functions without type annotations or with incomplete type annotations
-disallow_untyped_defs = true
-# Disallows defining functions with incomplete type annotations
-disallow_incomplete_defs = true
-# Reports an error whenever a function with type annotations is decorated with a decorator without annotations
-disallow_untyped_decorators = true
-# Type-checks the interior of functions without type annotations
-check_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = [
-    "pkg_resources",
-    "requests"
+[tool.blocklint]
+max_issue_threshold = 1
+blocklist = ["master", "slave", "blacklist", "whitelist", "dummy"]
+wordlist = ["he", "she", "him", "her", "his", "hers"]
+skip_files = ["LICENSES/CC-PDDC.txt", "docs/source/conf.py"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov=mlia",
+    "--cov-report=term-missing",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=65"
 ]
-ignore_missing_imports = true
 
-[tool.commitizen]
-# This simply signifies that we want to customize the commitizen configuration
-name = "cz_customize"
-# name = "cz_conventional_commits"
-tag_format = "$version"
-version_scheme = "semver"
-version_provider = "scm"
-update_changelog_on_bump = true
+[tool.coverage.run]
+source = ["src/mlia"]
+omit = [
+    ".venv/*",
+    "*/site-packages/*"
+]
 
-[tool.commitizen.customize]
-# Schema pattern is used by `cz check`, and `tox -e lint` in turn. Builtin CC pattern:
-# (?s)(build|ci|docs|feat|fix|perf|refactor|style|test|chore|revert|bump)(\\(\\S+\\))?!?:( [^\\n\\r]+)((\\n\\n.*)|(\\s*))?$
-# We customize this slightly by removing types that don't seem relevant now:
-schema_pattern = "(?s)(build|ci|docs|feat|fix|perf|refactor|style|test)(\\(\\S+\\))?!?:( [A-Z][^\\n\\r]+)((\\n\\n.*)|(\\s*))?$"
-schema = "<type>(<scope>): <Subject-capitalized>\n<BLANK LINE>\n<body>\n<BLANK LINE>\n(BREAKING CHANGE: )<footer>"
-# Commit parser is used to render the commits for RELEASES.md
-commit_parser = "^((?P<change_type>build|ci|docs|feat|fix|perf|refactor|style|test|BREAKING CHANGE)(?:\\((?P<scope>[^()\\r\\n]*)\\)|\\()?(?P<breaking>!)?|\\w+!):\\s(?P<message>.*)?"
-# Change type map to render the title for that category as per {tag:title}
-change_type_map = {'feat' = 'Feature changes', 'fix' = 'Bug fix', 'perf' = 'Performance improvements', 'build' = 'Development changes'}
+[dependency-groups]
+test = [
+    "pytest~=9.0",
+    "pytest-cov~=7.0",
+    "flaky~=3.8.1",
+    "numpy==2.2.6",
+    "mlia-converters-tflite",
+    "tensorflow",
+    "tf-keras"
+]
+dev = [
+    {include-group = "test"},
+    "mypy==1.5.1",
+    "pre-commit==4.5.1"
+]
