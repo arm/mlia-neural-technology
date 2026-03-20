@@ -85,18 +85,12 @@ skip_files = ["LICENSES/CC-PDDC.txt", "docs/source/conf.py"]
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov=mlia",
+    "--cov=src/mlia",
     "--cov-report=term-missing",
     "--cov-report=xml:coverage.xml",
     "--cov-fail-under=65"
 ]
-
-[tool.coverage.run]
-source = ["src/mlia"]
-omit = [
-    ".venv/*",
-    "*/site-packages/*"
-]
+pythonpath = ["src"]
 
 [dependency-groups]
 test = [
