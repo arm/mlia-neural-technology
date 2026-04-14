@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from pathlib import Path
@@ -27,14 +28,31 @@ from mlia.target.neural_technology.reporters import neural_technology_formatters
 logger = logging.getLogger(__name__)
 
 
+def _workflow_events_handler_supports_collect_only() -> bool:
+    """Return whether the installed mlia core supports collect-only handlers."""
+    parameters = inspect.signature(WorkflowEventsHandler.__init__).parameters
+    return "collect_only" in parameters
+
+
 class NeuralTechnologyEventHandler(
     WorkflowEventsHandler, NeuralTechnologyAdvisorEventHandler
 ):
     """CLI event handler."""
 
-    def __init__(self, output_dir: Path | None = None) -> None:
+    def __init__(
+        self, output_dir: Path | None = None, *, collect_only: bool = False
+    ) -> None:
         """Init event handler."""
-        super().__init__(neural_technology_formatters)
+        if _workflow_events_handler_supports_collect_only():
+            super().__init__(neural_technology_formatters, collect_only=collect_only)
+        else:
+            if collect_only:
+                raise RuntimeError(
+                    "The 'collect_only' option requires a newer version of mlia. "
+                    "Please upgrade mlia to use this feature."
+                )
+            super().__init__(neural_technology_formatters)
+            self.collect_only = False
         self.output_dir = output_dir
 
     def on_collected_data(self, event: CollectedDataEvent) -> None:
@@ -43,7 +61,11 @@ class NeuralTechnologyEventHandler(
 
         if isinstance(data_item, NXPerformanceResult):
             # Save standardized output JSON if available
-            if data_item.standardized_output and self.output_dir:
+            if (
+                data_item.standardized_output
+                and self.output_dir
+                and not self.collect_only
+            ):
                 try:
                     output_path = self.output_dir / "nx_performance.json"
                     with open(output_path, "w", encoding="utf-8") as file_handle:
@@ -57,7 +79,11 @@ class NeuralTechnologyEventHandler(
 
         elif isinstance(data_item, NXCompatibilityResult):
             # Save standardized output JSON if available
-            if data_item.standardized_output and self.output_dir:
+            if (
+                data_item.standardized_output
+                and self.output_dir
+                and not self.collect_only
+            ):
                 try:
                     output_path = self.output_dir / "nx_compatibility.json"
                     with open(output_path, "w", encoding="utf-8") as file_handle:
@@ -82,4 +108,6 @@ class NeuralTechnologyEventHandler(
         self, event: NeuralTechnologyAdvisorStartedEvent
     ) -> None:
         """Handle NeuralTechnologyAdvisorStarted event."""
+        if self.collect_only:
+            return
         self.reporter.submit(event.device)

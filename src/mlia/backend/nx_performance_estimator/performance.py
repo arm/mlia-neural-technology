@@ -172,7 +172,9 @@ class NXPerformanceEstimatorPerformanceMetrics:
 
         # Extract target info from config
         target_config = target_config or {}
-        target_type = target_config.get("target", "neural-accelerator")
+        target_type = target_config.get(
+            "target_type", target_config.get("target", "neural-accelerator")
+        )
         profile_name = target_config.get("profile_name", target_type)
 
         # Extract variant from system_config name if not default
@@ -325,9 +327,9 @@ class NXPerformanceEstimatorPerformanceEstimator(
         self, output_dir: Path, backend_config: dict, operator_types_mapping: dict
     ) -> None:
         """Init performance estimator."""
-        self.backend_config = NXPerformanceEstimatorConfig(
-            **backend_config.get("nx-performance-estimator", {})
-        )
+        backend_options = dict(backend_config.get("nx-performance-estimator", {}))
+        self.enable_quantization = backend_options.pop("enable_quantization", None)
+        self.backend_config = NXPerformanceEstimatorConfig(**backend_options)
         self.backend_config.set_config_dir(self.resource_dir)
         self.output_dir = output_dir
         self.operator_types_mapping = operator_types_mapping
@@ -388,7 +390,9 @@ class NXPerformanceEstimatorPerformanceEstimator(
         output_dir = self.output_dir / "ml-sdk-model-converter"
         output_dir.mkdir()
 
-        model_converter = MLSDKModelConverter(vmc_path)
+        model_converter = MLSDKModelConverter(
+            vmc_path, enable_quantization=self.enable_quantization
+        )
         vgf_file = model_converter(model_path, output_dir)
         return vgf_file
 

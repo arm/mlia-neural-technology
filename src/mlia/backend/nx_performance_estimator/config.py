@@ -7,6 +7,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+CONFIG_TO_CLI_OPTION = {
+    "system_config": "--system-config",
+    "compiler_config": "--compiler-config",
+}
+
 
 @dataclass
 class NXPerformanceEstimatorConfig:

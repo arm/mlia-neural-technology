@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: LicenseRef-LICENSE
 """Tests for Neural Technology data collection."""
 
+from __future__ import annotations
+
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from typing import Any
@@ -26,6 +28,8 @@ from mlia.core.context import ExecutionContext
 from mlia.core.errors import ConfigurationError
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.data_collection import (
+    NXCompatibilityResult,
+    NXPerformanceResult,
     NeuralTechnologyCompatibility,
     NeuralTechnologyPerformance,
 )
@@ -139,15 +143,22 @@ def test_neural_technology_compatibility_collect_data(
         mock_check_compatibility,
     )
 
-    def _fake_converter(model: Path, output_dir: Path) -> Path:
+    def _fake_converter(
+        _name: str,
+        model: Path,
+        output_dir: Path,
+        *,
+        enable_quantization: bool | None = None,
+    ) -> Path:
+        del enable_quantization
         output_dir.mkdir(exist_ok=True)
         tosa_path = output_dir / f"{model.stem}.tosa"
         tosa_path.touch()
         return tosa_path
 
     monkeypatch.setattr(
-        "mlia.target.neural_technology.data_collection._get_converter",
-        MagicMock(return_value=_fake_converter),
+        "mlia.target.neural_technology.data_collection.run_named_converter",
+        _fake_converter,
     )
 
     model = request.getfixturevalue(model_fixture)
@@ -155,7 +166,7 @@ def test_neural_technology_compatibility_collect_data(
         model,
         NeuralTechnologyConfiguration(
             target="neural-technology",
-            backend={
+            backend_config={
                 "nx-performance-estimator": {
                     "system_config": NeuralTechnologyCompatibility.name(),
                     "compiler_config": "",
@@ -168,3 +179,98 @@ def test_neural_technology_compatibility_collect_data(
     with expectation:
         ntc.collect_data()
         mock_check_compatibility.assert_called_once()
+
+
+def test_neural_technology_performance_collect_data_preserves_profile_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Performance wrapper should keep the selected profile name in API output."""
+    model = tmp_path / "model.tosa"
+    model.write_text("tosa", encoding="utf-8")
+
+    captured: dict[str, Any] = {}
+
+    class FakeMetrics:
+        def to_standardized_output(self, **kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {"schema_version": "1.0.0", "results": [{}]}
+
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance."
+        "NXPerformanceEstimatorPerformanceEstimator.estimate",
+        MagicMock(return_value=FakeMetrics()),
+    )
+    monkeypatch.setattr("sys.argv", ["/tmp/mlia-script", "--flag"])
+
+    collector = NeuralTechnologyPerformance(
+        model,
+        NeuralTechnologyConfiguration(
+            target="neural-technology",
+            profile_name="NX-peak-12SC-8NX-600MHz",
+            backend_config={
+                "nx-performance-estimator": {
+                    "system_config": "",
+                    "compiler_config": "",
+                }
+            },
+        ),
+        "nx-performance-estimator",
+    )
+    collector.set_context(ExecutionContext(output_dir=tmp_path))
+
+    result = collector.collect_data()
+
+    assert isinstance(result, NXPerformanceResult)
+    assert captured["target_config"] == {
+        "target": "neural-technology",
+        "target_type": "neural-technology",
+        "profile_name": "NX-peak-12SC-8NX-600MHz",
+    }
+    assert captured["cli_arguments"] == ["mlia-script", "--flag"]
+
+
+def test_neural_technology_compatibility_collect_data_preserves_profile_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compatibility wrapper should keep the selected profile name in API output."""
+    model = tmp_path / "model.vgf"
+    model.write_text("vgf", encoding="utf-8")
+
+    captured: dict[str, Any] = {}
+
+    class FakeCompatibilityInfo:
+        def to_standardized_output(self, **kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {"schema_version": "1.0.0", "results": [{}]}
+
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat."
+        "NXCompatibilityChecker.check_compatibility",
+        MagicMock(return_value=FakeCompatibilityInfo()),
+    )
+    monkeypatch.setattr("sys.argv", ["/tmp/mlia-api", "--quiet"])
+
+    collector = NeuralTechnologyCompatibility(
+        model,
+        NeuralTechnologyConfiguration(
+            target="neural-technology",
+            profile_name="NX-sustained-12SC-8NX-350MHz",
+            backend_config={"nx-performance-estimator": {"system_config": ""}},
+        ),
+    )
+    collector.set_context(ExecutionContext(output_dir=tmp_path))
+
+    result = collector.collect_data()
+
+    assert isinstance(result, NXCompatibilityResult)
+    assert captured["target_config"] == {
+        "target": "neural-technology",
+        "target_type": "neural-technology",
+        "profile_name": "NX-sustained-12SC-8NX-350MHz",
+    }
+    assert captured["backend_config"] == {
+        "nx-performance-estimator": {"system_config": ""}
+    }
+    assert captured["cli_arguments"] == ["mlia-api", "--quiet"]

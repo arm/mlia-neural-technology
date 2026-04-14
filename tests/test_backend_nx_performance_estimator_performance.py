@@ -95,6 +95,27 @@ def test_nx_performance_estimator_performance_estimator(
     assert json_dump_path.exists()
 
 
+def test_nx_performance_estimator_keeps_enable_quantization_out_of_config(
+    tmp_path: Path,
+) -> None:
+    """Runtime converter options should not be forwarded into config dataclass."""
+    estimator = NXPerformanceEstimatorPerformanceEstimator(
+        tmp_path,
+        {
+            "nx-performance-estimator": {
+                "system_config": "system.ini",
+                "compiler_config": "compiler.ini",
+                "enable_quantization": False,
+            }
+        },
+        {},
+    )
+
+    assert estimator.enable_quantization is False
+    assert estimator.backend_config.system_config.name == "system.ini"
+    assert estimator.backend_config.compiler_config.name == "compiler.ini"
+
+
 def test_nx_performance_metrics_to_standardized_output(
     tmp_path: Path,
 ) -> None:

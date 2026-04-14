@@ -8,7 +8,7 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any
 
 from mlia.backend.ml_sdk_model_converter.compat import (
     NXCompatibilityChecker,
@@ -16,16 +16,15 @@ from mlia.backend.ml_sdk_model_converter.compat import (
     TOSAModel,
     VGFModel,
 )
+from mlia.backend.ml_sdk_model_converter.conversion import run_named_converter
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceEstimator,
     NXPerformanceEstimatorPerformanceMetrics,
 )
 from mlia.core.data_collection import ContextAwareDataCollector
 from mlia.core.errors import ConfigurationError
-from mlia.plugins.converter_registry import ConverterRegistry
-from mlia.plugins.plugins import load_converter_plugins
-from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.nx_utils.filesystem import is_pytorch_file, is_tosa_file, is_vgf_file
+from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.utils.logging import log_action
 
 logger = logging.getLogger(__name__)
@@ -33,27 +32,6 @@ logger = logging.getLogger(__name__)
 
 def _is_tflite_file(model: Path) -> bool:
     return model.suffix == ".tflite"
-
-
-ConverterFn = Callable[[Path, Path], Path]
-
-
-def _get_converter(name: str) -> ConverterFn:
-    registry = ConverterRegistry()
-    load_converter_plugins(registry)
-    converter = registry.get(name)
-    if converter is None:
-        if name == "tflite_to_tosa":
-            raise ConfigurationError(
-                "TFLite conversion requires the 'mlia-converters-tflite' plugin "
-                "to be installed."
-            )
-        if name == "pt2_to_tosa":
-            raise ConfigurationError(
-                "PyTorch conversion requires the 'mlia-torch' plugin to be installed."
-            )
-        raise ConfigurationError(f"Converter '{name}' is not available.")
-    return cast(ConverterFn, converter)
 
 
 @dataclass
@@ -122,7 +100,8 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
             # Build target configuration
             target_config = {
                 "target": self.cfg.target,
-                "profile_name": self.cfg.target,
+                "target_type": self.cfg.target,
+                "profile_name": self.cfg.profile_name,
             }
 
             standardized = metrics.to_standardized_output(
@@ -164,20 +143,25 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         """Run performance estimator."""
         model: TOSAModel | VGFModel | None = None
         if _is_tflite_file(self.model):
-            converter = _get_converter("tflite_to_tosa")
             output_dir = self.context.output_dir / "tflite-to-tosa"
             output_dir.mkdir(exist_ok=True)
-            tosa_path = converter(self.model, output_dir)
+            tosa_path = run_named_converter("tflite_to_tosa", self.model, output_dir)
             model = TOSAModel(tosa_path)
         elif is_vgf_file(self.model):
             model = VGFModel(self.model)
         elif is_tosa_file(self.model):
             model = TOSAModel(self.model)
         elif is_pytorch_file(self.model):
-            converter = _get_converter("pt2_to_tosa")
             output_dir = self.context.output_dir / "pt2-to-tosa"
             output_dir.mkdir(exist_ok=True)
-            tosa_path = converter(self.model, output_dir)
+            tosa_path = run_named_converter(
+                "pt2_to_tosa",
+                self.model,
+                output_dir,
+                enable_quantization=self.cfg.backend_config.get(
+                    "nx-performance-estimator", {}
+                ).get("enable_quantization", True),
+            )
             model = TOSAModel(tosa_path)
         else:
             raise ConfigurationError(
@@ -196,7 +180,8 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
             # Build target configuration
             target_config = {
                 "target": self.cfg.target,
-                "profile_name": self.cfg.target,
+                "target_type": self.cfg.target,
+                "profile_name": self.cfg.profile_name,
             }
 
             standardized = comp_info.to_standardized_output(

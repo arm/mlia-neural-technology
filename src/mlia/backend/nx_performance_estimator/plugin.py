@@ -5,6 +5,7 @@
 import logging
 
 from mlia.backend.config import BackendConfiguration, BackendType, System
+from mlia.backend.nx_performance_estimator.config import CONFIG_TO_CLI_OPTION
 from mlia.backend.nx_performance_estimator.install import (
     get_nx_performance_estimator_installation,
 )
@@ -33,10 +34,7 @@ class NXPerformanceEstimatorPlugin(BackendPlugin):
                 supported_systems=[System.LINUX_AMD64],
                 backend_type=BackendType.CUSTOM,
                 installation=get_nx_performance_estimator_installation(),
-                cli_options={
-                    "system_config": "--system-config",
-                    "compiler_config": "--compiler-config",
-                },
+                cli_options=CONFIG_TO_CLI_OPTION,
             ),
             pretty_name="Neural Accelerator Performance Estimator",
         )

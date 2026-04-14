@@ -307,7 +307,11 @@ class NXModelCompatibilityInfo:
         )
 
         # Create target
-        target_type = (target_config or {}).get("target", "neural-accelerator")
+        target_config = target_config or {}
+        target_type = target_config.get(
+            "target_type", target_config.get("target", "neural-accelerator")
+        )
+        profile_name = target_config.get("profile_name", target_type)
         gpu_component = schema.Component(
             type=schema.ComponentType.GPU,
             family="mali",
@@ -315,10 +319,10 @@ class NXModelCompatibilityInfo:
         )
 
         target = schema.Target(
-            profile_name=target_type,
-            target_type="gpu",
+            profile_name=profile_name,
+            target_type=target_type,
             components=[gpu_component],
-            configuration=target_config or {},
+            configuration=target_config,
             description="Neural Accelerator (NX) compatibility check",
         )
 

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from pathlib import Path
 from typing import Callable, cast
@@ -27,7 +28,7 @@ def _is_tflite_file(model: Path) -> bool:
     return model.suffix == ".tflite"
 
 
-ConverterFn = Callable[[Path, Path], Path]
+ConverterFn = Callable[..., Path]
 
 
 def _get_converter(name: str) -> ConverterFn:
@@ -48,14 +49,50 @@ def _get_converter(name: str) -> ConverterFn:
     return cast(ConverterFn, converter)
 
 
+def _supports_enable_quantization(converter: ConverterFn) -> bool:
+    parameters = inspect.signature(converter).parameters.values()
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        or parameter.name == "enable_quantization"
+        for parameter in parameters
+    )
+
+
+def run_named_converter(
+    name: str,
+    model_file: Path,
+    output_dir: Path,
+    *,
+    enable_quantization: bool | None = None,
+) -> Path:
+    """Run a registered converter, passing enable_quantization when supported."""
+    converter = _get_converter(name)
+    if enable_quantization is not None and _supports_enable_quantization(converter):
+        return converter(
+            model_file,
+            output_dir,
+            enable_quantization=enable_quantization,
+        )
+    if name == "pt2_to_tosa" and enable_quantization is False:
+        raise ConfigurationError(
+            "PyTorch conversion requires an 'mlia-converters-pytorch' plugin "
+            "version that supports enable_quantization. Please upgrade "
+            "mlia-converters-pytorch."
+        )
+    return converter(model_file, output_dir)
+
+
 class MLSDKModelConverterBase:
     """Wrapper class to run the ML SDK Model Converter."""
 
     BACK_END_EXE = "model-converter"
 
-    def __init__(self, converter_path: Path) -> None:
+    def __init__(
+        self, converter_path: Path, *, enable_quantization: bool | None = None
+    ) -> None:
         """Set up some paths to run the ML SDK Model Converter."""
         self.converter_path = converter_path.resolve()
+        self.enable_quantization = enable_quantization
         self.output_consumers: list[OutputConsumer] = [
             OutputLogger(logger, logging.INFO)
         ]
@@ -88,11 +125,18 @@ class MLSDKModelConverterBase:
             tosa_file = model_file
         # Otherwise try to convert the file to tosa
         elif is_pytorch_file(model_file):
-            converter = _get_converter("pt2_to_tosa")
-            tosa_file = converter(model_file, output_dir)
+            tosa_file = run_named_converter(
+                "pt2_to_tosa",
+                model_file,
+                output_dir,
+                enable_quantization=(
+                    self.enable_quantization
+                    if self.enable_quantization is not None
+                    else True
+                ),
+            )
         elif _is_tflite_file(model_file):
-            converter = _get_converter("tflite_to_tosa")
-            tosa_file = converter(model_file, output_dir)
+            tosa_file = run_named_converter("tflite_to_tosa", model_file, output_dir)
         else:
             raise ConfigurationError("Input must be a TOSA, TFLite or PyTorch file.")
 
