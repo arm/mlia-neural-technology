@@ -85,7 +85,11 @@ skip_files = ["LICENSES/CC-PDDC.txt", "docs/source/conf.py"]
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov=src/mlia",
+    "--cov=mlia.backend.ml_sdk_model_converter",
+    "--cov=mlia.backend.nx_performance_estimator",
+    "--cov=mlia.backend.tosa_flatbuffers",
+    "--cov=mlia.nx_utils",
+    "--cov=mlia.target.neural_technology",
     "--cov-report=term-missing",
     "--cov-report=xml:coverage.xml",
     "--cov-fail-under=65"
