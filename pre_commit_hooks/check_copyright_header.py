@@ -43,9 +43,10 @@ class CopyrightHeaderChecker:
             if filename.startswith("src/mlia/_vendor/artifacts/"):
                 continue
 
-            # For JSON files or specific build files, check for sidecar .license file
+            # For files that require a sidecar license, check for the .license file.
             if (
                 filename.endswith(".json")
+                or filename.endswith(".ipynb")
                 or filename.endswith(".sha256")
                 or filename.endswith(".whl")
                 or filename in BUILD_FILES
@@ -55,7 +56,7 @@ class CopyrightHeaderChecker:
                     filename = license_file
                 else:
                     print(
-                        f"ERROR: JSON file {filename} requires a sidecar "
+                        f"ERROR: File {filename} requires a sidecar "
                         f"{license_file} file with copyright header!"
                     )
                     has_outdated_headers = True

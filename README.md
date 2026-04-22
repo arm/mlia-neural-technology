@@ -55,6 +55,10 @@ Build the package:
 uv build
 ```
 
+## Documentation
+
+- `docs/source/neural_technology_api_walkthrough.ipynb`: walkthrough of the Neural Technology Python API flow for `torch.nn.Module` inputs.
+
 ## Project Layout
 
 - `src/mlia/target/neural_technology/`: Neural Technology target integration and advisor logic.
