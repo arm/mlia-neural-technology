@@ -19,3 +19,4 @@ src/mlia/_vendor/artifacts/**/*.whl
 src/mlia/_vendor/artifacts/**/*.tar.gz
 src/mlia/_vendor/artifacts/**/model-converter
 src/mlia/_vendor/artifacts/**/graph-compiler-performance-estimator
+.mkdocs/site

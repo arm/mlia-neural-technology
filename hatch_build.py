@@ -122,13 +122,6 @@ class CustomBuildHook(BuildHookInterface):
 
         urls = _load_vendor_urls()
         for key, spec in ARTIFACTS.items():
-            url = urls.get(key)
-            if not url:
-                raise RuntimeError(
-                    f"Missing vendor URL for '{key}'. Set {ENV_URLS} with a "
-                    "JSON map including this key."
-                )
-
             vendor_dir = base_root / spec["vendor_dir"]
             sha_path = vendor_dir / ".sha256"
             if not sha_path.exists():
@@ -148,16 +141,20 @@ class CustomBuildHook(BuildHookInterface):
                 source_rel = vendor_dir
             force_include[str(source_rel)] = target_rel
 
-            if spec["type"] == "whl":
-                if archive_path.exists():
-                    actual_sha = _file_sha256(archive_path)
-                    if actual_sha == expected_sha:
-                        continue
-                    archive_path.unlink()
-                _download_and_verify(url, archive_path, expected_sha)
-                continue
+            if archive_path.exists():
+                actual_sha = _file_sha256(archive_path)
+                if actual_sha == expected_sha:
+                    continue
+                archive_path.unlink()
 
-            if spec["type"] != "tar":
+            url = urls.get(key)
+            if not url:
+                raise RuntimeError(
+                    f"Missing vendor URL for '{key}'. Set {ENV_URLS} with a "
+                    "JSON map including this key."
+                )
+
+            if spec["type"] not in {"whl", "tar"}:
                 raise RuntimeError(f"Unsupported vendor artifact type: {spec['type']}")
 
             _download_and_verify(url, archive_path, expected_sha)

@@ -6,7 +6,7 @@
 
 # - tools that *fix* issues are preferred to tools that only *gripe*
 #   about issues, both can coexist, but when the conflict we
-#   selectivly reconfigure the griper not the fixer.
+#   selectively reconfigure the gripe-only tool, not the fixer.
 #
 
 repos:
