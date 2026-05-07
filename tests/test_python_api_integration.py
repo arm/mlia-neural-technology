@@ -3,12 +3,17 @@
 """Focused Python API integration tests for Neural Technology."""
 
 from __future__ import annotations
+from collections.abc import Callable
+
+from mlia.backend.ml_sdk_model_converter.plugin import MLSDKModelConverterPlugin
+from mlia.backend.nx_performance_estimator.plugin import NXPerformanceEstimatorPlugin
+from mlia.backend.registry import registry as backend_registry
+from mlia.backend.tosa_flatbuffers.plugin import TosaFlatBuffersPlugin
 from mlia.target.registry import registry as target_registry
 from mlia.target.neural_technology.plugin import NeuralTechnologyTargetPlugin
-from mlia.backend.registry import registry as backend_registry
-from mlia.backend.nx_performance_estimator.plugin import NXPerformanceEstimatorPlugin
 
 import importlib
+import inspect
 import sys
 import types
 from pathlib import Path
@@ -19,6 +24,9 @@ import pytest
 
 mlia_api = importlib.import_module("mlia.api")
 run_advisor = mlia_api.run_advisor
+RUN_ADVISOR_SUPPORTS_ACCEPT_EULA = (
+    "accept_eula" in inspect.signature(run_advisor).parameters
+)
 
 backend_registry_module = importlib.import_module("mlia.backend.registry")
 target_registry_module = importlib.import_module("mlia.target.registry")
@@ -26,6 +34,7 @@ target_registry_module = importlib.import_module("mlia.target.registry")
 
 def _register_neural_technology_api_plugins(
     monkeypatch: pytest.MonkeyPatch,
+    auto_install: Callable[..., None] | None = None,
 ) -> None:
     monkeypatch.setattr(backend_registry, "items", dict(backend_registry.items))
     monkeypatch.setattr(target_registry, "items", dict(target_registry.items))
@@ -35,7 +44,17 @@ def _register_neural_technology_api_plugins(
     target_registry_module.create_target_profile.cache_clear()
 
     NXPerformanceEstimatorPlugin.register(backend_registry)
+    MLSDKModelConverterPlugin.register(backend_registry)
+    TosaFlatBuffersPlugin.register(backend_registry)
     NeuralTechnologyTargetPlugin.register(target_registry)
+
+    if auto_install is not None:
+        monkeypatch.setattr(
+            mlia_api,
+            "ensure_backends_installed",
+            auto_install,
+            raising=False,
+        )
 
 
 def _write_profile(tmp_path: Path, profile_name: str) -> Path:
@@ -61,7 +80,9 @@ def test_run_advisor_compatibility_routes_backend_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """run_advisor should route backend option overrides into Neural Technology."""
-    _register_neural_technology_api_plugins(monkeypatch)
+    _register_neural_technology_api_plugins(
+        monkeypatch, auto_install=lambda *_, **__: None
+    )
 
     profile = _write_profile(tmp_path, "NX-demo")
     model = tmp_path / "model.vgf"
@@ -121,13 +142,21 @@ def test_run_advisor_performance_routes_backend_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """run_advisor should pass backend option overrides into performance setup."""
-    _register_neural_technology_api_plugins(monkeypatch)
-
     profile = _write_profile(tmp_path, "NX-peak")
     model = tmp_path / "model.tosa"
     model.write_text("tosa", encoding="utf-8")
 
     captured: dict[str, Any] = {}
+
+    def fake_auto_install(
+        backend_names: list[str], *, accept_eula: bool | None = None, **_kwargs: Any
+    ) -> None:
+        captured["auto_install"] = {
+            "backend_names": backend_names,
+            "accept_eula": accept_eula,
+        }
+
+    _register_neural_technology_api_plugins(monkeypatch, auto_install=fake_auto_install)
 
     class FakeMetrics:
         def to_standardized_output(self, **kwargs: Any) -> dict[str, Any]:
@@ -160,6 +189,10 @@ def test_run_advisor_performance_routes_backend_options(
         MagicMock(return_value=FakeMetrics()),
     )
 
+    kwargs: dict[str, Any] = {}
+    if RUN_ADVISOR_SUPPORTS_ACCEPT_EULA:
+        kwargs["accept_eula"] = True
+
     output = run_advisor(
         "performance",
         str(profile),
@@ -172,6 +205,7 @@ def test_run_advisor_performance_routes_backend_options(
             }
         },
         validation="off",
+        **kwargs,
     )
 
     assert output["schema_version"] == "1.0.0"
@@ -183,6 +217,11 @@ def test_run_advisor_performance_routes_backend_options(
             "compiler_config": "override-compiler.ini",
         }
     }
+    if RUN_ADVISOR_SUPPORTS_ACCEPT_EULA:
+        assert captured["auto_install"] == {
+            "backend_names": ["nx-performance-estimator"],
+            "accept_eula": True,
+        }
     assert captured["standardized_kwargs"]["target_config"] == {
         "target": "neural-technology",
         "target_type": "neural-technology",
@@ -196,7 +235,9 @@ def test_run_advisor_compatibility_accepts_torch_module_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """run_advisor should accept torch.nn.Module for Neural Technology."""
-    _register_neural_technology_api_plugins(monkeypatch)
+    _register_neural_technology_api_plugins(
+        monkeypatch, auto_install=lambda *_, **__: None
+    )
 
     profile = _write_profile(tmp_path, "NX-module")
     exported_paths: dict[str, Path] = {}
