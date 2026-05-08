@@ -101,6 +101,19 @@ jobs:
         with:
           artifacts: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_ARTIFACTS || vars.MLIA_E2E_TFLITE_ARTIFACTS }}
           destination: ${{ env.ARTIFACTS_PATH }}
+      - name: Prepare API e2e artifacts
+        if: ${{ matrix.index == 0 && vars.MLIA_API_E2E_ARTIFACTS != '' }}
+        uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@main
+        env:
+          ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
+          ARTIFACT_GIT_SOURCE_USERNAME: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
+          ARTIFACT_GIT_SOURCE_PASSWORD: ${{ secrets.ARTIFACT_GIT_SOURCE_PASSWORD }}
+          ARTIFACT_HTTP_SOURCE_HOST: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
+          ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
+          ARTIFACT_HTTP_SOURCE_TOKEN: ${{ secrets.ARTIFACT_HTTP_SOURCE_TOKEN }}
+        with:
+          artifacts: ${{ vars.MLIA_API_E2E_ARTIFACTS }}
+          destination: ${{ env.ARTIFACTS_PATH }}
       - run: uv sync --no-sources --no-install-project --only-group test
       # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
       - run: ./.venv/bin/python -m ensurepip --upgrade
@@ -114,6 +127,7 @@ jobs:
         run: |
           mkdir -p report
           rm -f "report/report-${{ matrix.index }}.xml"
+          rm -f "report/api-report-${{ matrix.index }}.xml"
           rm -rf "report/pdf-${{ matrix.index }}"
           set -o pipefail
           uv run --no-sync \
@@ -127,12 +141,42 @@ jobs:
               -o junit_log_passing_tests=true \
               --no-cov \
               --junitxml="report/report-${{ matrix.index }}.xml"
+      - name: Run API e2e pytest
+        if: ${{ matrix.index == 0 }}
+        env:
+          MLIA_E2E_ARTIFACTS: ${{ env.ARTIFACTS_PATH }}
+          MLIA_E2E_BACKENDS: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_BACKENDS || vars.MLIA_E2E_TFLITE_BACKENDS }}
+          MLIA_API_E2E_SUITE: ${{ matrix.suite }}
+          MLIA_API_E2E_TOSA_MODEL: ${{ vars.MLIA_API_E2E_TOSA_MODEL }}
+          MLIA_API_E2E_VGF_MODEL: ${{ vars.MLIA_API_E2E_VGF_MODEL }}
+          MLIA_API_E2E_TFLITE_MODEL: ${{ vars.MLIA_API_E2E_TFLITE_MODEL }}
+          MLIA_API_E2E_PYTORCH_MODEL: ${{ vars.MLIA_API_E2E_PYTORCH_MODEL }}
+        run: |
+          set -o pipefail
+          uv run --no-sync \
+            --with dist/*.whl \
+            --with ${{ matrix.converter_package }} \
+            -- pytest -v tests/test_e2e_api.py \
+              -x \
+              -s \
+              --capture=tee-sys \
+              -o junit_logging=out-err \
+              -o junit_log_passing_tests=true \
+              --no-cov \
+              --junitxml="report/api-report-${{ matrix.index }}.xml"
       - name: Upload e2e junit
-        if: ${{ always() && hashFiles(format('report/report-{0}.xml', matrix.index)) != '' }}
+        if: >-
+          ${{
+            always() &&
+            (
+              hashFiles(format('report/report-{0}.xml', matrix.index)) != '' ||
+              hashFiles(format('report/api-report-{0}.xml', matrix.index)) != ''
+            )
+          }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-junit-shard-${{ matrix.index }}
-          path: report/report-${{ matrix.index }}.xml
+          name: e2e-junit-shard-${{ matrix.suite }}-${{ matrix.index }}
+          path: report/*.xml
 
   combine_e2e_pdf:
     name: Combine E2E PDF Reports

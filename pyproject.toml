@@ -8,7 +8,7 @@ description = "ML Inference Advisor NX Plugin"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mlia>=0.11.0.dev6"
+    "mlia>=0.11.0.dev16"
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
 authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
@@ -84,6 +84,9 @@ wordlist = ["he", "she", "him", "her", "his", "hers"]
 skip_files = ["LICENSES/CC-PDDC.txt", "docs/source/conf.py"]
 
 [tool.pytest.ini_options]
+markers = [
+    "slow: marks tests that require heavyweight runtime dependencies or backend artifacts"
+]
 addopts = [
     "--cov=mlia.backend.ml_sdk_model_converter",
     "--cov=mlia.backend.nx_performance_estimator",
