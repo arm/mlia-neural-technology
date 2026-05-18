@@ -308,6 +308,14 @@ def _normalize_output(output: dict[str, Any]) -> dict[str, Any]:
 
 def test_python_api_e2e_queries() -> None:
     """Check Neural Technology plugin surfaces through the public query APIs."""
+    if not _active_suite_configured() and not os.environ.get(
+        mlia_e2e.MLIA_E2E_BACKENDS
+    ):
+        pytest.skip(
+            f"Set {MLIA_API_E2E_SUITE} or {mlia_e2e.MLIA_E2E_BACKENDS} "
+            "to run API e2e query checks."
+        )
+
     mlia_e2e.ensure_backends_available((NX_PERFORMANCE_ESTIMATOR,))
 
     targets = list_targets()
