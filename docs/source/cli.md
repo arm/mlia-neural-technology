@@ -62,8 +62,8 @@ the estimator ever runs.
 
 The same idea applies to TensorFlow Lite input. Use `.tosa` for the plain
 plugin-only path, then install `mlia-converters-tflite` or
-`mlia-converters-pytorch` when you want MLIA to accept `.tflite` or `.pt2`
-directly.
+`mlia-converters-pytorch` when you want MLIA to accept `.tflite`, `.pt2`, or
+`.pte` directly.
 
 ## Using JSON output
 
@@ -90,6 +90,6 @@ When a run is unclear, a useful sequence is:
 - Use compatibility first when you are unsure whether the model can move through
   the expected flow cleanly.
 - Use config overrides when validating system or compiler assumptions.
-- Use `.pt2` inputs when you want to exercise the full PyTorch-to-analysis
-  pipeline, not just the estimator stage, and have the PyTorch converter
-  installed.
+- Use `.pt2` or `.pte` inputs when you want to exercise the full
+  PyTorch/ExecuTorch-to-analysis pipeline, not just the estimator stage, and
+  have the PyTorch converter package installed.

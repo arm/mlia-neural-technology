@@ -35,8 +35,8 @@ This package can participate in workflows that begin from several different mode
 formats, so confusion about the input type can easily turn into confusion about
 where the failure really belongs.
 
-- Confirm whether the input is `.tflite`, `.pt2`, `.tosa`, `.tosamlir`, or
-  `.vgf`
+- Confirm whether the input is `.tflite`, `.pt2`, `.pte`, `.tosa`,
+  `.tosamlir`, or `.vgf`
 - Remember that some formats trigger automatic conversion before the estimator
   runs
 
@@ -78,7 +78,7 @@ reading them.
 
 ## Conversion-path issues
 
-### TFLite or PyTorch flow fails before estimation
+### TFLite, PyTorch, or PTE flow fails before estimation
 
 If the failure happens before the estimator produces output, treat it as part of
 the conversion story first, not as an estimator problem.

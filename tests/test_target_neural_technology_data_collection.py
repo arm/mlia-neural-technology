@@ -43,17 +43,35 @@ def fixture_test_tflite_no_act_model(test_models_path: Path) -> Path:
     return test_models_path / "model.tosa"
 
 
+def _neural_technology_config(
+    *,
+    system_config: str = "",
+    compiler_config: str | None = "",
+    profile_name: str = "neural-technology",
+) -> NeuralTechnologyConfiguration:
+    backend_config = {"system_config": system_config}
+    if compiler_config is not None:
+        backend_config["compiler_config"] = compiler_config
+
+    return NeuralTechnologyConfiguration(
+        target="neural-technology",
+        profile_name=profile_name,
+        backend_config={"nx-performance-estimator": backend_config},
+    )
+
+
 @pytest.mark.parametrize(
     "model_fixture, backend, expectation",
     [
         ("test_tflite_model", "nx-performance-estimator", does_not_raise()),
         ("test_tosa_model", "nx-performance-estimator", does_not_raise()),
+        ("test_pte_model", "nx-performance-estimator", does_not_raise()),
         (
             "test_keras_model",
             "nx-performance-estimator",
             pytest.raises(
                 ConfigurationError,
-                match="Input must be a TOSA, VGF, TFLite or PyTorch file.",
+                match="Input must be a TOSA, VGF, TFLite, PyTorch or PTE file.",
             ),
         ),
     ],
@@ -101,10 +119,7 @@ def test_neural_technology_performance_collect_data(
 
     ntp = NeuralTechnologyPerformance(
         model,
-        NeuralTechnologyConfiguration(
-            target="neural-technology",
-            backend_config={backend: {"system_config": "", "compiler_config": ""}},
-        ),
+        _neural_technology_config(),
         backend,
     )
     ntp.set_context(ExecutionContext(output_dir=tmp_path))
@@ -119,11 +134,12 @@ def test_neural_technology_performance_collect_data(
         ("test_tflite_model", does_not_raise()),
         ("test_tosa_mlir_model", does_not_raise()),
         ("test_vgf_model", does_not_raise()),
+        ("test_pte_model", does_not_raise()),
         (
             "test_keras_model",
             pytest.raises(
                 ConfigurationError,
-                match="Input must be a TOSA, VGF, TFLite or PyTorch file.",
+                match="Input must be a TOSA, VGF, TFLite, PyTorch or PTE file.",
             ),
         ),
     ],
@@ -164,14 +180,8 @@ def test_neural_technology_compatibility_collect_data(
     model = request.getfixturevalue(model_fixture)
     ntc = NeuralTechnologyCompatibility(
         model,
-        NeuralTechnologyConfiguration(
-            target="neural-technology",
-            backend_config={
-                "nx-performance-estimator": {
-                    "system_config": NeuralTechnologyCompatibility.name(),
-                    "compiler_config": "",
-                }
-            },
+        _neural_technology_config(
+            system_config=NeuralTechnologyCompatibility.name(),
         ),
     )
     ntc.set_context(ExecutionContext(output_dir=tmp_path))
@@ -179,6 +189,41 @@ def test_neural_technology_compatibility_collect_data(
     with expectation:
         ntc.collect_data()
         mock_check_compatibility.assert_called_once()
+
+
+def test_neural_technology_performance_accepts_pte_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Performance should pass PTE input through to the estimator."""
+    model = tmp_path / "model.pte"
+    model.write_bytes(b"pte")
+    captured: dict[str, Any] = {}
+
+    class FakeMetrics:
+        def to_standardized_output(self, **kwargs: Any) -> dict[str, Any]:
+            return {"schema_version": "1.0.0", "results": [{}], **kwargs}
+
+    def fake_estimate(_self: object, model_path: Path) -> FakeMetrics:
+        captured["model_path"] = model_path
+        return FakeMetrics()
+
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance."
+        "NXPerformanceEstimatorPerformanceEstimator.estimate",
+        fake_estimate,
+    )
+
+    collector = NeuralTechnologyPerformance(
+        model,
+        _neural_technology_config(),
+        "nx-performance-estimator",
+    )
+    collector.set_context(ExecutionContext(output_dir=tmp_path))
+
+    collector.collect_data()
+
+    assert captured["model_path"] == model
 
 
 def test_neural_technology_performance_collect_data_preserves_profile_metadata(
@@ -205,15 +250,8 @@ def test_neural_technology_performance_collect_data_preserves_profile_metadata(
 
     collector = NeuralTechnologyPerformance(
         model,
-        NeuralTechnologyConfiguration(
-            target="neural-technology",
-            profile_name="NX-peak-12SC-8NX-600MHz",
-            backend_config={
-                "nx-performance-estimator": {
-                    "system_config": "",
-                    "compiler_config": "",
-                }
-            },
+        _neural_technology_config(
+            profile_name="custom-performance-profile",
         ),
         "nx-performance-estimator",
     )
@@ -225,7 +263,7 @@ def test_neural_technology_performance_collect_data_preserves_profile_metadata(
     assert captured["target_config"] == {
         "target": "neural-technology",
         "target_type": "neural-technology",
-        "profile_name": "NX-peak-12SC-8NX-600MHz",
+        "profile_name": "custom-performance-profile",
     }
     assert captured["cli_arguments"] == ["mlia-script", "--flag"]
 
@@ -254,10 +292,9 @@ def test_neural_technology_compatibility_collect_data_preserves_profile_metadata
 
     collector = NeuralTechnologyCompatibility(
         model,
-        NeuralTechnologyConfiguration(
-            target="neural-technology",
-            profile_name="NX-sustained-12SC-8NX-350MHz",
-            backend_config={"nx-performance-estimator": {"system_config": ""}},
+        _neural_technology_config(
+            profile_name="custom-compatibility-profile",
+            compiler_config=None,
         ),
     )
     collector.set_context(ExecutionContext(output_dir=tmp_path))
@@ -268,7 +305,7 @@ def test_neural_technology_compatibility_collect_data_preserves_profile_metadata
     assert captured["target_config"] == {
         "target": "neural-technology",
         "target_type": "neural-technology",
-        "profile_name": "NX-sustained-12SC-8NX-350MHz",
+        "profile_name": "custom-compatibility-profile",
     }
     assert captured["backend_config"] == {
         "nx-performance-estimator": {"system_config": ""}

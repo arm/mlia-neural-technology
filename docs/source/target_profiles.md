@@ -36,6 +36,7 @@ This package participates in workflows for several model formats:
 - TOSA (`.tosa`, `.tosamlir`).
 - VGF (`.vgf`).
 - PyTorch export (`.pt2`).
+- ExecuTorch PTE (`.pte`).
 
 Not every format is consumed directly by the NX Performance Estimator. Some are
 handled through automatic conversion backends that are packaged in this package or
@@ -47,7 +48,8 @@ Use these converter plugins when the input is not already in a directly usable
 format for the Neural Technology flow:
 
 - `mlia-converters-tflite` for TensorFlow Lite (`.tflite`) inputs.
-- `mlia-converters-pytorch` for PyTorch export (`.pt2`) inputs.
+- `mlia-converters-pytorch` for PyTorch export (`.pt2`) and ExecuTorch PTE
+  (`.pte`) inputs.
 
 If you are documenting or demonstrating the Neural Technology plugin on its
 own, a `.tosa` model is usually the clearest default example because it avoids

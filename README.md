@@ -42,7 +42,7 @@ plugins.
 For upstream model formats, the compatible converter plugins are:
 
 - `mlia-converters-tflite` for `.tflite` inputs.
-- `mlia-converters-pytorch` for `.pt2` inputs.
+- `mlia-converters-pytorch` for `.pt2` and `.pte` inputs.
 
 ## Supported targets
 
@@ -87,7 +87,7 @@ mlia check model.tosa --target-profile neural-technology
 ```
 
 Use `.tosa` as the clearest default example for this package on its own. Direct
-`.tflite` and `.pt2` flows depend on the matching converter plugins being
+`.tflite`, `.pt2`, and `.pte` flows depend on the matching converter plugins being
 installed.
 
 The package depends on `mlia>=0.11.0.dev0` and is intended to be used as part

@@ -74,6 +74,7 @@ TEST_MODEL_TFLITE_NO_ACT_FILE = "test_model_no_act.tflite"
 TEST_MODEL_TOSA_FILE = "model.tosa"
 TEST_MODEL_TOSA_MLIR_FILE = "model.tosa.mlir"
 TEST_MODEL_VGF_FILE = "model.vgf"
+TEST_MODEL_PTE_FILE = "model.pte"
 TEST_MODEL_INVALID_FILE = "invalid.tflite"
 
 
@@ -103,6 +104,7 @@ def fixture_test_models_path(
     (tmp_path / TEST_MODEL_TOSA_FILE).write_text("tosa", encoding="utf-8")
     (tmp_path / TEST_MODEL_TOSA_MLIR_FILE).write_text("tosa", encoding="utf-8")
     (tmp_path / TEST_MODEL_VGF_FILE).write_text("vgf", encoding="utf-8")
+    (tmp_path / TEST_MODEL_PTE_FILE).write_bytes(b"pte")
 
     invalid_tflite_model = tmp_path / TEST_MODEL_INVALID_FILE
     invalid_tflite_model.touch()
@@ -152,6 +154,12 @@ def fixture_test_tosa_mlir_model(test_models_path: Path) -> Path:
 def fixture_test_vgf_model(test_models_path: Path) -> Path:
     """Return test VGF model."""
     return test_models_path / TEST_MODEL_VGF_FILE
+
+
+@pytest.fixture(scope="session", name="test_pte_model")
+def fixture_test_pte_model(test_models_path: Path) -> Path:
+    """Return test PTE model."""
+    return test_models_path / TEST_MODEL_PTE_FILE
 
 
 @pytest.fixture(scope="session", name="test_tflite_invalid_model")

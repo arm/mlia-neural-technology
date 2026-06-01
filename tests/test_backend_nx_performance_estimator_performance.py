@@ -38,7 +38,7 @@ def test_nx_performance_estimator_output_files(tmp_path: Path) -> None:
     output_files.check_exists()
 
 
-@pytest.mark.parametrize("model_file", ("model.tflite", "model.vgf"))
+@pytest.mark.parametrize("model_file", ("model.tflite", "model.vgf", "model.pte"))
 def test_nx_performance_estimator_performance_estimator(
     tmp_path: Path, model_file: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

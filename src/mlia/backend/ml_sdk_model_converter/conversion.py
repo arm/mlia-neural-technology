@@ -12,7 +12,12 @@ from typing import Callable, cast
 from mlia.core.errors import ConfigurationError
 from mlia.plugins.converter_registry import ConverterRegistry
 from mlia.plugins.plugins import load_converter_plugins
-from mlia.nx_utils.filesystem import is_pytorch_file, is_tosa_file
+from mlia.nx_utils.filesystem import (
+    is_pte_file,
+    is_pytorch_file,
+    is_tosa_file,
+    is_vgf_file,
+)
 from mlia.utils.logging import log_action
 from mlia.utils.proc import (
     Command,
@@ -44,6 +49,11 @@ def _get_converter(name: str) -> ConverterFn:
         if name == "pt2_to_tosa":
             raise ConfigurationError(
                 "PyTorch conversion requires the 'mlia-converters-pytorch' plugin to be installed."
+            )
+        if name == "pte_to_delegate":
+            raise ConfigurationError(
+                "PTE delegate conversion requires the 'mlia-converters-pytorch' "
+                "plugin to be installed."
             )
         raise ConfigurationError(f"Converter '{name}' is not available.")
     return cast(ConverterFn, converter)
@@ -97,11 +107,11 @@ class MLSDKModelConverterBase:
             OutputLogger(logger, logging.INFO)
         ]
 
-    def __call__(self, tflite_file: Path, output_dir: Path) -> Path:
+    def __call__(self, model_file: Path, output_dir: Path) -> Path:
         """
-        Run the ML SDK Model Converter with the given TensorFlow Lite file.
+        Run the ML SDK Model Converter with the given model file.
 
-        Returns the path of the SPIR-V output archive created in the output dir.
+        Returns the path of the VGF file created or extracted in the output dir.
         """
         if not output_dir.is_dir():
             raise NotADirectoryError(
@@ -111,21 +121,30 @@ class MLSDKModelConverterBase:
         with log_action("Running ML SDK Model Converter..."):
             logger.debug("ML SDK Model Converter path: %s", self.converter_path)
 
-            tosa_file = self.run_front_end(tflite_file, output_dir)
-            vgf_file = self.run_back_end(tosa_file, output_dir)
+            converted_model_path = self.run_front_end(model_file, output_dir)
+            if is_vgf_file(converted_model_path):
+                vgf_file = converted_model_path
+            elif is_tosa_file(converted_model_path):
+                vgf_file = self.run_back_end(converted_model_path, output_dir)
+            else:
+                raise ConfigurationError(
+                    "Model conversion frontend output must be a TOSA or VGF file."
+                )
 
             logger.debug("Output file: %s", vgf_file)
 
         return vgf_file
 
     def run_front_end(self, model_file: Path, output_dir: Path) -> Path:
-        """Run the TosaConverterForTflite frontend."""
-        # Check the file extension to see if we've been given a tosa file
+        """Convert supported frontend model formats to TOSA or VGF."""
+        if not model_file.is_file():
+            raise FileNotFoundError(f"Input model file does not exist: {model_file}")
+
+        # Check the file extension to see if we've been given a TOSA file.
         if is_tosa_file(model_file):
-            tosa_file = model_file
-        # Otherwise try to convert the file to tosa
+            converted_model_path = model_file
         elif is_pytorch_file(model_file):
-            tosa_file = run_named_converter(
+            converted_model_path = run_named_converter(
                 "pt2_to_tosa",
                 model_file,
                 output_dir,
@@ -136,22 +155,30 @@ class MLSDKModelConverterBase:
                 ),
             )
         elif _is_tflite_file(model_file):
-            tosa_file = run_named_converter("tflite_to_tosa", model_file, output_dir)
+            converted_model_path = run_named_converter(
+                "tflite_to_tosa", model_file, output_dir
+            )
+        elif is_pte_file(model_file):
+            converted_model_path = run_named_converter(
+                "pte_to_delegate", model_file, output_dir
+            )
         else:
-            raise ConfigurationError("Input must be a TOSA, TFLite or PyTorch file.")
+            raise ConfigurationError(
+                "Input must be a TOSA, TFLite, PyTorch or PTE file."
+            )
 
-        if not tosa_file.is_file():
+        if not converted_model_path.is_file():
             raise FileNotFoundError(
-                "No output from the TosaConverterForTflite frontend found. "
-                f"File {tosa_file} does not exist."
+                "No output from the model conversion frontend found. "
+                f"File {converted_model_path} does not exist."
             )
         logger.debug(
-            "TosaConverterForTflite Frontend of ML SDK Model Converter run "
-            + "successfully. See output: %s",
-            tosa_file,
+            "Model conversion frontend of ML SDK Model Converter run "
+            "successfully. See output: %s",
+            converted_model_path,
         )
 
-        return tosa_file
+        return converted_model_path
 
     def _create_back_end_command(self, tosa_file: Path, vgf_file: Path) -> Command:
         """Create the command to run the front end."""

@@ -23,7 +23,12 @@ from mlia.backend.nx_performance_estimator.performance import (
 )
 from mlia.core.data_collection import ContextAwareDataCollector
 from mlia.core.errors import ConfigurationError
-from mlia.nx_utils.filesystem import is_pytorch_file, is_tosa_file, is_vgf_file
+from mlia.nx_utils.filesystem import (
+    is_pte_file,
+    is_pytorch_file,
+    is_tosa_file,
+    is_vgf_file,
+)
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.utils.logging import log_action
 
@@ -71,10 +76,11 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
                 is_tosa_file(self.model),
                 is_vgf_file(self.model),
                 is_pytorch_file(self.model),
+                is_pte_file(self.model),
             ]
         ):
             raise ConfigurationError(
-                "Input must be a TOSA, VGF, TFLite or PyTorch file."
+                "Input must be a TOSA, VGF, TFLite, PyTorch or PTE file."
             )
         operator_types_mapping: dict[str, str] = {}
 
@@ -163,9 +169,23 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
                 ).get("enable_quantization", True),
             )
             model = TOSAModel(tosa_path)
+        elif is_pte_file(self.model):
+            output_dir = self.context.output_dir / "pte-to-delegate"
+            output_dir.mkdir(exist_ok=True)
+            delegate_output = run_named_converter(
+                "pte_to_delegate", self.model, output_dir
+            )
+            if is_tosa_file(delegate_output):
+                model = TOSAModel(delegate_output)
+            elif is_vgf_file(delegate_output):
+                model = VGFModel(delegate_output)
+            else:
+                raise ConfigurationError(
+                    "PTE delegate output must be a TOSA or VGF file."
+                )
         else:
             raise ConfigurationError(
-                "Input must be a TOSA, VGF, TFLite or PyTorch file."
+                "Input must be a TOSA, VGF, TFLite, PyTorch or PTE file."
             )
 
         checker = NXCompatibilityChecker(self.context.output_dir)

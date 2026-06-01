@@ -24,3 +24,10 @@ def is_pytorch_file(model: str | Path) -> bool:
     model_path = Path(model)
 
     return model_path.suffix in {".pt2"}
+
+
+def is_pte_file(model: str | Path) -> bool:
+    """Check if path contains a pte file."""
+    model_path = Path(model)
+
+    return model_path.suffix == ".pte"
