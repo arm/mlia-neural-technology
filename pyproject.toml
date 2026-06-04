@@ -8,7 +8,7 @@ description = "ML Inference Advisor NX Plugin"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mlia>=0.11.0.dev23"
+    "mlia>=0.11.0.dev27"
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
 authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]

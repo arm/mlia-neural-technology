@@ -26,7 +26,7 @@ from mlia.core.events import (
     ExecutionStartedEvent,
 )
 from mlia.core.handlers import WorkflowEventsHandler
-from mlia.core.output_schema import AdviceCategory, AdviceSeverity
+from mlia.core.output_schema import SCHEMA_VERSION, AdviceCategory, AdviceSeverity
 from mlia.core.reporting import JSONReporter
 from mlia.core.advice_generation import Advice
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
@@ -47,7 +47,7 @@ def _make_compatibility_result() -> NXCompatibilityResult:
     """Create a compatibility wrapper with minimal standardized output."""
     return NXCompatibilityResult(
         legacy_info=NXModelCompatibilityInfo(),
-        standardized_output={"schema_version": "1.0.0", "results": [{}]},
+        standardized_output={"schema_version": SCHEMA_VERSION, "results": [{}]},
     )
 
 
@@ -67,7 +67,7 @@ def _make_performance_result() -> NXPerformanceResult:
             },
             model_performance_stats=MagicMock(),
         ),
-        standardized_output={"schema_version": "1.0.0", "results": [{}]},
+        standardized_output={"schema_version": SCHEMA_VERSION, "results": [{}]},
     )
 
 
@@ -183,6 +183,56 @@ def test_neural_technology_event_handler_collect_only_keeps_performance_in_memor
 
     assert handler.output is not None
     assert not list(tmp_path.glob("*.json"))
+
+
+@pytest.mark.parametrize(
+    "data_item, advice_category, expected_category",
+    [
+        (
+            _make_compatibility_result(),
+            AdviceCategory.COMPATIBILITY,
+            "compatibility",
+        ),
+        (
+            _make_performance_result(),
+            AdviceCategory.PERFORMANCE,
+            "performance",
+        ),
+    ],
+)
+def test_neural_technology_event_handler_collect_only_adds_result_level_advice(
+    tmp_path: Path,
+    data_item: NXCompatibilityResult | NXPerformanceResult,
+    advice_category: AdviceCategory,
+    expected_category: str,
+) -> None:
+    """Collect-only output should use core result-level advice."""
+    handler = NeuralTechnologyEventHandler(tmp_path, collect_only=True)
+    handler.set_context(ExecutionContext(output_format="json", output_dir=tmp_path))
+    handler.on_execution_started(ExecutionStartedEvent())
+    handler.on_collected_data(CollectedDataEvent(data_item))
+    handler.advice = [
+        Advice(
+            id="0",
+            message="msg",
+            severity=AdviceSeverity.INFO,
+            category=advice_category,
+        )
+    ]
+
+    handler.on_advice_stage_finished(AdviceStageFinishedEvent())
+
+    assert handler.output is not None
+    result = handler.output["results"][0]
+    assert "advices" not in result
+    assert result["advice"] == [
+        {
+            "id": "0",
+            "category": expected_category,
+            "severity": "info",
+            "message": "msg",
+        }
+    ]
 
 
 def test_neural_technology_advisor_started(test_tflite_model: Path) -> None:
