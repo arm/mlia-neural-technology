@@ -22,6 +22,8 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     NXPerformanceDatabaseParser,
 )
 from mlia.backend.nx_performance_estimator.statistics import (
+    NXModelCountMetricValue,
+    NXModelFloatMetricValue,
     NXModelPerformanceStats,
     NXOperatorPerformanceStats,
     NXPerformanceStats,
@@ -34,6 +36,10 @@ from mlia.utils.logging import log_action
 from mlia.utils.proc import Command, OutputLogger, process_command_output
 
 logger = logging.getLogger(__name__)
+
+_BACKEND_METRIC_UNAVAILABLE_REASON = (
+    "Backend output did not provide a numeric value for this metric."
+)
 
 
 @dataclass
@@ -79,6 +85,41 @@ class NXPerformanceEstimatorPerformanceMetrics:
     stripe_performance_metrics: dict[str, NXOperatorPerformanceStats]
     chain_performance_metrics: dict[str, NXOperatorPerformanceStats]
     model_performance_stats: NXModelPerformanceStats
+
+    def _build_model_metric(
+        self,
+        name: str,
+        value: NXModelCountMetricValue | NXModelFloatMetricValue,
+        unit: str,
+    ) -> schema.Metric:
+        if value is None:
+            return schema.Metric(
+                name=name,
+                value=None,
+                unit=unit,
+                availability=schema.MetricAvailability.UNAVAILABLE,
+                reason=_BACKEND_METRIC_UNAVAILABLE_REASON,
+            )
+
+        return schema.Metric(name=name, value=value, unit=unit)
+
+    def _build_target_utilization_metric(self) -> schema.Metric:
+        compute_cycles = self.model_performance_stats.compute_cycles
+        total_cycles = self.model_performance_stats.total_cycles
+        if compute_cycles is None or total_cycles is None:
+            return schema.Metric(
+                name=schema.METRIC_NAME_TARGET_UTILIZATION,
+                value=None,
+                unit=schema.UNIT_PERCENT,
+                availability=schema.MetricAvailability.UNAVAILABLE,
+                reason=_BACKEND_METRIC_UNAVAILABLE_REASON,
+            )
+
+        return schema.Metric(
+            name=schema.METRIC_NAME_TARGET_UTILIZATION,
+            value=(compute_cycles / total_cycles * 100 if total_cycles else 0.0),
+            unit=schema.UNIT_PERCENT,
+        )
 
     def _build_breakdown_metrics(
         self, stats: NXOperatorPerformanceStats
@@ -242,13 +283,18 @@ class NXPerformanceEstimatorPerformanceMetrics:
         metrics = []
         for field_name, unit in metric_units.items():
             value = getattr(self.model_performance_stats, field_name)
+            metrics.append(self._build_model_metric(field_name, value, unit))
+
+        if self.model_performance_stats.inference_time:
             metrics.append(
                 schema.Metric(
-                    name=field_name,
-                    value=value,
-                    unit=unit,
+                    name=schema.METRIC_NAME_INFERENCES_PER_SECOND,
+                    value=1000 / self.model_performance_stats.inference_time,
+                    unit=schema.UNIT_INFERENCES_PER_SECOND,
                 )
             )
+        metrics.append(self._build_target_utilization_metric())
+        metrics = schema.ensure_standard_performance_metrics(metrics)
 
         breakdowns = []
         for chain_name, stats in self.chain_performance_metrics.items():

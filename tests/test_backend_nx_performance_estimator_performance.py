@@ -22,6 +22,7 @@ from mlia.backend.nx_performance_estimator.performance import (
 from mlia.backend.nx_performance_estimator.statistics import (
     NXOperatorPerformanceStats,
 )
+from mlia.core.output_validation import validate_standardized_output
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 
 
@@ -299,17 +300,367 @@ def test_nx_performance_metrics_to_standardized_output(
         },
     ]
 
-    assert result["metrics"] == [
-        {"name": "inference_time", "value": 1.5, "unit": "ms"},
-        {"name": "infs_per_sec", "value": 666.67, "unit": "inferences/s"},
-        {"name": "total_cycles", "value": 15000, "unit": "cycles"},
-        {"name": "compute_cycles", "value": 8000, "unit": "cycles"},
-        {"name": "cache_cycles", "value": 2000, "unit": "cycles"},
-        {"name": "dram_cycles", "value": 5000, "unit": "cycles"},
-        {"name": "compiled_size", "value": 1024000, "unit": "bytes"},
-        {"name": "cache_read_bytes", "value": 512000, "unit": "bytes"},
-        {"name": "cache_write_bytes", "value": 256000, "unit": "bytes"},
-        {"name": "dram_read_bytes", "value": 2048000, "unit": "bytes"},
-        {"name": "dram_write_bytes", "value": 1024000, "unit": "bytes"},
-        {"name": "dram_footprint", "value": 4096000, "unit": "bytes"},
-    ]
+    metrics = {metric["name"]: metric for metric in result["metrics"]}
+    assert len(metrics) == len(result["metrics"])
+
+    assert metrics["inference_time"] == {
+        "name": "inference_time",
+        "value": 1.5,
+        "unit": "ms",
+    }
+    assert metrics["infs_per_sec"] == {
+        "name": "infs_per_sec",
+        "value": 666.67,
+        "unit": "inferences/s",
+    }
+    assert metrics["total_cycles"] == {
+        "name": "total_cycles",
+        "value": 15000,
+        "unit": "cycles",
+    }
+    assert metrics["compute_cycles"] == {
+        "name": "compute_cycles",
+        "value": 8000,
+        "unit": "cycles",
+    }
+    assert metrics["cache_cycles"] == {
+        "name": "cache_cycles",
+        "value": 2000,
+        "unit": "cycles",
+    }
+    assert metrics["dram_cycles"] == {
+        "name": "dram_cycles",
+        "value": 5000,
+        "unit": "cycles",
+    }
+    assert metrics["compiled_size"] == {
+        "name": "compiled_size",
+        "value": 1024000,
+        "unit": "bytes",
+    }
+    assert metrics["cache_read_bytes"] == {
+        "name": "cache_read_bytes",
+        "value": 512000,
+        "unit": "bytes",
+    }
+    assert metrics["cache_write_bytes"] == {
+        "name": "cache_write_bytes",
+        "value": 256000,
+        "unit": "bytes",
+    }
+    assert metrics["dram_read_bytes"] == {
+        "name": "dram_read_bytes",
+        "value": 2048000,
+        "unit": "bytes",
+    }
+    assert metrics["dram_write_bytes"] == {
+        "name": "dram_write_bytes",
+        "value": 1024000,
+        "unit": "bytes",
+    }
+    assert metrics["dram_footprint"] == {
+        "name": "dram_footprint",
+        "value": 4096000,
+        "unit": "bytes",
+    }
+
+    assert metrics[schema.METRIC_NAME_INFERENCES_PER_SECOND] == {
+        "name": schema.METRIC_NAME_INFERENCES_PER_SECOND,
+        "value": pytest.approx(1000 / 1.5),
+        "unit": schema.UNIT_INFERENCES_PER_SECOND,
+    }
+    assert metrics[schema.METRIC_NAME_TARGET_UTILIZATION] == {
+        "name": schema.METRIC_NAME_TARGET_UTILIZATION,
+        "value": pytest.approx(8000 / 15000 * 100),
+        "unit": schema.UNIT_PERCENT,
+    }
+
+    for metric_name, unit in (
+        (schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE, schema.UNIT_PERCENT),
+        (schema.METRIC_NAME_CPU_UTILIZATION, schema.UNIT_PERCENT),
+        (schema.METRIC_NAME_PEAK_ACTIVATION_MEMORY, schema.UNIT_BYTES),
+        (schema.METRIC_NAME_AVERAGE_MEMORY, schema.UNIT_BYTES),
+    ):
+        metric = metrics[metric_name]
+        assert metric["unit"] == unit
+        assert metric["availability"] == "unavailable"
+        assert "value" not in metric
+        assert metric["reason"]
+
+
+def test_nx_performance_metrics_standardized_output_validates(
+    tmp_path: Path,
+) -> None:
+    """Test NX performance output against the MLIA output schema."""
+    model_performance = NXModelPerformanceStats(
+        compiled_size=1024000,
+        cache_cycles=2000,
+        cache_read_bytes=512000,
+        cache_write_bytes=256000,
+        compute_cycles=8000,
+        dram_cycles=5000,
+        dram_read_bytes=2048000,
+        dram_write_bytes=1024000,
+        dram_footprint=4096000,
+        inference_time=1.5,
+        infs_per_sec=666.67,
+        total_cycles=15000,
+    )
+    perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig(
+            system_config="default",
+            compiler_config="default",
+        ),
+        performance_db_parser=MagicMock(),
+        stripe_performance_metrics={},
+        chain_performance_metrics={},
+        model_performance_stats=model_performance,
+    )
+    model_file = tmp_path / "model.tosamlir"
+    model_file.write_bytes(b"test nx model content")
+
+    output = perf_metrics.to_standardized_output(
+        model_path=model_file,
+        backend_name="nx-performance-estimator",
+        target_config={"target": "neural-accelerator"},
+    )
+
+    validate_standardized_output(output)
+
+
+def test_nx_performance_metrics_handles_zero_total_cycles(tmp_path: Path) -> None:
+    """Target utilization should follow the core zero-cycle formula."""
+    model_performance = NXModelPerformanceStats(
+        compiled_size=1024000,
+        cache_cycles=2000,
+        cache_read_bytes=512000,
+        cache_write_bytes=256000,
+        compute_cycles=8000,
+        dram_cycles=5000,
+        dram_read_bytes=2048000,
+        dram_write_bytes=1024000,
+        dram_footprint=4096000,
+        inference_time=1.5,
+        infs_per_sec=666.67,
+        total_cycles=0,
+    )
+    perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig(
+            system_config="default",
+            compiler_config="default",
+        ),
+        performance_db_parser=MagicMock(),
+        stripe_performance_metrics={},
+        chain_performance_metrics={},
+        model_performance_stats=model_performance,
+    )
+    model_file = tmp_path / "model.tosamlir"
+    model_file.write_bytes(b"test nx model content")
+
+    output = perf_metrics.to_standardized_output(
+        model_path=model_file,
+        backend_name="nx-performance-estimator",
+        target_config={"target": "neural-accelerator"},
+    )
+
+    metrics = {metric["name"]: metric for metric in output["results"][0]["metrics"]}
+    assert metrics[schema.METRIC_NAME_TARGET_UTILIZATION] == {
+        "name": schema.METRIC_NAME_TARGET_UTILIZATION,
+        "value": 0.0,
+        "unit": schema.UNIT_PERCENT,
+    }
+
+
+def test_nx_performance_metrics_derives_standard_throughput_from_latency(
+    tmp_path: Path,
+) -> None:
+    """Standard throughput should follow the single-inference latency formula."""
+    model_performance = NXModelPerformanceStats(
+        compiled_size=1024000,
+        cache_cycles=2000,
+        cache_read_bytes=512000,
+        cache_write_bytes=256000,
+        compute_cycles=8000,
+        dram_cycles=5000,
+        dram_read_bytes=2048000,
+        dram_write_bytes=1024000,
+        dram_footprint=4096000,
+        inference_time=2.0,
+        infs_per_sec=123.0,
+        total_cycles=15000,
+    )
+    perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig(
+            system_config="default",
+            compiler_config="default",
+        ),
+        performance_db_parser=MagicMock(),
+        stripe_performance_metrics={},
+        chain_performance_metrics={},
+        model_performance_stats=model_performance,
+    )
+    model_file = tmp_path / "model.tosamlir"
+    model_file.write_bytes(b"test nx model content")
+
+    output = perf_metrics.to_standardized_output(
+        model_path=model_file,
+        backend_name="nx-performance-estimator",
+        target_config={"target": "neural-accelerator"},
+    )
+
+    metrics = {metric["name"]: metric for metric in output["results"][0]["metrics"]}
+    assert metrics["infs_per_sec"] == {
+        "name": "infs_per_sec",
+        "value": 123.0,
+        "unit": schema.UNIT_INFERENCES_PER_SECOND,
+    }
+    assert metrics[schema.METRIC_NAME_INFERENCES_PER_SECOND] == {
+        "name": schema.METRIC_NAME_INFERENCES_PER_SECOND,
+        "value": 500.0,
+        "unit": schema.UNIT_INFERENCES_PER_SECOND,
+    }
+
+
+def test_nx_performance_metrics_marks_standard_throughput_unavailable_without_latency(
+    tmp_path: Path,
+) -> None:
+    """Standard throughput should not be fabricated from zero latency."""
+    model_performance = NXModelPerformanceStats(
+        compiled_size=1024000,
+        cache_cycles=2000,
+        cache_read_bytes=512000,
+        cache_write_bytes=256000,
+        compute_cycles=8000,
+        dram_cycles=5000,
+        dram_read_bytes=2048000,
+        dram_write_bytes=1024000,
+        dram_footprint=4096000,
+        inference_time=0.0,
+        infs_per_sec=0.0,
+        total_cycles=15000,
+    )
+    perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig(
+            system_config="default",
+            compiler_config="default",
+        ),
+        performance_db_parser=MagicMock(),
+        stripe_performance_metrics={},
+        chain_performance_metrics={},
+        model_performance_stats=model_performance,
+    )
+    model_file = tmp_path / "model.tosamlir"
+    model_file.write_bytes(b"test nx model content")
+
+    output = perf_metrics.to_standardized_output(
+        model_path=model_file,
+        backend_name="nx-performance-estimator",
+        target_config={"target": "neural-accelerator"},
+    )
+
+    metrics = {metric["name"]: metric for metric in output["results"][0]["metrics"]}
+    metric = metrics[schema.METRIC_NAME_INFERENCES_PER_SECOND]
+    assert metric["unit"] == schema.UNIT_INFERENCES_PER_SECOND
+    assert metric["availability"] == "unavailable"
+    assert "value" not in metric
+    assert metric["reason"]
+
+
+def test_nx_performance_metrics_marks_null_backend_values_unavailable(
+    tmp_path: Path,
+) -> None:
+    """Null backend metric values should become availability-aware metrics."""
+    model_performance = NXModelPerformanceStats(
+        compiled_size=1024000,
+        cache_cycles=2000,
+        cache_read_bytes=512000,
+        cache_write_bytes=256000,
+        compute_cycles=8000,
+        dram_cycles=5000,
+        dram_read_bytes=None,
+        dram_write_bytes=1024000,
+        dram_footprint=4096000,
+        inference_time=1.5,
+        infs_per_sec=None,
+        total_cycles=15000,
+    )
+    perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig(
+            system_config="default",
+            compiler_config="default",
+        ),
+        performance_db_parser=MagicMock(),
+        stripe_performance_metrics={},
+        chain_performance_metrics={},
+        model_performance_stats=model_performance,
+    )
+    model_file = tmp_path / "model.tosamlir"
+    model_file.write_bytes(b"test nx model content")
+
+    output = perf_metrics.to_standardized_output(
+        model_path=model_file,
+        backend_name="nx-performance-estimator",
+        target_config={"target": "neural-accelerator"},
+    )
+
+    metrics = {metric["name"]: metric for metric in output["results"][0]["metrics"]}
+    assert metrics["infs_per_sec"] == {
+        "name": "infs_per_sec",
+        "unit": schema.UNIT_INFERENCES_PER_SECOND,
+        "availability": "unavailable",
+        "reason": "Backend output did not provide a numeric value for this metric.",
+    }
+    assert metrics["dram_read_bytes"] == {
+        "name": "dram_read_bytes",
+        "unit": schema.UNIT_BYTES,
+        "availability": "unavailable",
+        "reason": "Backend output did not provide a numeric value for this metric.",
+    }
+    validate_standardized_output(output)
+
+
+def test_nx_performance_metrics_marks_utilization_unavailable_without_cycles(
+    tmp_path: Path,
+) -> None:
+    """Target utilization should not be fabricated from missing cycle values."""
+    model_performance = NXModelPerformanceStats(
+        compiled_size=1024000,
+        cache_cycles=2000,
+        cache_read_bytes=512000,
+        cache_write_bytes=256000,
+        compute_cycles=None,
+        dram_cycles=5000,
+        dram_read_bytes=2048000,
+        dram_write_bytes=1024000,
+        dram_footprint=4096000,
+        inference_time=1.5,
+        infs_per_sec=666.67,
+        total_cycles=15000,
+    )
+    perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig(
+            system_config="default",
+            compiler_config="default",
+        ),
+        performance_db_parser=MagicMock(),
+        stripe_performance_metrics={},
+        chain_performance_metrics={},
+        model_performance_stats=model_performance,
+    )
+    model_file = tmp_path / "model.tosamlir"
+    model_file.write_bytes(b"test nx model content")
+
+    output = perf_metrics.to_standardized_output(
+        model_path=model_file,
+        backend_name="nx-performance-estimator",
+        target_config={"target": "neural-accelerator"},
+    )
+
+    metrics = {metric["name"]: metric for metric in output["results"][0]["metrics"]}
+    assert metrics[schema.METRIC_NAME_TARGET_UTILIZATION] == {
+        "name": schema.METRIC_NAME_TARGET_UTILIZATION,
+        "unit": schema.UNIT_PERCENT,
+        "availability": "unavailable",
+        "reason": "Backend output did not provide a numeric value for this metric.",
+    }
+    validate_standardized_output(output)

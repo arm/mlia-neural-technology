@@ -7,30 +7,77 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
+from typing import Dict, TypeAlias
 
 from mlia.backend.nx_performance_estimator.output_parsing import (
     DebugDatabaseContentsType,
     PerformanceDatabaseContentsType,
 )
 
+NXModelCountMetricValue: TypeAlias = int | None
+NXModelFloatMetricValue: TypeAlias = float | None
+
+
+def _read_model_count_metric_value(
+    metric_data: dict, metric_name: str
+) -> NXModelCountMetricValue:
+    value = metric_data["value"]
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(
+            f"Expected integer or null value for model performance metric "
+            f"'{metric_name}', got {type(value).__name__}."
+        )
+    if isinstance(value, float):
+        if not value.is_integer():
+            raise TypeError(
+                f"Expected integer or null value for model performance metric "
+                f"'{metric_name}', got non-integral float."
+            )
+        return int(value)
+    return value
+
+
+def _read_model_float_metric_value(
+    metric_data: dict, metric_name: str
+) -> NXModelFloatMetricValue:
+    value = metric_data["value"]
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(
+            f"Expected numeric or null value for model performance metric "
+            f"'{metric_name}', got {type(value).__name__}."
+        )
+    return float(value)
+
+
+def _read_optional_model_count_metric_value(
+    metric_container: dict, metric_name: str
+) -> NXModelCountMetricValue:
+    metric_data = metric_container.get(metric_name)
+    if metric_data is None:
+        return 0
+    return _read_model_count_metric_value(metric_data, metric_name)
+
 
 @dataclass
 class NXModelPerformanceStats:
     """Defines performance stats for entire model."""
 
-    compiled_size: int
-    cache_cycles: int
-    cache_read_bytes: int
-    cache_write_bytes: int
-    compute_cycles: int
-    dram_cycles: int
-    dram_read_bytes: int
-    dram_write_bytes: int
-    dram_footprint: int
-    inference_time: float
-    infs_per_sec: float
-    total_cycles: int
+    compiled_size: NXModelCountMetricValue
+    cache_cycles: NXModelCountMetricValue
+    cache_read_bytes: NXModelCountMetricValue
+    cache_write_bytes: NXModelCountMetricValue
+    compute_cycles: NXModelCountMetricValue
+    dram_cycles: NXModelCountMetricValue
+    dram_read_bytes: NXModelCountMetricValue
+    dram_write_bytes: NXModelCountMetricValue
+    dram_footprint: NXModelCountMetricValue
+    inference_time: NXModelFloatMetricValue
+    infs_per_sec: NXModelFloatMetricValue
+    total_cycles: NXModelCountMetricValue
 
     @classmethod
     def read_from_json(cls, path: Path) -> "NXModelPerformanceStats":
@@ -43,18 +90,36 @@ class NXModelPerformanceStats:
         dram = network_perf.get("dram", {})
 
         return cls(
-            compiled_size=data["compiled_size"]["value"],
-            cache_cycles=cache1.get("cycles", {}).get("value", 0),
-            cache_read_bytes=cache1.get("read_bytes", {}).get("value", 0),
-            cache_write_bytes=cache1.get("write_bytes", {}).get("value", 0),
-            compute_cycles=network_perf["compute_cycles"]["value"],
-            dram_cycles=dram.get("cycles", {}).get("value", 0),
-            dram_read_bytes=dram.get("read_bytes", {}).get("value", 0),
-            dram_write_bytes=dram.get("write_bytes", {}).get("value", 0),
-            dram_footprint=network_perf["dram_footprint"]["value"],
-            inference_time=network_perf["inference_time"]["value"],
-            infs_per_sec=network_perf["infs_per_sec"]["value"],
-            total_cycles=network_perf["total_cycles"]["value"],
+            compiled_size=_read_model_count_metric_value(
+                data["compiled_size"], "compiled_size"
+            ),
+            cache_cycles=_read_optional_model_count_metric_value(cache1, "cycles"),
+            cache_read_bytes=_read_optional_model_count_metric_value(
+                cache1, "read_bytes"
+            ),
+            cache_write_bytes=_read_optional_model_count_metric_value(
+                cache1, "write_bytes"
+            ),
+            compute_cycles=_read_model_count_metric_value(
+                network_perf["compute_cycles"], "compute_cycles"
+            ),
+            dram_cycles=_read_optional_model_count_metric_value(dram, "cycles"),
+            dram_read_bytes=_read_optional_model_count_metric_value(dram, "read_bytes"),
+            dram_write_bytes=_read_optional_model_count_metric_value(
+                dram, "write_bytes"
+            ),
+            dram_footprint=_read_model_count_metric_value(
+                network_perf["dram_footprint"], "dram_footprint"
+            ),
+            inference_time=_read_model_float_metric_value(
+                network_perf["inference_time"], "inference_time"
+            ),
+            infs_per_sec=_read_model_float_metric_value(
+                network_perf["infs_per_sec"], "infs_per_sec"
+            ),
+            total_cycles=_read_model_count_metric_value(
+                network_perf["total_cycles"], "total_cycles"
+            ),
         )
 
 

@@ -715,3 +715,133 @@ def test_nx_model_performance_stats(tmp_path: Path) -> None:
     assert model_performance_statistics.inference_time == 0.008937333710491657
     assert model_performance_statistics.infs_per_sec == 111890.1953125
     assert model_performance_statistics.total_cycles == 13406
+
+
+def test_nx_model_performance_stats_preserves_null_values(tmp_path: Path) -> None:
+    """Test that null backend metric values are preserved for output mapping."""
+    model_performance = {
+        "compiled_size": {"unit": "bytes", "value": 17180},
+        "network_performance": {
+            "cache1": {
+                "cycles": {"unit": "cc", "value": None},
+                "read_bytes": {"unit": "bytes", "value": 0},
+                "write_bytes": {"unit": "bytes", "value": 512},
+            },
+            "compute_cycles": {"unit": "cc", "value": 5520},
+            "dram": {
+                "cycles": {"unit": "cc", "value": 7838},
+                "read_bytes": {"unit": "bytes", "value": 302428},
+                "write_bytes": {"unit": "bytes", "value": 23808},
+            },
+            "dram_footprint": {"unit": "bytes", "value": 14784},
+            "inference_time": {"unit": "ms", "value": 0.008937333710491657},
+            "infs_per_sec": {"unit": "inf/s", "value": None},
+            "total_cycles": {"unit": "cc", "value": 13406},
+        },
+    }
+
+    json_path = tmp_path / "model_perf.json"
+    with open(json_path, mode="w", encoding="utf-8") as file:
+        json.dump(model_performance, file)
+
+    model_performance_statistics = NXModelPerformanceStats.read_from_json(json_path)
+
+    assert model_performance_statistics.cache_cycles is None
+    assert model_performance_statistics.infs_per_sec is None
+
+
+def test_nx_model_performance_stats_preserves_domain_types(tmp_path: Path) -> None:
+    """Test that parsed count and float metrics keep their domain types."""
+    model_performance = {
+        "compiled_size": {"unit": "bytes", "value": 17180.0},
+        "network_performance": {
+            "cache1": {
+                "cycles": {"unit": "cc", "value": 2.0},
+                "read_bytes": {"unit": "bytes", "value": 0.0},
+                "write_bytes": {"unit": "bytes", "value": 512.0},
+            },
+            "compute_cycles": {"unit": "cc", "value": 5520.0},
+            "dram": {
+                "cycles": {"unit": "cc", "value": 7838.0},
+                "read_bytes": {"unit": "bytes", "value": 302428.0},
+                "write_bytes": {"unit": "bytes", "value": 23808.0},
+            },
+            "dram_footprint": {"unit": "bytes", "value": 14784.0},
+            "inference_time": {"unit": "ms", "value": 1},
+            "infs_per_sec": {"unit": "inf/s", "value": 111890},
+            "total_cycles": {"unit": "cc", "value": 13406.0},
+        },
+    }
+
+    json_path = tmp_path / "model_perf.json"
+    with open(json_path, mode="w", encoding="utf-8") as file:
+        json.dump(model_performance, file)
+
+    model_performance_statistics = NXModelPerformanceStats.read_from_json(json_path)
+
+    assert model_performance_statistics.compiled_size == 17180
+    assert isinstance(model_performance_statistics.compiled_size, int)
+    assert model_performance_statistics.cache_cycles == 2
+    assert isinstance(model_performance_statistics.cache_cycles, int)
+    assert model_performance_statistics.inference_time == 1.0
+    assert isinstance(model_performance_statistics.inference_time, float)
+    assert model_performance_statistics.infs_per_sec == 111890.0
+    assert isinstance(model_performance_statistics.infs_per_sec, float)
+
+
+def test_nx_model_performance_stats_rejects_non_numeric_metric_value(
+    tmp_path: Path,
+) -> None:
+    """Test that unsupported backend metric value types fail at parse time."""
+    model_performance = {
+        "compiled_size": {"unit": "bytes", "value": "17180"},
+        "network_performance": {
+            "compute_cycles": {"unit": "cc", "value": 5520},
+            "dram_footprint": {"unit": "bytes", "value": 14784},
+            "inference_time": {"unit": "ms", "value": 0.008937333710491657},
+            "infs_per_sec": {"unit": "inf/s", "value": 111890.1953125},
+            "total_cycles": {"unit": "cc", "value": 13406},
+        },
+    }
+
+    json_path = tmp_path / "model_perf.json"
+    with open(json_path, mode="w", encoding="utf-8") as file:
+        json.dump(model_performance, file)
+
+    with pytest.raises(
+        TypeError,
+        match=(
+            "Expected integer or null value for model performance metric "
+            "'compiled_size', got str."
+        ),
+    ):
+        NXModelPerformanceStats.read_from_json(json_path)
+
+
+def test_nx_model_performance_stats_rejects_fractional_count_value(
+    tmp_path: Path,
+) -> None:
+    """Test that fractional values fail for count-like backend metrics."""
+    model_performance = {
+        "compiled_size": {"unit": "bytes", "value": 17180.5},
+        "network_performance": {
+            "compute_cycles": {"unit": "cc", "value": 5520},
+            "dram_footprint": {"unit": "bytes", "value": 14784},
+            "inference_time": {"unit": "ms", "value": 0.008937333710491657},
+            "infs_per_sec": {"unit": "inf/s", "value": 111890.1953125},
+            "total_cycles": {"unit": "cc", "value": 13406},
+        },
+    }
+
+    json_path = tmp_path / "model_perf.json"
+    with open(json_path, mode="w", encoding="utf-8") as file:
+        json.dump(model_performance, file)
+
+    with pytest.raises(
+        TypeError,
+        match=(
+            "Expected integer or null value for model performance metric "
+            "'compiled_size', got non-integral float."
+        ),
+    ):
+        NXModelPerformanceStats.read_from_json(json_path)
