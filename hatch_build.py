@@ -134,11 +134,14 @@ class CustomBuildHook(BuildHookInterface):
                     raise FileNotFoundError(f"Missing sha256 file: {sha_path}")
             expected_sha, expected_name = _read_expected_sha256(sha_path)
             archive_path = vendor_dir / expected_name
-            target_rel = f"mlia/_vendor/artifacts/{vendor_dir.name}"
+            target_rel = f"mlia/_vendor/artifacts/{vendor_dir.name}/{expected_name}"
             try:
-                source_rel = vendor_dir.relative_to(root)
+                source_rel = archive_path.relative_to(root)
             except ValueError:
-                source_rel = vendor_dir
+                try:
+                    source_rel = archive_path.relative_to(src_root)
+                except ValueError:
+                    source_rel = archive_path
             force_include[str(source_rel)] = target_rel
 
             if archive_path.exists():

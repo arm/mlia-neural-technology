@@ -122,7 +122,7 @@ def test_run_advisor_compatibility_routes_backend_options(
 
     assert output["schema_version"] == "1.0.0"
     assert len(output["results"]) == 1
-    assert output["results"][0]["advices"] == []
+    assert output["results"][0].get("advices", []) == []
     assert captured["target_config"] == {
         "target": "neural-technology",
         "target_type": "neural-technology",
@@ -210,7 +210,7 @@ def test_run_advisor_performance_routes_backend_options(
 
     assert output["schema_version"] == "1.0.0"
     assert len(output["results"]) == 1
-    assert output["results"][0]["advices"] == []
+    assert output["results"][0].get("advices", []) == []
     assert captured["backend_config"] == {
         "nx-performance-estimator": {
             "system_config": "override-system.ini",

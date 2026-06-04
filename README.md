@@ -23,6 +23,7 @@ The package is distributed as `mlia-neural-technology` and contributes:
 - [Supported targets](#supported-targets)
 - [Backends in this package](#backends-in-this-package)
 - [Installation](#installation)
+- [Reporting bugs](#reporting-bugs)
 - [Development Setup](#development-setup)
 - [Common Commands](#common-commands)
 - [Project Layout](#project-layout)
@@ -92,6 +93,15 @@ installed.
 
 The package depends on `mlia>=0.11.0.dev0` and is intended to be used as part
 of a wider MLIA installation rather than as a standalone CLI.
+
+## Reporting bugs
+
+Report bugs by creating GitHub issues. Use the
+[`arm/mlia` issue tracker](https://github.com/arm/mlia/issues) by default.
+
+Only open an issue in
+[`arm/mlia-neural-technology`](https://github.com/arm/mlia-neural-technology/issues)
+when the bug is clearly and specifically in this plugin.
 
 ## Development Setup
 
