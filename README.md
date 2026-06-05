@@ -28,6 +28,7 @@ The package is distributed as `mlia-neural-technology` and contributes:
 - [Common Commands](#common-commands)
 - [Project Layout](#project-layout)
 - [Documentation](#documentation)
+- [Trademarks and copyrights](#trademarks-and-copyrights)
 
 ## Overview
 
@@ -91,7 +92,7 @@ Use `.tosa` as the clearest default example for this package on its own. Direct
 `.tflite`, `.pt2`, and `.pte` flows depend on the matching converter plugins being
 installed.
 
-The package depends on `mlia>=0.11.0.dev0` and is intended to be used as part
+The package depends on `mlia==0.11.0.dev28` and is intended to be used as part
 of a wider MLIA installation rather than as a standalone CLI.
 
 ## Reporting bugs
@@ -162,3 +163,11 @@ uv build
 ## Documentation
 
 Additional package documentation lives in [docs/README.md](docs/README.md).
+
+## Trademarks and copyrights
+
+- Arm is a registered trademark or trademark of Arm Limited (or its subsidiaries) in the U.S. and/or elsewhere.
+- TensorFlow is a trademark of Google LLC.
+- PyTorch and ExecuTorch are trademarks of The Linux Foundation.
+- Linux is the registered trademark of Linus Torvalds in the U.S. and elsewhere.
+- Python is a registered trademark of the PSF.
