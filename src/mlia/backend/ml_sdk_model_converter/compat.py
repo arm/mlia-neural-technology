@@ -267,6 +267,27 @@ class NXModelCompatibilityInfo:
         """Return an ordered list of records."""
         return [self.layer_map[loc] for loc in sorted(self.layer_map.keys())]
 
+    def _build_accelerator_operator_percentage_metric(
+        self,
+        records: list[NXOperatorCompatibilityInfo],
+    ) -> schema.Metric:
+        """Build the accelerator operator percentage metric from placement records."""
+        if not records:
+            return schema.Metric(
+                name=schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE,
+                value=None,
+                unit=schema.UNIT_PERCENT,
+                availability=schema.MetricAvailability.UNAVAILABLE,
+                reason="Accelerator operator placement data is not available.",
+            )
+
+        nx_operator_count = sum(1 for record in records if record.placement == "NX")
+        return schema.Metric(
+            name=schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE,
+            value=nx_operator_count / len(records) * 100,
+            unit=schema.UNIT_PERCENT,
+        )
+
     def to_standardized_output(
         self,
         model_path: Path,
@@ -343,8 +364,9 @@ class NXModelCompatibilityInfo:
         # Create checks and entities for each operator
         checks: list[schema.Check] = []
         entities: list[schema.Entity] = []
+        records = self.get_records()
 
-        for idx, record in enumerate(self.get_records()):
+        for idx, record in enumerate(records):
             entity_id = f"op_{idx}"
 
             # Determine placement based on compat level
@@ -393,7 +415,6 @@ class NXModelCompatibilityInfo:
             checks.append(check)
 
         # Determine overall result status
-        records = self.get_records()
         if not records:
             result_status = schema.ResultStatus.OK
         elif all(r.compat_level in ("TOSA", "Shader") for r in records):
@@ -410,6 +431,7 @@ class NXModelCompatibilityInfo:
             producer=backend.id,
             warnings=[],
             errors=[],
+            metrics=[self._build_accelerator_operator_percentage_metric(records)],
             checks=checks,
             entities=entities,
         )
