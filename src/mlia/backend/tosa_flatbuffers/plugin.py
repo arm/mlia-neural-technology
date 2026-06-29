@@ -4,7 +4,6 @@
 
 from mlia.backend.config import BackendConfiguration, BackendType, System
 from mlia.backend.registry import BackendRegistry
-from mlia.backend.tosa_flatbuffers.install import get_tosa_flatbuffers_installation
 from mlia.plugins.plugins import BackendPlugin
 
 
@@ -27,7 +26,7 @@ class TosaFlatBuffersPlugin(BackendPlugin):
                     System.WINDOWS_AARCH64,
                 ],
                 backend_type=BackendType.WHEEL,
-                installation=get_tosa_flatbuffers_installation(),
+                installation=None,
                 selectable=False,
             ),
             pretty_name="Tosa Flatbuffers",

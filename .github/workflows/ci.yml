@@ -8,16 +8,32 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
-  UV_DEFAULT_INDEX: ${{ secrets.INTERNAL_PYPI_HOST && format('internal={0}', secrets.INTERNAL_PYPI_HOST) || '' }}
-  UV_INDEX_INTERNAL_USERNAME: ${{ secrets.INTERNAL_PYPI_HOST && secrets.INTERNAL_PYPI_USERNAME || '' }}
-  UV_INDEX_INTERNAL_PASSWORD: ${{ secrets.INTERNAL_PYPI_HOST && secrets.INTERNAL_PYPI_PASSWORD || '' }}
-  VENDORED_ARTIFACTS_URLS: ${{ secrets.VENDORED_ARTIFACTS_URLS }}
+  VAULT_COMMON_CI_SECRETS: &vault-common-ci-secrets |
+    kv/data/MLIA/CI INTERNAL_PYPI_HOST | INTERNAL_PYPI_HOST ;
+    kv/data/MLIA/CI INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
+    kv/data/MLIA/CI INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
+    kv/data/MLIA/CI VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
 
 jobs:
   lint:
     name: Lint
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     steps:
+      - name: Import secrets from Vault
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ secrets.VAULT_URL }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          namespace: iac-expkits/prod
+          secrets: *vault-common-ci-secrets
+      - name: Configure uv package index
+        run: |
+          if [ -n "${INTERNAL_PYPI_HOST:-}" ]; then
+            echo "UV_DEFAULT_INDEX=internal=${INTERNAL_PYPI_HOST}" >> "$GITHUB_ENV"
+          fi
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -31,6 +47,21 @@ jobs:
     name: Build
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     steps:
+      - name: Import secrets from Vault
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ secrets.VAULT_URL }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          namespace: iac-expkits/prod
+          secrets: *vault-common-ci-secrets
+      - name: Configure uv package index
+        run: |
+          if [ -n "${INTERNAL_PYPI_HOST:-}" ]; then
+            echo "UV_DEFAULT_INDEX=internal=${INTERNAL_PYPI_HOST}" >> "$GITHUB_ENV"
+          fi
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
@@ -47,6 +78,21 @@ jobs:
     name: Quick Tests
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     steps:
+      - name: Import secrets from Vault
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ secrets.VAULT_URL }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          namespace: iac-expkits/prod
+          secrets: *vault-common-ci-secrets
+      - name: Configure uv package index
+        run: |
+          if [ -n "${INTERNAL_PYPI_HOST:-}" ]; then
+            echo "UV_DEFAULT_INDEX=internal=${INTERNAL_PYPI_HOST}" >> "$GITHUB_ENV"
+          fi
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:

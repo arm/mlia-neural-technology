@@ -11,6 +11,7 @@ from mlia.backend.registry import registry as backend_registry
 from mlia.backend.tosa_flatbuffers.plugin import TosaFlatBuffersPlugin
 from mlia.target.registry import registry as target_registry
 from mlia.target.neural_technology.plugin import NeuralTechnologyTargetPlugin
+from mlia.transformers.registry import transformer_registry
 
 import importlib
 import inspect
@@ -31,6 +32,13 @@ RUN_ADVISOR_SUPPORTS_ACCEPT_EULA = (
 backend_registry_module = importlib.import_module("mlia.backend.registry")
 target_registry_module = importlib.import_module("mlia.target.registry")
 
+try:
+    from mlia.backend.mlia_nn_module_to_pt2_exporter.exporter_plugin import (
+        NNModuleToPt2ExporterPlugin,
+    )
+except ModuleNotFoundError:
+    NNModuleToPt2ExporterPlugin = None
+
 
 def _register_neural_technology_api_plugins(
     monkeypatch: pytest.MonkeyPatch,
@@ -38,6 +46,7 @@ def _register_neural_technology_api_plugins(
 ) -> None:
     monkeypatch.setattr(backend_registry, "items", dict(backend_registry.items))
     monkeypatch.setattr(target_registry, "items", dict(target_registry.items))
+    monkeypatch.setattr(transformer_registry, "items", dict(transformer_registry.items))
     monkeypatch.setattr(backend_registry_module, "_plugins_loaded", True)
     monkeypatch.setattr(target_registry_module, "_plugins_loaded", True)
     target_registry_module.profile.cache_clear()
@@ -47,6 +56,8 @@ def _register_neural_technology_api_plugins(
     MLSDKModelConverterPlugin.register(backend_registry)
     TosaFlatBuffersPlugin.register(backend_registry)
     NeuralTechnologyTargetPlugin.register(target_registry)
+    if NNModuleToPt2ExporterPlugin is not None:
+        NNModuleToPt2ExporterPlugin.register(transformer_registry)
 
     if auto_install is not None:
         monkeypatch.setattr(
@@ -235,6 +246,9 @@ def test_run_advisor_compatibility_accepts_torch_module_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """run_advisor should accept torch.nn.Module for Neural Technology."""
+    if NNModuleToPt2ExporterPlugin is None:
+        pytest.skip("mlia-converters-pytorch transformer plugin is not installed")
+
     _register_neural_technology_api_plugins(
         monkeypatch, auto_install=lambda *_, **__: None
     )

@@ -151,7 +151,13 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         if _is_tflite_file(self.model):
             output_dir = self.context.output_dir / "tflite-to-tosa"
             output_dir.mkdir(exist_ok=True)
-            tosa_path = run_named_converter("tflite_to_tosa", self.model, output_dir)
+            tosa_path = run_named_converter(
+                "tflite_to_tosa",
+                self.model,
+                output_dir,
+                output_format="mlir-text",
+                emit_debug_info=True,
+            )
             model = TOSAModel(tosa_path)
         elif is_vgf_file(self.model):
             model = VGFModel(self.model)

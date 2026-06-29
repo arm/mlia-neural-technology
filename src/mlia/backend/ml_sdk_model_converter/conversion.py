@@ -4,14 +4,11 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 from pathlib import Path
-from typing import Callable, cast
+from typing import Any
 
 from mlia.core.errors import ConfigurationError
-from mlia.plugins.converter_registry import ConverterRegistry
-from mlia.plugins.plugins import load_converter_plugins
 from mlia.nx_utils.filesystem import (
     is_pte_file,
     is_pytorch_file,
@@ -25,6 +22,8 @@ from mlia.utils.proc import (
     OutputLogger,
     process_command_output,
 )
+from mlia.transformers.error import TransformerNotFoundError
+from mlia.transformers.registry import TransformRequest, transform_model
 
 logger = logging.getLogger(__name__)
 
@@ -33,39 +32,29 @@ def _is_tflite_file(model: Path) -> bool:
     return model.suffix == ".tflite"
 
 
-ConverterFn = Callable[..., Path]
+_CONVERTER_TARGET_FORMATS = {
+    "tflite_to_tosa": "tosa",
+    "pt2_to_tosa": "tosa",
+    "pte_to_delegate": "delegate",
+}
 
 
-def _get_converter(name: str) -> ConverterFn:
-    registry = ConverterRegistry()
-    load_converter_plugins(registry)
-    converter = registry.get(name)
-    if converter is None:
-        if name == "tflite_to_tosa":
-            raise ConfigurationError(
-                "TFLite conversion requires the 'mlia-converters-tflite' plugin "
-                "to be installed."
-            )
-        if name == "pt2_to_tosa":
-            raise ConfigurationError(
-                "PyTorch conversion requires the 'mlia-converters-pytorch' plugin to be installed."
-            )
-        if name == "pte_to_delegate":
-            raise ConfigurationError(
-                "PTE delegate conversion requires the 'mlia-converters-pytorch' "
-                "plugin to be installed."
-            )
-        raise ConfigurationError(f"Converter '{name}' is not available.")
-    return cast(ConverterFn, converter)
-
-
-def _supports_enable_quantization(converter: ConverterFn) -> bool:
-    parameters = inspect.signature(converter).parameters.values()
-    return any(
-        parameter.kind is inspect.Parameter.VAR_KEYWORD
-        or parameter.name == "enable_quantization"
-        for parameter in parameters
-    )
+def _converter_unavailable_error(name: str) -> ConfigurationError:
+    if name == "tflite_to_tosa":
+        return ConfigurationError(
+            "TFLite conversion requires the 'mlia-converters-tflite' plugin "
+            "to be installed."
+        )
+    if name == "pt2_to_tosa":
+        return ConfigurationError(
+            "PyTorch conversion requires the 'mlia-converters-pytorch' plugin to be installed."
+        )
+    if name == "pte_to_delegate":
+        return ConfigurationError(
+            "PTE delegate conversion requires the 'mlia-converters-pytorch' "
+            "plugin to be installed."
+        )
+    return ConfigurationError(f"Converter '{name}' is not available.")
 
 
 def run_named_converter(
@@ -74,22 +63,33 @@ def run_named_converter(
     output_dir: Path,
     *,
     enable_quantization: bool | None = None,
+    output_format: str | None = None,
+    emit_debug_info: bool | None = None,
 ) -> Path:
-    """Run a registered converter, passing enable_quantization when supported."""
-    converter = _get_converter(name)
-    if enable_quantization is not None and _supports_enable_quantization(converter):
-        return converter(
-            model_file,
-            output_dir,
-            enable_quantization=enable_quantization,
+    """Run a registered converter transformer."""
+    target_format = _CONVERTER_TARGET_FORMATS.get(name)
+    if target_format is None:
+        raise _converter_unavailable_error(name)
+
+    kwargs: dict[str, Any] = {}
+    if enable_quantization is not None:
+        kwargs["enable_quantization"] = enable_quantization
+    if output_format is not None:
+        kwargs["output_format"] = output_format
+    if emit_debug_info is not None:
+        kwargs["emit_debug_info"] = emit_debug_info
+
+    try:
+        return transform_model(
+            TransformRequest(
+                model=model_file,
+                output_dir=output_dir,
+                target_format=target_format,
+                transform_options=kwargs,
+            )
         )
-    if name == "pt2_to_tosa" and enable_quantization is False:
-        raise ConfigurationError(
-            "PyTorch conversion requires an 'mlia-converters-pytorch' plugin "
-            "version that supports enable_quantization. Please upgrade "
-            "mlia-converters-pytorch."
-        )
-    return converter(model_file, output_dir)
+    except TransformerNotFoundError as err:
+        raise _converter_unavailable_error(name) from err
 
 
 class MLSDKModelConverterBase:
@@ -155,9 +155,21 @@ class MLSDKModelConverterBase:
                 ),
             )
         elif _is_tflite_file(model_file):
-            converted_model_path = run_named_converter(
-                "tflite_to_tosa", model_file, output_dir
+            tosa_file = run_named_converter(
+                "tflite_to_tosa",
+                model_file,
+                output_dir,
+                output_format="mlir-bytecode",
+                emit_debug_info=True,
             )
+            run_named_converter(
+                "tflite_to_tosa",
+                model_file,
+                output_dir,
+                output_format="mlir-text",
+                emit_debug_info=True,
+            )
+            converted_model_path = tosa_file
         elif is_pte_file(model_file):
             converted_model_path = run_named_converter(
                 "pte_to_delegate", model_file, output_dir

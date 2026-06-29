@@ -30,15 +30,7 @@ ARTIFACTS: dict[str, ArtifactSpec] = {
     "graph-compiler-performance-estimator": {
         "vendor_dir": Path("mlia/_vendor/artifacts/nx-performance-estimator"),
         "type": "tar",
-    },
-    "model-converter": {
-        "vendor_dir": Path("mlia/_vendor/artifacts/ml-sdk-model-converter"),
-        "type": "tar",
-    },
-    "tosa-flatbuffers": {
-        "vendor_dir": Path("mlia/_vendor/artifacts/tosa-flatbuffers"),
-        "type": "whl",
-    },
+    }
 }
 
 

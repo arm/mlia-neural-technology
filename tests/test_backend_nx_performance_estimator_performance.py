@@ -39,6 +39,20 @@ def test_nx_performance_estimator_output_files(tmp_path: Path) -> None:
     output_files.check_exists()
 
 
+def test_nx_performance_estimator_output_files_ignores_timing_database(
+    tmp_path: Path,
+) -> None:
+    """Extra r56.1 timing database output should not affect required files."""
+    output_files = NXPerformanceEstimatorOutputFiles.from_output_dir(
+        tmp_path, "model_xyz"
+    )
+    for file in vars(output_files).values():
+        file.touch()
+    (tmp_path / "model_xyz_timing_database.dat").touch()
+
+    output_files.check_exists()
+
+
 @pytest.mark.parametrize("model_file", ("model.tflite", "model.vgf", "model.pte"))
 def test_nx_performance_estimator_performance_estimator(
     tmp_path: Path, model_file: str, monkeypatch: pytest.MonkeyPatch
@@ -64,11 +78,28 @@ def test_nx_performance_estimator_performance_estimator(
     )
     monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance.NXPerformanceDatabaseParser",
-        MagicMock(),
+        MagicMock(
+            return_value=MagicMock(
+                parse_performance_database=MagicMock(return_value=[])
+            )
+        ),
     )
+    debug_db = {
+        "tosa_op_id_to_api_labels": {"545": ["TOSAMUL_spirv_id_716"]},
+        "tosa_op_id_to_tosa_op": {"545": ["Mul"]},
+    }
     monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance.NXDebugDatabaseParser",
-        MagicMock(),
+        MagicMock(
+            return_value=MagicMock(
+                parse_debug_database=MagicMock(return_value=debug_db)
+            )
+        ),
+    )
+    resolve_locations_mock = MagicMock(return_value={"716": "model/real_mul"})
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.resolve_spirv_id_locations",
+        resolve_locations_mock,
     )
     monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance."
@@ -88,12 +119,112 @@ def test_nx_performance_estimator_performance_estimator(
     estimator = NXPerformanceEstimatorPerformanceEstimator(
         tmp_path, neural_technology_cfg.backend_config, operator_types_mapping
     )
-
     metrics = estimator.estimate(tmp_path / model_file)
     assert isinstance(metrics.backend_config, NXPerformanceEstimatorConfig)
+    expected_vgf_file = tmp_path / (
+        "model.vgf" if model_file == "model.vgf" else "vgf_file"
+    )
+    resolve_locations_mock.assert_called_once_with(
+        tmp_path / model_file,
+        expected_vgf_file,
+        debug_db,
+    )
 
     json_dump_path = Path(tmp_path / "nx_performance_statistics.json")
     assert json_dump_path.exists()
+
+
+def test_nx_performance_estimator_reads_tosa_fallback_for_missing_spirv_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TOSA fallback should only run when VGF debug info leaves ids unresolved."""
+    neural_technology_cfg = NeuralTechnologyConfiguration.load_profile(
+        "neural-technology"
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.get_backend_repository",
+        MagicMock(
+            return_value=MagicMock(
+                get_backend_settings=MagicMock(return_value=(tmp_path / "backend", {}))
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.process_command_output",
+        MagicMock(),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.NXPerformanceDatabaseParser",
+        MagicMock(
+            return_value=MagicMock(
+                parse_performance_database=MagicMock(return_value=[])
+            )
+        ),
+    )
+    debug_db = {
+        "tosa_op_id_to_api_labels": {
+            "545": ["TOSAMUL_spirv_id_716"],
+            "635": ["TOSARESCALE_spirv_id_999"],
+        },
+        "tosa_op_id_to_tosa_op": {
+            "545": ["Mul"],
+            "635": ["Rescale"],
+        },
+    }
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.NXDebugDatabaseParser",
+        MagicMock(
+            return_value=MagicMock(
+                parse_debug_database=MagicMock(return_value=debug_db)
+            )
+        ),
+    )
+    resolve_locations_mock = MagicMock(
+        return_value={
+            "716": "model/real_mul",
+            "999": "model/rescale",
+        }
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.resolve_spirv_id_locations",
+        resolve_locations_mock,
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance."
+        "NXPerformanceEstimatorOutputFiles.check_exists",
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.statistics."
+        "NXModelPerformanceStats.read_from_json",
+        MagicMock(),
+    )
+
+    estimator = NXPerformanceEstimatorPerformanceEstimator(
+        tmp_path, neural_technology_cfg.backend_config, {}
+    )
+    stats = MagicMock(
+        process_stats_per_chain=MagicMock(return_value={}),
+        process_stats_per_stripe=MagicMock(return_value={}),
+    )
+    stats_class = MagicMock(return_value=stats)
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.NXPerformanceStats",
+        stats_class,
+    )
+
+    estimator.estimate(tmp_path / "model.vgf")
+
+    resolve_locations_mock.assert_called_once_with(
+        tmp_path / "model.vgf",
+        tmp_path / "model.vgf",
+        debug_db,
+    )
+    assert stats_class.call_args.kwargs["spirv_id_locations"] == {
+        "716": "model/real_mul",
+        "999": "model/rescale",
+    }
 
 
 def test_nx_performance_estimator_keeps_enable_quantization_out_of_config(
@@ -115,6 +246,100 @@ def test_nx_performance_estimator_keeps_enable_quantization_out_of_config(
     assert estimator.enable_quantization is False
     assert estimator.backend_config.system_config.name == "system.ini"
     assert estimator.backend_config.compiler_config.name == "compiler.ini"
+
+
+def test_nx_performance_estimator_prefers_public_model_converter_executable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Installed public model-converter should take precedence over backend repo."""
+    public_converter_path = tmp_path / "public-bin"
+    converter_instance = MagicMock(return_value=tmp_path / "model.vgf")
+    converter_class = MagicMock(return_value=converter_instance)
+    backend_repo_mock = MagicMock()
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance."
+        "get_ml_sdk_model_converter_path",
+        MagicMock(return_value=public_converter_path),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.get_backend_repository",
+        MagicMock(return_value=backend_repo_mock),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.MLSDKModelConverter",
+        converter_class,
+    )
+
+    estimator = NXPerformanceEstimatorPerformanceEstimator(
+        tmp_path,
+        {
+            "nx-performance-estimator": {
+                "system_config": "default",
+                "compiler_config": "default",
+            }
+        },
+        {},
+    )
+
+    assert estimator._run_ml_sdk_model_converter(tmp_path / "model.tflite") == (
+        tmp_path / "model.vgf"
+    )
+    backend_repo_mock.get_backend_settings.assert_not_called()
+    converter_class.assert_called_once_with(
+        public_converter_path, enable_quantization=None
+    )
+    converter_instance.assert_called_once_with(
+        tmp_path / "model.tflite", tmp_path / "ml-sdk-model-converter"
+    )
+
+
+def test_nx_performance_estimator_falls_back_to_backend_model_converter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Backend repo model-converter should be used when no public executable exists."""
+    backend_converter_path = tmp_path / "backend-bin"
+    converter_instance = MagicMock(return_value=tmp_path / "model.vgf")
+    converter_class = MagicMock(return_value=converter_instance)
+    backend_repo_mock = MagicMock()
+    backend_repo_mock.get_backend_settings.return_value = (backend_converter_path, {})
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance."
+        "get_ml_sdk_model_converter_path",
+        MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.get_backend_repository",
+        MagicMock(return_value=backend_repo_mock),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.MLSDKModelConverter",
+        converter_class,
+    )
+
+    estimator = NXPerformanceEstimatorPerformanceEstimator(
+        tmp_path,
+        {
+            "nx-performance-estimator": {
+                "system_config": "default",
+                "compiler_config": "default",
+                "enable_quantization": False,
+            }
+        },
+        {},
+    )
+
+    assert estimator._run_ml_sdk_model_converter(tmp_path / "model.tflite") == (
+        tmp_path / "model.vgf"
+    )
+    backend_repo_mock.get_backend_settings.assert_called_once_with(
+        "ml-sdk-model-converter"
+    )
+    converter_class.assert_called_once_with(
+        backend_converter_path, enable_quantization=False
+    )
+    converter_instance.assert_called_once_with(
+        tmp_path / "model.tflite", tmp_path / "ml-sdk-model-converter"
+    )
 
 
 def test_nx_performance_metrics_to_standardized_output(

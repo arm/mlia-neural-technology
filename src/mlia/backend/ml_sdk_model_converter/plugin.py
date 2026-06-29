@@ -5,9 +5,6 @@
 import logging
 
 from mlia.backend.config import BackendConfiguration, BackendType, System
-from mlia.backend.ml_sdk_model_converter.install import (
-    get_ml_sdk_model_converter_installation,
-)
 from mlia.backend.registry import BackendRegistry
 from mlia.plugins.plugins import BackendPlugin
 
@@ -28,7 +25,7 @@ class MLSDKModelConverterPlugin(BackendPlugin):
                 supported_advice=[],
                 supported_systems=[System.LINUX_AMD64],
                 backend_type=BackendType.CUSTOM,
-                installation=get_ml_sdk_model_converter_installation(),
+                installation=None,
                 selectable=False,
             ),
             pretty_name="ML SDK Model Converter",

@@ -8,7 +8,9 @@ description = "ML Inference Advisor NX Plugin"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mlia==0.11.0.dev28"
+    "ai-ml-sdk-model-converter==0.9.0",
+    "tosa-tools==2026.2.1",
+    "mlia>=0.11.0.dev33,<0.11.0.dev34"
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
 authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
@@ -44,23 +46,26 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
-[tool.hatch.build]
-include = ["src/mlia/resources/**"]
-
 [tool.hatch.build.targets.wheel]
 # Include implicit namespace packages under src/.
 only-include = ["src/mlia"]
 sources = ["src"]
+exclude = [
+    "src/mlia/_vendor/artifacts/ml-sdk-model-converter/**",
+    "src/mlia/_vendor/artifacts/tosa-flatbuffers/**"
+]
 
 [tool.hatch.build.targets.sdist]
 include = [
     "src/mlia/**",
-    "src/mlia/_vendor/artifacts/**/.sha256",
-    "src/mlia/_vendor/artifacts/**/.sha256.license",
     "LICENSES/*.txt",
     "README.md",
     "hatch_build.py",
     "pyproject.toml"
+]
+exclude = [
+    "src/mlia/_vendor/artifacts/ml-sdk-model-converter/**",
+    "src/mlia/_vendor/artifacts/tosa-flatbuffers/**"
 ]
 
 [tool.hatch.build.hooks.custom]
@@ -104,8 +109,8 @@ test = [
     "pytest~=9.0",
     "pytest-cov~=7.0",
     "flaky~=3.8.1",
-    "jsonschema~=4.26",
-    "numpy==2.2.6",
+    "jsonschema>=4.24,<5",
+    "numpy==2.1.3",
     "mlia-converters-tflite",
     "tensorflow",
     "tf-keras"

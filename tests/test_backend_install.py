@@ -10,8 +10,8 @@ from mlia.backend.registry import BackendRegistry
 from mlia.backend.tosa_flatbuffers.plugin import TosaFlatBuffersPlugin
 
 
-def test_nx_performance_estimator_registers_vendored_dependencies() -> None:
-    """NX backend should be auto-installable together with its dependencies."""
+def test_nx_performance_estimator_only_manages_estimator_backend() -> None:
+    """Public Python packages should be managed by normal project dependencies."""
     registry = BackendRegistry()
     NXPerformanceEstimatorPlugin.register(registry)
     MLSDKModelConverterPlugin.register(registry)
@@ -25,12 +25,7 @@ def test_nx_performance_estimator_registers_vendored_dependencies() -> None:
     assert converter_config.type == BackendType.CUSTOM
     assert flatbuffers_config.type == BackendType.WHEEL
     assert nx_config.installation is not None
-    assert converter_config.installation is not None
-    assert flatbuffers_config.installation is not None
-    assert nx_config.installation.dependencies == [
-        "ml-sdk-model-converter",
-        "tosa-flatbuffers",
-    ]
+    assert converter_config.installation is None
+    assert flatbuffers_config.installation is None
+    assert nx_config.installation.dependencies == []
     assert nx_config.installation.supports(InstallFromVendorPackage())
-    assert converter_config.installation.supports(InstallFromVendorPackage())
-    assert flatbuffers_config.installation.supports(InstallFromVendorPackage())

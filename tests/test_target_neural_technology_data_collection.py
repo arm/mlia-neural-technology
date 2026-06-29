@@ -158,6 +158,7 @@ def test_neural_technology_compatibility_collect_data(
         + "NXCompatibilityChecker.check_compatibility",
         mock_check_compatibility,
     )
+    converter_calls: list[dict[str, Any]] = []
 
     def _fake_converter(
         _name: str,
@@ -165,8 +166,19 @@ def test_neural_technology_compatibility_collect_data(
         output_dir: Path,
         *,
         enable_quantization: bool | None = None,
+        output_format: str | None = None,
+        emit_debug_info: bool | None = None,
     ) -> Path:
-        del enable_quantization
+        converter_calls.append(
+            {
+                "name": _name,
+                "model": model,
+                "output_dir": output_dir,
+                "enable_quantization": enable_quantization,
+                "output_format": output_format,
+                "emit_debug_info": emit_debug_info,
+            }
+        )
         output_dir.mkdir(exist_ok=True)
         tosa_path = output_dir / f"{model.stem}.tosa"
         tosa_path.touch()
@@ -189,6 +201,17 @@ def test_neural_technology_compatibility_collect_data(
     with expectation:
         ntc.collect_data()
         mock_check_compatibility.assert_called_once()
+        if model_fixture == "test_tflite_model":
+            assert converter_calls == [
+                {
+                    "name": "tflite_to_tosa",
+                    "model": model,
+                    "output_dir": tmp_path / "mlia-output" / "tflite-to-tosa",
+                    "enable_quantization": None,
+                    "output_format": "mlir-text",
+                    "emit_debug_info": True,
+                }
+            ]
 
 
 def test_neural_technology_performance_accepts_pte_input(

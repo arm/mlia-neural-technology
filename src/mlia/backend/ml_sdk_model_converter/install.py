@@ -4,26 +4,28 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+import shutil
+import sys
+import sysconfig
 
-from mlia.backend.install import BackendInstallation, PackagePathChecker
+MODEL_CONVERTER_EXE = "model-converter"
 
 
-def get_ml_sdk_model_converter_installation() -> BackendInstallation:
-    """Get all information to install ML SDK Model Converter."""
-    ml_sdk_model_converter_installation = BackendInstallation(
-        name="ml-sdk-model-converter",
-        description="ML SDK Model Converter",
-        fvp_dir_name="ml-sdk-model-converter",
-        download_config=None,
-        supported_platforms=["Linux"],
-        path_checker=PackagePathChecker(
-            expected_files=[
-                "model-converter",
-            ],
-        ),
-        backend_installer=None,
-        dependencies=[],
-        vendor_path="ml-sdk-model-converter",
-    )
+def get_ml_sdk_model_converter_path() -> Path | None:
+    """Return the installed model converter executable directory."""
+    resolved = shutil.which(MODEL_CONVERTER_EXE)
+    if resolved:
+        return Path(resolved).parent
 
-    return ml_sdk_model_converter_installation
+    script_dir = sysconfig.get_path("scripts")
+    candidate_dirs = [Path(sys.executable).parent]
+    if script_dir:
+        candidate_dirs.insert(0, Path(str(script_dir)))
+
+    for directory in candidate_dirs:
+        exe_path = directory / MODEL_CONVERTER_EXE
+        if exe_path.is_file():
+            return exe_path.parent
+
+    return None

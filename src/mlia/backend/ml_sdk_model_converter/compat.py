@@ -474,6 +474,8 @@ class NXCompatibilityChecker:
         raise NotImplementedError(f"Compatibility not supported for {type(arg)}")
 
     def _get_tosa_unique_location(self, tosa_loc: str, op_id: int) -> str:
+        if not tosa_loc or tosa_loc == "unknown":
+            return f"unknown_{op_id:05d}"
         return f"{tosa_loc}_{op_id}"
 
     def _get_supported_tosa_op_name(self, tosa_op: TosaOp, is_mlir: bool) -> str | None:

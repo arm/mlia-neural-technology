@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -13,17 +12,25 @@ from pathlib import Path
 from typing import Any
 
 from mlia.backend.errors import BackendUnavailableError
+from mlia.nx_utils.debug_metadata import get_debug_node_name
 
 _TOSA_FLATBUFFERS_AVAILABLE = True
 
 try:
-    from tosa_flatbuffers.tosa import (
+    from tosa import (
         DType,  # pragma: no cover
         Op,  # pragma: no cover
         TosaGraph,
     )
 except ImportError:  # pragma: no cover
-    _TOSA_FLATBUFFERS_AVAILABLE = False  # pragma: no cover
+    try:
+        from tosa_flatbuffers.tosa import (  # type: ignore[no-redef]
+            DType,  # pragma: no cover
+            Op,  # pragma: no cover
+            TosaGraph,
+        )
+    except ImportError:
+        _TOSA_FLATBUFFERS_AVAILABLE = False  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +44,7 @@ _RE_MLIR_LOCATION = re.compile(r"^\s*(#loc\d+)\s*=\s*loc\((.*?)(?:\(#loc\))?\)\s
 # will have 44, "tosa.const_shape", "tosa.shape" and "#loc1" captured
 _RE_MLIR_OP_LINE = re.compile(
     r'^\s*%(\w+)\s*=\s*"?([\w.]+)"?.*?->\s*'
-    r"(?:tensor<[\w*x]+x(\w+)>|!([\w.]+)<\d+>).*?loc\(([^)]*)\)\s*$"
+    r"([^({]+?)(?:\s+loc\(([^)]*)\))?\s*$"
 )
 
 
@@ -63,21 +70,27 @@ def tosa_flatbuffers_available() -> bool:
     return _TOSA_FLATBUFFERS_AVAILABLE
 
 
-def _try_get_torch_fx_node_name(op_loc: str) -> str | None:
-    torch_fx_node_name = None
-    try:
-        parsed = json.loads(op_loc)
-        # Try direct node_name first (from mlia-pytorch-to-tosa-converter)
-        torch_fx_node_name = parsed.get("node_name")
-        # Fall back to nested aten_info.node_name (from debug_hook)
-        if not torch_fx_node_name:
-            torch_fx_node_name = parsed.get("aten_info", {}).get("node_name")
-    except (
-        json.JSONDecodeError,
-        AttributeError,
-    ):
-        pass
-    return torch_fx_node_name
+def _normalize_mlir_location(op_loc: str) -> str:
+    """Normalize MLIR location metadata to a user-facing location string."""
+    if op_loc == "unknown":
+        return ""
+    if op_loc.startswith('"') and op_loc.endswith('"'):
+        return op_loc.removeprefix('"').removesuffix('"')
+    return op_loc
+
+
+def _get_mlir_return_type(return_type: str) -> str:
+    """Get the element or TOSA-specific type from an MLIR return type."""
+    return_type = return_type.strip()
+    if return_type.startswith("tensor<") and return_type.endswith(">"):
+        tensor_type = return_type.removeprefix("tensor<").removesuffix(">")
+        return tensor_type.rsplit("x", maxsplit=1)[-1]
+
+    match = re.match(r"!([\w.]+)<\d+>$", return_type)
+    if match:
+        return match[1]
+
+    raise ValueError(f"Unsupported return type: {return_type}")
 
 
 def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
@@ -97,8 +110,8 @@ def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
             logger.debug("Parsing %s", line)
             if match := _RE_MLIR_OP_LINE.search(line):
                 op_name = match[2]
-                return_type = match[3] or match[4]  # Either tensor type or tosa type
-                loc_ref = match[5]
+                return_type = _get_mlir_return_type(match[3])
+                loc_ref = match[4] or ""
 
                 try:
                     op_id = int(match[1])
@@ -113,7 +126,7 @@ def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
                 logger.debug("Adding op %s: %s", op_id, op_name)
 
                 # Set empty locations temporarily
-                if return_type.startswith("i"):
+                if return_type.startswith(("i", "ui")):
                     id_to_ops.update({op_id: TosaOp(op_name, "", TosaOpType.INT)})
                 elif return_type.startswith("f") or return_type.startswith("bf"):
                     id_to_ops.update({op_id: TosaOp(op_name, "", TosaOpType.FLOAT)})
@@ -128,8 +141,8 @@ def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
 
             if match := _RE_MLIR_LOCATION.search(line):
                 op_loc = match[2]
-                if op_loc:
-                    op_loc = _try_get_torch_fx_node_name(op_loc) or op_loc
+                op_loc = get_debug_node_name(op_loc) or op_loc
+                op_loc = _normalize_mlir_location(op_loc)
                 loc_ref_to_loc.update({match[1]: op_loc})
                 continue
 
@@ -221,7 +234,7 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
 
                 # Handle ExecuTorch JSON location format
                 if op_loc:
-                    op_loc = _try_get_torch_fx_node_name(op_loc) or op_loc
+                    op_loc = get_debug_node_name(op_loc) or op_loc
                 else:
                     op_loc = "unknown"
 

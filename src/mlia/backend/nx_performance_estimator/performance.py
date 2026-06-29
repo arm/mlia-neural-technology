@@ -14,8 +14,12 @@ from typing import Any, Union
 import mlia
 import mlia.core.output_schema as schema
 from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverter
+from mlia.backend.ml_sdk_model_converter.install import get_ml_sdk_model_converter_path
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
+)
+from mlia.backend.nx_performance_estimator.debug_locations import (
+    resolve_spirv_id_locations,
 )
 from mlia.backend.nx_performance_estimator.output_parsing import (
     NXDebugDatabaseParser,
@@ -406,10 +410,16 @@ class NXPerformanceEstimatorPerformanceEstimator(
 
             ddb_parser = NXDebugDatabaseParser(Path(output.debug_database))
             debug_db = ddb_parser.parse_debug_database()
+            spirv_id_locations = resolve_spirv_id_locations(
+                model_path,
+                vgf_file,
+                debug_db,
+            )
 
             perf_stats = NXPerformanceStats(
                 debug_db=debug_db,
                 performance_db=performance_db,
+                spirv_id_locations=spirv_id_locations,
             )
             stats_per_chain = perf_stats.process_stats_per_chain()
             output_file_path = self.output_dir / "nx_performance_statistics.json"
@@ -431,10 +441,12 @@ class NXPerformanceEstimatorPerformanceEstimator(
 
     def _run_ml_sdk_model_converter(self, model_path: Path) -> Path:
         """Run the ML SDK Model Converter and return the path to the SPIR-V file."""
-        backend_repo = get_backend_repository()
-        vmc_path, _ = backend_repo.get_backend_settings("ml-sdk-model-converter")
+        vmc_path = get_ml_sdk_model_converter_path()
+        if vmc_path is None:
+            backend_repo = get_backend_repository()
+            vmc_path, _ = backend_repo.get_backend_settings("ml-sdk-model-converter")
         output_dir = self.output_dir / "ml-sdk-model-converter"
-        output_dir.mkdir()
+        output_dir.mkdir(exist_ok=True)
 
         model_converter = MLSDKModelConverter(
             vmc_path, enable_quantization=self.enable_quantization
@@ -449,7 +461,7 @@ class NXPerformanceEstimatorPerformanceEstimator(
         backend_repo = get_backend_repository()
         gc_path, _ = backend_repo.get_backend_settings("nx-performance-estimator")
         output_dir = self.output_dir / "nx-performance-estimator"
-        output_dir.mkdir()
+        output_dir.mkdir(exist_ok=True)
         # We need to specify the basename for the output files here, i.e. neither
         # the output directory or the specific output file.
         output_name = output_name.replace(".", "_")

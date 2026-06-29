@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+import struct
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,53 @@ from mlia.backend.nx_performance_estimator.statistics import (
     NXModelPerformanceStats,
     NXOperatorPerformanceStats,
     NXPerformanceStats,
+    read_tosa_mlir_spirv_id_locations,
 )
+from mlia.nx_utils.vgf_debug import (
+    read_vgf_spirv_id_locations,
+)
+
+
+def _spirv_string_instruction(result_id: int, value: str) -> list[int]:
+    encoded = value.encode("utf-8") + b"\0"
+    padding = b"\0" * ((4 - len(encoded) % 4) % 4)
+    word_count = (len(encoded) + len(padding)) // 4
+    words = list(struct.unpack(f"<{word_count}I", encoded + padding))
+    word_count = 2 + len(words)
+    return [(word_count << 16) | 7, result_id, *words]
+
+
+def _spirv_ext_inst_import_instruction(result_id: int, value: str) -> list[int]:
+    encoded = value.encode("utf-8") + b"\0"
+    padding = b"\0" * ((4 - len(encoded) % 4) % 4)
+    word_count = (len(encoded) + len(padding)) // 4
+    words = list(struct.unpack(f"<{word_count}I", encoded + padding))
+    word_count = 2 + len(words)
+    return [(word_count << 16) | 11, result_id, *words]
+
+
+def _spirv_ext_inst_instruction(
+    result_type: int,
+    result_id: int,
+    set_id: int,
+    instruction: int,
+    operands: list[int],
+) -> list[int]:
+    word_count = 5 + len(operands)
+    return [
+        (word_count << 16) | 12,
+        result_type,
+        result_id,
+        set_id,
+        instruction,
+        *operands,
+    ]
+
+
+def _write_vgf_with_spirv_words(path: Path, module_words: list[int]) -> None:
+    path.write_bytes(
+        b"VGF1\0\0\0\0" + struct.pack(f"<{len(module_words)}I", *module_words)
+    )
 
 
 def test_nx_operator_performance_stats_to_dict() -> None:
@@ -658,6 +705,415 @@ def test_track_op(test_resources_path: Path) -> None:
         ["Rescale"],
         ["Reshape"],
     ]
+
+
+def test_track_op_maps_spirv_id_labels_to_vgf_locations() -> None:
+    """Test that r56 SPIR-V id labels resolve to VGF debug locations."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["chain_0"]},
+        "chain_op_id_to_fused_op_ids": {"chain_0": ["fused_0"]},
+        "fused_op_id_to_tosa_op_ids": {"fused_0": ["545", "635"]},
+        "tosa_op_id_to_api_labels": {
+            "545": ["TOSAMUL_spirv_id_716"],
+            "635": ["TOSARESCALE_spirv_id_999"],
+        },
+        "tosa_op_id_to_tosa_op": {
+            "545": ["Mul"],
+            "635": ["Rescale"],
+        },
+    }
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        spirv_id_locations={"716": "model/real_mul"},
+    )
+
+    chain_op_id, api_labels, operator_types = performance_stats.track_op("0")
+
+    assert chain_op_id == "chain_0"
+    assert api_labels == [
+        ["model/real_mul"],
+        ["TOSARESCALE_spirv_id_999"],
+    ]
+    assert operator_types == [["Mul"], ["Rescale"]]
+
+
+def test_tosa_mlir_locations_map_to_spirv_id_placeholders(tmp_path: Path) -> None:
+    """TOSA MLIR locations should fill gaps when VGF debug metadata is absent."""
+    tosa_mlir = tmp_path / "model.tosamlir"
+    tosa_mlir.write_text(
+        """
+module {
+  func.func @main(%arg0: tensor<1x8xi8>) -> tensor<1x8xi8> {
+    %0 = tosa.conv2d %arg0, %arg0, %arg0, %arg0, %arg0 {acc_type = i32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>) -> tensor<1x8xi32> loc(#loc1)
+    %1 = tosa.clamp %arg0 {max_val = 127 : i8, min_val = -128 : i8} : (tensor<1x8xi8>) -> tensor<1x8xi8> loc(#loc1)
+    %2 = tosa.rescale %0, %arg0, %arg0, %arg0, %arg0 {input_unsigned = false, output_unsigned = false, per_channel = false, rounding_mode = DOUBLE_ROUND, scale32 = true} : (tensor<1x8xi32>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>) -> tensor<1x8xi8> loc(#loc2)
+    return %2 : tensor<1x8xi8>
+  }
+} loc(#loc)
+#loc1 = loc("model/conv"(#loc))
+#loc2 = loc("model/rescale"(#loc))
+""",
+        encoding="utf-8",
+    )
+    debug_db = {
+        "tosa_op_id_to_api_labels": {
+            "85": ["TOSACONV2D_spirv_id_202"],
+            "96": ["TOSARESCALE_spirv_id_210"],
+        },
+        "tosa_op_id_to_tosa_op": {
+            "85": ["Conv2D"],
+            "96": ["Rescale"],
+        },
+    }
+
+    assert read_tosa_mlir_spirv_id_locations(tosa_mlir, debug_db) == {
+        "202": "model/conv",
+        "210": "model/rescale",
+    }
+
+
+def test_tosa_mlir_locations_sort_estimator_ops_by_tosa_id(tmp_path: Path) -> None:
+    """Estimator and source op streams should be aligned in numeric TOSA id order."""
+    tosa_mlir = tmp_path / "model.tosamlir"
+    tosa_mlir.write_text(
+        """
+module {
+  func.func @main(%arg0: tensor<1x8xi8>) -> tensor<1x8xi8> {
+    %0 = tosa.conv2d %arg0, %arg0, %arg0, %arg0, %arg0 {acc_type = i32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>) -> tensor<1x8xi32> loc(#loc1)
+    %1 = tosa.rescale %0, %arg0, %arg0, %arg0, %arg0 {input_unsigned = false, output_unsigned = false, per_channel = false, rounding_mode = DOUBLE_ROUND, scale32 = true} : (tensor<1x8xi32>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>) -> tensor<1x8xi8> loc(#loc2)
+    return %1 : tensor<1x8xi8>
+  }
+} loc(#loc)
+#loc1 = loc("model/conv"(#loc))
+#loc2 = loc("model/rescale"(#loc))
+""",
+        encoding="utf-8",
+    )
+    debug_db = {
+        "tosa_op_id_to_api_labels": {
+            "96": ["TOSARESCALE_spirv_id_210"],
+            "85": ["TOSACONV2D_spirv_id_202"],
+        },
+        "tosa_op_id_to_tosa_op": {
+            "96": ["Rescale"],
+            "85": ["Conv2D"],
+        },
+    }
+
+    assert read_tosa_mlir_spirv_id_locations(tosa_mlir, debug_db) == {
+        "202": "model/conv",
+        "210": "model/rescale",
+    }
+
+
+def test_tosa_mlir_location_fallback_uses_nearest_lcs_match(
+    tmp_path: Path,
+) -> None:
+    """Unmatched estimator SPIR-V ids should use the nearest LCS location."""
+    tosa_mlir = tmp_path / "model.tosamlir"
+    tosa_mlir.write_text(
+        """
+module {
+  func.func @main(%arg0: tensor<1x8xi8>) -> tensor<1x8xi8> {
+    %0 = tosa.conv2d %arg0, %arg0, %arg0, %arg0, %arg0 {acc_type = i32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>) -> tensor<1x8xi32> loc(#loc1)
+    %1 = tosa.rescale %0, %arg0, %arg0, %arg0, %arg0 {input_unsigned = false, output_unsigned = false, per_channel = false, rounding_mode = DOUBLE_ROUND, scale32 = true} : (tensor<1x8xi32>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>, tensor<1x8xi8>) -> tensor<1x8xi8> loc(#loc2)
+    return %1 : tensor<1x8xi8>
+  }
+} loc(#loc)
+#loc1 = loc("model/conv"(#loc))
+#loc2 = loc("model/rescale"(#loc))
+""",
+        encoding="utf-8",
+    )
+    debug_db = {
+        "tosa_op_id_to_api_labels": {
+            "85": ["TOSACONV2D_spirv_id_202"],
+            "91": ["TOSACLAMP_spirv_id_205"],
+            "96": ["TOSARESCALE_spirv_id_210"],
+        },
+        "tosa_op_id_to_tosa_op": {
+            "85": ["Conv2D"],
+            "91": ["Clamp"],
+            "96": ["Rescale"],
+        },
+    }
+
+    assert read_tosa_mlir_spirv_id_locations(tosa_mlir, debug_db) == {
+        "202": "model/conv",
+        "205": "model/conv",
+        "210": "model/rescale",
+    }
+
+
+def test_track_op_preserves_legacy_spirv_id_suffix_labels() -> None:
+    """Test that non-r56 labels ending with SPIR-V-like suffixes are preserved."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["chain_0"]},
+        "chain_op_id_to_fused_op_ids": {"chain_0": ["fused_0"]},
+        "fused_op_id_to_tosa_op_ids": {"fused_0": ["545"]},
+        "tosa_op_id_to_api_labels": {
+            "545": ["model/foo_spirv_id_716"],
+        },
+        "tosa_op_id_to_tosa_op": {
+            "545": ["Mul"],
+        },
+    }
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        spirv_id_locations={"716": "model/real_mul"},
+    )
+
+    _, api_labels, _ = performance_stats.track_op("0")
+
+    assert api_labels == [["model/foo_spirv_id_716"]]
+
+
+def test_process_stats_per_chain_uses_resolved_spirv_locations() -> None:
+    """Test final stats contain resolved locations, not r56 placeholders."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["chain_0"]},
+        "chain_op_id_to_fused_op_ids": {"chain_0": ["fused_0"]},
+        "fused_op_id_to_tosa_op_ids": {"fused_0": ["545"]},
+        "tosa_op_id_to_api_labels": {
+            "545": ["TOSAMUL_spirv_id_716"],
+        },
+        "tosa_op_id_to_tosa_op": {
+            "545": ["Mul"],
+        },
+    }
+    performance_db = [
+        {
+            "id": 0,
+            "opCycles": 10,
+            "totalCycles": 20,
+            "Memory": {
+                "Internal": {
+                    "readBytes": 0,
+                    "writeBytes": 0,
+                    "trafficCycles": 0,
+                },
+                "DRAM": {
+                    "readBytes": 1,
+                    "writeBytes": 2,
+                    "trafficCycles": 3,
+                },
+            },
+            "Utilization": [{"sectionName": "VectorEngine", "cycles": 10}],
+        }
+    ]
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=performance_db,
+        spirv_id_locations={"716": "model/real_mul"},
+    )
+
+    stats = performance_stats.process_stats_per_chain()
+
+    assert stats["chain_0"].operators == [
+        {"opLocation": ["model/real_mul"], "opType": ["Mul"]}
+    ]
+
+
+def test_read_vgf_spirv_id_locations(tmp_path: Path) -> None:
+    """Test reading SPIR-V id to location mappings from VGF debug info."""
+    mlgraph_debug_import_id = 10
+    location_string_id = 20
+    module_words = [
+        0x07230203,
+        0x00010500,
+        0,
+        1000,
+        0,
+        *_spirv_ext_inst_import_instruction(
+            mlgraph_debug_import_id, "NonSemantic.MLGraph.DebugInfo.1"
+        ),
+        *_spirv_string_instruction(location_string_id, "model/real_mul"),
+        *_spirv_ext_inst_instruction(
+            result_type=1,
+            result_id=30,
+            set_id=mlgraph_debug_import_id,
+            instruction=4,
+            operands=[0, location_string_id, 716, 717],
+        ),
+    ]
+    vgf_file = tmp_path / "model.vgf"
+    _write_vgf_with_spirv_words(vgf_file, module_words)
+
+    assert read_vgf_spirv_id_locations(vgf_file) == {
+        "716": "model/real_mul",
+        "717": "model/real_mul",
+    }
+
+
+def test_read_vgf_spirv_id_locations_normalizes_json_locations(
+    tmp_path: Path,
+) -> None:
+    """Test JSON debug locations resolve to model node names."""
+    mlgraph_debug_import_id = 10
+    location_string_id = 20
+    json_location = json.dumps(
+        {
+            "node_name": "model/real_mul",
+            "other_debug_metadata": "ignored",
+        }
+    )
+    module_words = [
+        0x07230203,
+        0x00010500,
+        0,
+        1000,
+        0,
+        *_spirv_ext_inst_import_instruction(
+            mlgraph_debug_import_id, "NonSemantic.MLGraph.DebugInfo.1"
+        ),
+        *_spirv_string_instruction(location_string_id, json_location),
+        *_spirv_ext_inst_instruction(
+            result_type=1,
+            result_id=30,
+            set_id=mlgraph_debug_import_id,
+            instruction=4,
+            operands=[0, location_string_id, 716],
+        ),
+    ]
+    vgf_file = tmp_path / "model.vgf"
+    _write_vgf_with_spirv_words(vgf_file, module_words)
+
+    assert read_vgf_spirv_id_locations(vgf_file) == {"716": "model/real_mul"}
+
+
+def test_read_vgf_spirv_id_locations_normalizes_nested_json_locations(
+    tmp_path: Path,
+) -> None:
+    """Test nested debug-hook JSON locations resolve to model node names."""
+    mlgraph_debug_import_id = 10
+    location_string_id = 20
+    json_location = json.dumps({"aten_info": {"node_name": "model/real_mul"}})
+    module_words = [
+        0x07230203,
+        0x00010500,
+        0,
+        1000,
+        0,
+        *_spirv_ext_inst_import_instruction(
+            mlgraph_debug_import_id, "NonSemantic.MLGraph.DebugInfo.1"
+        ),
+        *_spirv_string_instruction(location_string_id, json_location),
+        *_spirv_ext_inst_instruction(
+            result_type=1,
+            result_id=30,
+            set_id=mlgraph_debug_import_id,
+            instruction=4,
+            operands=[0, location_string_id, 716],
+        ),
+    ]
+    vgf_file = tmp_path / "model.vgf"
+    _write_vgf_with_spirv_words(vgf_file, module_words)
+
+    assert read_vgf_spirv_id_locations(vgf_file) == {"716": "model/real_mul"}
+
+
+def test_read_vgf_spirv_id_locations_reads_multiple_spirv_modules(
+    tmp_path: Path,
+) -> None:
+    """Test reading debug locations from multiple VGF-embedded SPIR-V modules."""
+    mlgraph_debug_import_id = 10
+    first_location_string_id = 20
+    second_location_string_id = 21
+    first_module_words = [
+        0x07230203,
+        0x00010500,
+        0,
+        1000,
+        0,
+        *_spirv_ext_inst_import_instruction(
+            mlgraph_debug_import_id, "NonSemantic.MLGraph.DebugInfo.1"
+        ),
+        *_spirv_string_instruction(first_location_string_id, "model/conv"),
+        *_spirv_ext_inst_instruction(
+            result_type=1,
+            result_id=30,
+            set_id=mlgraph_debug_import_id,
+            instruction=4,
+            operands=[0, first_location_string_id, 716],
+        ),
+    ]
+    second_module_words = [
+        0x07230203,
+        0x00010500,
+        0,
+        1000,
+        0,
+        *_spirv_ext_inst_import_instruction(
+            mlgraph_debug_import_id, "NonSemantic.MLGraph.DebugInfo.1"
+        ),
+        *_spirv_string_instruction(second_location_string_id, "model/rescale"),
+        *_spirv_ext_inst_instruction(
+            result_type=1,
+            result_id=30,
+            set_id=mlgraph_debug_import_id,
+            instruction=4,
+            operands=[0, second_location_string_id, 999],
+        ),
+    ]
+    vgf_file = tmp_path / "model.vgf"
+    vgf_file.write_bytes(
+        b"VGF1\0\0\0\0"
+        + struct.pack(f"<{len(first_module_words)}I", *first_module_words)
+        + b"PADDING\0"
+        + struct.pack(f"<{len(second_module_words)}I", *second_module_words)
+    )
+
+    assert read_vgf_spirv_id_locations(vgf_file) == {
+        "716": "model/conv",
+        "999": "model/rescale",
+    }
+
+
+def test_read_vgf_spirv_id_locations_fallbacks(tmp_path: Path) -> None:
+    """Test unsupported or malformed VGF inputs do not produce mappings."""
+    no_spirv_file = tmp_path / "no_spirv.vgf"
+    no_spirv_file.write_bytes(b"VGF1\0\0\0\0")
+    truncated_file = tmp_path / "truncated.vgf"
+    truncated_file.write_bytes(b"VGF1\0\0\0\0" + struct.pack("<I", 0x07230203))
+    invalid_instruction_file = tmp_path / "invalid_instruction.vgf"
+    _write_vgf_with_spirv_words(
+        invalid_instruction_file,
+        [
+            0x07230203,
+            0x00010500,
+            0,
+            1000,
+            0,
+            (5 << 16) | 7,
+            1,
+        ],
+    )
+    missing_import_file = tmp_path / "missing_import.vgf"
+    _write_vgf_with_spirv_words(
+        missing_import_file,
+        [
+            0x07230203,
+            0x00010500,
+            0,
+            1000,
+            0,
+            *_spirv_string_instruction(20, "model/real_mul"),
+            *_spirv_ext_inst_instruction(
+                result_type=1,
+                result_id=30,
+                set_id=10,
+                instruction=4,
+                operands=[0, 20, 716],
+            ),
+        ],
+    )
+
+    assert read_vgf_spirv_id_locations(no_spirv_file) == {}
+    assert read_vgf_spirv_id_locations(truncated_file) == {}
+    assert read_vgf_spirv_id_locations(invalid_instruction_file) == {}
+    assert read_vgf_spirv_id_locations(missing_import_file) == {}
 
 
 def test_track_op_multiple_chains_per_stripe() -> None:

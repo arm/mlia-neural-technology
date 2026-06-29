@@ -4,15 +4,41 @@
 
 import copy
 import json
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, TypeAlias
+from typing import Dict, Iterable, Sequence, TypeAlias
 
+from mlia.backend.ml_sdk_model_converter.tosa_reader import (
+    TosaOp,
+    read_tosa_flatbuffer_ops,
+    read_tosa_mlir_ops,
+)
 from mlia.backend.nx_performance_estimator.output_parsing import (
     DebugDatabaseContentsType,
     PerformanceDatabaseContentsType,
 )
+
+_SPIRV_ID_LABEL_RE = re.compile(r"^TOSA[A-Z0-9_]*_spirv_id_(\d+)$")
+_TOSA_OP_TO_NX_OP_TYPE = {
+    "add": "Add",
+    "arithmetic_right_shift": "Asr",
+    "avg_pool2d": "AvgPool",
+    "clamp": "Clamp",
+    "clz": "CLZ",
+    "conv2d": "Conv2D",
+    "depthwise_conv2d": "DepthwiseConv2D",
+    "logical_left_shift": "SHL",
+    "mul": "Mul",
+    "reduce_max": "ReduceMax",
+    "reduce_sum": "ReduceSum",
+    "rescale": "Rescale",
+    "resize": "Resize",
+    "reshape": "Reshape",
+    "sub": "Sub",
+    "table": "LUT",
+}
 
 NXModelCountMetricValue: TypeAlias = int | None
 NXModelFloatMetricValue: TypeAlias = float | None
@@ -207,10 +233,12 @@ class NXPerformanceStats:
         self,
         debug_db: DebugDatabaseContentsType,
         performance_db: PerformanceDatabaseContentsType,
+        spirv_id_locations: dict[str, str] | None = None,
     ) -> None:
         """Initialize the class with the debug and performance database dictionaries."""
         self.debug_db: DebugDatabaseContentsType = debug_db
         self.performance_db: PerformanceDatabaseContentsType = performance_db
+        self.spirv_id_locations = spirv_id_locations or {}
 
     def process_stats_per_chain(
         self,
@@ -281,10 +309,260 @@ class NXPerformanceStats:
 
         api_labels = []
         for tosa_op_id in tosa_op_ids:
-            api_labels.append(self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id])
+            api_labels.append(
+                self._resolve_spirv_id_labels(
+                    self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id]
+                )
+            )
 
         operator_types = []
         for tosa_op_id in tosa_op_ids:
             operator_types.append(self.debug_db["tosa_op_id_to_tosa_op"][tosa_op_id])
 
         return chain_op_id[0], api_labels, operator_types
+
+    def _resolve_spirv_id_labels(self, api_labels: list[str]) -> list[str]:
+        """Replace estimator SPIR-V id placeholders with VGF debug locations."""
+        resolved_labels = []
+        for api_label in api_labels:
+            if match := _SPIRV_ID_LABEL_RE.search(api_label):
+                resolved_labels.append(self.spirv_id_locations.get(match[1], api_label))
+            else:
+                resolved_labels.append(api_label)
+        return resolved_labels
+
+
+def read_tosa_mlir_spirv_id_locations(
+    tosa_mlir_file: Path,
+    debug_db: DebugDatabaseContentsType,
+) -> dict[str, str]:
+    """Best-effort mapping from estimator SPIR-V placeholders to MLIR locations."""
+    return read_tosa_spirv_id_locations(tosa_mlir_file, debug_db)
+
+
+def read_tosa_spirv_id_locations(
+    tosa_file: Path,
+    debug_db: DebugDatabaseContentsType,
+) -> dict[str, str]:
+    """Best-effort mapping from estimator SPIR-V placeholders to MLIR locations.
+
+    Public model-converter builds may not emit the MLGraph debug records that
+    VGF-based location recovery needs. In that case, align the estimator TOSA op
+    stream with the source TOSA op stream and recover the source locations
+    for matching operators.
+    """
+    source_ops = _read_located_tosa_ops(tosa_file)
+    estimator_ops = _read_estimator_tosa_ops(debug_db)
+    matches = _longest_common_subsequence_matches(estimator_ops, source_ops)
+
+    locations: dict[str, str] = {}
+    estimator_locations: dict[int, str] = {}
+    for estimator_index, estimator_op, source_op in matches:
+        if not source_op.location:
+            continue
+        estimator_locations[estimator_index] = source_op.location
+        if match := _SPIRV_ID_LABEL_RE.search(estimator_op.api_label):
+            _set_better_location(locations, match[1], source_op.location)
+
+    _fill_unmatched_spirv_locations(estimator_ops, estimator_locations, locations)
+
+    return locations
+
+
+def has_unresolved_spirv_id_locations(
+    debug_db: DebugDatabaseContentsType,
+    spirv_id_locations: dict[str, str],
+) -> bool:
+    """Check if estimator debug labels still need SPIR-V id location fallback."""
+    labels = debug_db.get("tosa_op_id_to_api_labels", {})
+    for api_labels in labels.values():
+        for api_label in api_labels:
+            if (match := _SPIRV_ID_LABEL_RE.search(api_label)) and match[
+                1
+            ] not in spirv_id_locations:
+                return True
+    return False
+
+
+@dataclass(frozen=True)
+class _LocatedTosaOp:
+    op_type: str
+    location: str
+
+
+@dataclass(frozen=True)
+class _EstimatorTosaOp:
+    op_type: str
+    api_label: str
+
+
+def _read_located_tosa_ops(tosa_file: Path) -> list[_LocatedTosaOp]:
+    if tosa_file.suffix == ".tosamlir":
+        tosa_ops = read_tosa_mlir_ops(tosa_file)
+    elif tosa_file.suffix == ".tosa":
+        tosa_ops = read_tosa_flatbuffer_ops(tosa_file)
+    else:
+        return []
+
+    return [
+        _LocatedTosaOp(_to_nx_op_type(tosa_op), tosa_op.loc)
+        for _, tosa_op in sorted(tosa_ops.items())
+        if tosa_op.name.lower()
+        not in {"const", "const_shape", "tosa.const", "tosa.const_shape"}
+    ]
+
+
+def _to_nx_op_type(tosa_op: TosaOp) -> str:
+    op_name = tosa_op.name.removeprefix("tosa.").lower()
+    return _TOSA_OP_TO_NX_OP_TYPE.get(op_name, op_name)
+
+
+def _read_estimator_tosa_ops(
+    debug_db: DebugDatabaseContentsType,
+) -> list[_EstimatorTosaOp]:
+    labels = debug_db.get("tosa_op_id_to_api_labels", {})
+    types = debug_db.get("tosa_op_id_to_tosa_op", {})
+    ops = []
+    for tosa_op_id in sorted(labels, key=int):
+        api_labels = labels[tosa_op_id]
+        if not api_labels or not types.get(tosa_op_id):
+            continue
+        ops.append(_EstimatorTosaOp(types[tosa_op_id][0], api_labels[0]))
+    return ops
+
+
+def _longest_common_subsequence_matches(
+    estimator_ops: list[_EstimatorTosaOp],
+    source_ops: list[_LocatedTosaOp],
+) -> list[tuple[int, _EstimatorTosaOp, _LocatedTosaOp]]:
+    matches = []
+    for estimator_index, source_index in _lcs_index_pairs(estimator_ops, source_ops):
+        matches.append(
+            (estimator_index, estimator_ops[estimator_index], source_ops[source_index])
+        )
+    return matches
+
+
+def _lcs_index_pairs(
+    estimator_ops: Sequence[_EstimatorTosaOp],
+    source_ops: Sequence[_LocatedTosaOp],
+    estimator_offset: int = 0,
+    source_offset: int = 0,
+) -> list[tuple[int, int]]:
+    estimator_len = len(estimator_ops)
+    source_len = len(source_ops)
+    if estimator_len == 0 or source_len == 0:
+        return []
+    if estimator_len == 1:
+        estimator_op = estimator_ops[0]
+        for source_index, source_op in enumerate(source_ops):
+            if estimator_op.op_type == source_op.op_type:
+                return [(estimator_offset, source_offset + source_index)]
+        return []
+
+    estimator_midpoint = estimator_len // 2
+    left_lengths = _lcs_prefix_lengths(estimator_ops[:estimator_midpoint], source_ops)
+    right_lengths = _lcs_prefix_lengths(
+        reversed(estimator_ops[estimator_midpoint:]), reversed(source_ops)
+    )
+    source_split = max(
+        range(source_len + 1),
+        key=lambda index: left_lengths[index] + right_lengths[source_len - index],
+    )
+
+    return [
+        *_lcs_index_pairs(
+            estimator_ops[:estimator_midpoint],
+            source_ops[:source_split],
+            estimator_offset,
+            source_offset,
+        ),
+        *_lcs_index_pairs(
+            estimator_ops[estimator_midpoint:],
+            source_ops[source_split:],
+            estimator_offset + estimator_midpoint,
+            source_offset + source_split,
+        ),
+    ]
+
+
+def _lcs_prefix_lengths(
+    estimator_ops: Iterable[_EstimatorTosaOp],
+    source_ops: Iterable[_LocatedTosaOp],
+) -> list[int]:
+    source_ops = list(source_ops)
+    previous = [0] * (len(source_ops) + 1)
+
+    for estimator_op in estimator_ops:
+        current = [0]
+        for source_index, source_op in enumerate(source_ops, start=1):
+            if estimator_op.op_type == source_op.op_type:
+                current.append(previous[source_index - 1] + 1)
+            else:
+                current.append(max(previous[source_index], current[-1]))
+        previous = current
+
+    return previous
+
+
+def _fill_unmatched_spirv_locations(
+    estimator_ops: list[_EstimatorTosaOp],
+    estimator_locations: dict[int, str],
+    locations: dict[str, str],
+) -> None:
+    if not estimator_locations:
+        return
+
+    for estimator_index, estimator_op in enumerate(estimator_ops):
+        if not (match := _SPIRV_ID_LABEL_RE.search(estimator_op.api_label)):
+            continue
+        if match[1] in locations:
+            continue
+
+        if nearest_location := _nearest_estimator_location(
+            estimator_index, estimator_locations
+        ):
+            _set_better_location(locations, match[1], nearest_location)
+
+
+def _nearest_estimator_location(
+    estimator_index: int,
+    estimator_locations: dict[int, str],
+) -> str | None:
+    previous_indices = [
+        index for index in estimator_locations if index < estimator_index
+    ]
+    next_indices = [index for index in estimator_locations if index > estimator_index]
+    previous_index = max(previous_indices, default=None)
+    next_index = min(next_indices, default=None)
+
+    if previous_index is None:
+        if next_index is None:
+            return None
+        return estimator_locations[next_index]
+    if next_index is None:
+        return estimator_locations[previous_index]
+
+    previous_distance = estimator_index - previous_index
+    next_distance = next_index - estimator_index
+    if previous_distance <= next_distance:
+        return estimator_locations[previous_index]
+    return estimator_locations[next_index]
+
+
+def _set_better_location(
+    locations: dict[str, str],
+    spirv_id: str,
+    candidate: str,
+) -> None:
+    current = locations.get(spirv_id)
+    if current is None or _location_score(candidate) > _location_score(current):
+        locations[spirv_id] = candidate
+
+
+def _location_score(location: str) -> int:
+    if not location or location == "unknown":
+        return 0
+    if location == "StatefulPartitionedCall:0":
+        return 1
+    return 2

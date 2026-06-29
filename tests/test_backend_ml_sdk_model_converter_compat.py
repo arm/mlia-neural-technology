@@ -7,7 +7,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import mlia.core.output_schema as schema
-from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
+from mlia.backend.ml_sdk_model_converter.compat import (
+    NXCompatibilityChecker,
+    NXModelCompatibilityInfo,
+)
 from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp, TosaOpType
 from mlia.core.output_validation import validate_standardized_output
 
@@ -97,3 +100,13 @@ def test_compatibility_output_marks_operator_percentage_unavailable_without_reco
         "reason": "Accelerator operator placement data is not available.",
     }
     validate_standardized_output(output)
+
+
+def test_tosa_unique_location_uses_explicit_unknown_prefix_for_empty_locations(
+    tmp_path: Path,
+) -> None:
+    """Location-less public converter MLIR should not produce bare '_<id>' names."""
+    checker = NXCompatibilityChecker(tmp_path)
+
+    assert checker._get_tosa_unique_location("", 97) == "unknown_00097"
+    assert checker._get_tosa_unique_location("unknown", 97) == "unknown_00097"
