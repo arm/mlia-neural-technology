@@ -17,10 +17,10 @@ env:
   PYTHON_VERSION: "3.10"
   ARTIFACTS_PATH: downloaded_artifacts
   VAULT_COMMON_CI_SECRETS: &vault-common-ci-secrets |
-    kv/data/MLIA/CI INTERNAL_PYPI_HOST | INTERNAL_PYPI_HOST ;
-    kv/data/MLIA/CI INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
-    kv/data/MLIA/CI INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
-    kv/data/MLIA/CI VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
+    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_HOST | INTERNAL_PYPI_HOST ;
+    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
+    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
+    kv/data/MLIA/CI?version=9 VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
 
 jobs:
   build_and_test_wheel:
@@ -101,8 +101,8 @@ jobs:
           namespace: iac-expkits/prod
           secrets: |
             ${{ env.VAULT_COMMON_CI_SECRETS }} ;
-            kv/data/MLIA/CI ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
-            kv/data/MLIA/CI ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
+            kv/data/MLIA/CI?version=9 ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
+            kv/data/MLIA/CI?version=9 ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
       - name: Configure uv package index
         run: |
           if [ -n "${INTERNAL_PYPI_HOST:-}" ]; then
@@ -277,8 +277,8 @@ jobs:
           secretId: ${{ secrets.VAULT_SECRET_ID }}
           namespace: iac-expkits/prod
           secrets: |
-            kv/data/MLIA/CI PUBLISH_PYPI_USERNAME | UV_PUBLISH_USERNAME ;
-            kv/data/MLIA/CI PUBLISH_PYPI_PASSWORD | UV_PUBLISH_PASSWORD
+            kv/data/MLIA/CI?version=9 PUBLISH_PYPI_USERNAME | UV_PUBLISH_USERNAME ;
+            kv/data/MLIA/CI?version=9 PUBLISH_PYPI_PASSWORD | UV_PUBLISH_PASSWORD
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
