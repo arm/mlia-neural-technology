@@ -8,11 +8,12 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
+  ARTIFACTS_PATH: downloaded_artifacts
   VAULT_COMMON_CI_SECRETS: &vault-common-ci-secrets |
-    kv/data/MLIA/CI INTERNAL_PYPI_HOST | INTERNAL_PYPI_HOST ;
-    kv/data/MLIA/CI INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
-    kv/data/MLIA/CI INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
-    kv/data/MLIA/CI VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
+    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_HOST | INTERNAL_PYPI_HOST ;
+    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
+    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
+    kv/data/MLIA/CI?version=9 VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
 
 jobs:
   lint:
@@ -116,3 +117,118 @@ jobs:
           name: coverage-report
           path: coverage.xml
           if-no-files-found: ignore
+
+  test_e2e:
+    name: End-to-End Smoke Tests (${{ matrix.suite }})
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.repository_owner != 'arm' }}
+    runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
+    needs:
+      - build
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - suite: tflite
+            converter_package: mlia-converters-tflite
+          - suite: pytorch
+            converter_package: mlia-converters-pytorch
+    steps:
+      - name: Import secrets from Vault
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ secrets.VAULT_URL }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          namespace: iac-expkits/prod
+          secrets: |
+            ${{ env.VAULT_COMMON_CI_SECRETS }} ;
+            kv/data/MLIA/CI?version=9 ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
+            kv/data/MLIA/CI?version=9 ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
+      - name: Configure uv package index
+        run: |
+          if [ -n "${INTERNAL_PYPI_HOST:-}" ]; then
+            echo "UV_DEFAULT_INDEX=internal=${INTERNAL_PYPI_HOST}" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install git-lfs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+      - name: Prepare artifacts
+        if: ${{ (matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_ARTIFACTS || vars.MLIA_E2E_TFLITE_ARTIFACTS) != '' }}
+        uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@main
+        env:
+          ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
+          ARTIFACT_GIT_SOURCE_USERNAME: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
+          ARTIFACT_GIT_SOURCE_PASSWORD: ${{ env.ARTIFACT_GIT_SOURCE_PASSWORD }}
+          ARTIFACT_HTTP_SOURCE_HOST: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
+          ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
+          ARTIFACT_HTTP_SOURCE_TOKEN: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
+        with:
+          artifacts: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_ARTIFACTS || vars.MLIA_E2E_TFLITE_ARTIFACTS }}
+          destination: ${{ env.ARTIFACTS_PATH }}
+      - name: Prepare API e2e artifacts
+        if: ${{ vars.MLIA_API_E2E_ARTIFACTS != '' }}
+        uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@main
+        env:
+          ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
+          ARTIFACT_GIT_SOURCE_USERNAME: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
+          ARTIFACT_GIT_SOURCE_PASSWORD: ${{ env.ARTIFACT_GIT_SOURCE_PASSWORD }}
+          ARTIFACT_HTTP_SOURCE_HOST: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
+          ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
+          ARTIFACT_HTTP_SOURCE_TOKEN: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
+        with:
+          artifacts: ${{ vars.MLIA_API_E2E_ARTIFACTS }}
+          destination: ${{ env.ARTIFACTS_PATH }}
+      - run: uv sync --no-sources --no-install-project --only-group test
+      # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
+      - run: ./.venv/bin/python -m ensurepip --upgrade
+      - name: Run e2e pytest
+        env:
+          MLIA_E2E_ARTIFACTS: ${{ env.ARTIFACTS_PATH }}
+          MLIA_E2E_BACKENDS: nx-performance-estimator
+          MLIA_API_E2E_MODEL: ${{ vars.MLIA_API_E2E_MODEL }}
+          MLIA_API_E2E_TFLITE_MODEL: ${{ vars.MLIA_API_E2E_TFLITE_MODEL }}
+          MLIA_API_E2E_PYTORCH_MODEL: ${{ vars.MLIA_API_E2E_PYTORCH_MODEL }}
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.suite }}" = "pytorch" ]; then
+            MODEL="${MLIA_API_E2E_PYTORCH_MODEL:-}"
+          else
+            MODEL="${MLIA_API_E2E_TFLITE_MODEL:-${MLIA_API_E2E_MODEL:-}}"
+          fi
+          if [ -z "${MODEL}" ]; then
+            echo "Missing representative ${{ matrix.suite }} e2e model variable."
+            exit 1
+          fi
+
+          MLIA_E2E_EXECUTIONS='[{"command":"check","parameters":{"advice":[["--performance"]],"target":[["--target-profile","neural-technology"]],"backend":[["--backend","nx-performance-estimator"]],"model":[["'"${MODEL}"'"]]}}]'
+          export MLIA_E2E_EXECUTIONS
+
+          mkdir -p report
+          rm -f "report/report-${{ matrix.suite }}.xml"
+          uv run --no-sync \
+            --with dist/*.whl \
+            --with ${{ matrix.converter_package }} \
+            -- pytest -v tests/test_e2e.py::test_e2e_performance \
+              -x \
+              -s \
+              --capture=tee-sys \
+              -o junit_logging=out-err \
+              -o junit_log_passing_tests=true \
+              --no-cov \
+              --junitxml="report/report-${{ matrix.suite }}.xml"
+      - name: Upload e2e junit
+        if: ${{ always() && hashFiles(format('report/report-{0}.xml', matrix.suite)) != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-junit-${{ matrix.suite }}
+          path: report/*.xml
