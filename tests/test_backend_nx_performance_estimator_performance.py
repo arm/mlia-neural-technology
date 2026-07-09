@@ -69,11 +69,15 @@ def test_nx_performance_estimator_performance_estimator(
         MagicMock(return_value=mock_repo),
     )
     monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.runner.get_backend_repository",
+        MagicMock(return_value=mock_repo),
+    )
+    monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance.MLSDKModelConverter",
         MagicMock(return_value=MagicMock(return_value=tmp_path / "vgf_file")),
     )
     monkeypatch.setattr(
-        "mlia.backend.nx_performance_estimator.performance.process_command_output",
+        "mlia.backend.nx_performance_estimator.runner.process_command_output",
         pco_mock,
     )
     monkeypatch.setattr(
@@ -151,7 +155,15 @@ def test_nx_performance_estimator_reads_tosa_fallback_for_missing_spirv_ids(
         ),
     )
     monkeypatch.setattr(
-        "mlia.backend.nx_performance_estimator.performance.process_command_output",
+        "mlia.backend.nx_performance_estimator.runner.get_backend_repository",
+        MagicMock(
+            return_value=MagicMock(
+                get_backend_settings=MagicMock(return_value=(tmp_path / "backend", {}))
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.runner.process_command_output",
         MagicMock(),
     )
     monkeypatch.setattr(

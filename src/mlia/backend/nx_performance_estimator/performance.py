@@ -25,6 +25,11 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     NXDebugDatabaseParser,
     NXPerformanceDatabaseParser,
 )
+from mlia.backend.nx_performance_estimator.runner import (
+    NXPerformanceEstimatorOutputFiles,
+    run_nx_performance_estimator,
+    get_nx_resource_dir,
+)
 from mlia.backend.nx_performance_estimator.statistics import (
     NXModelCountMetricValue,
     NXModelFloatMetricValue,
@@ -35,49 +40,13 @@ from mlia.backend.nx_performance_estimator.statistics import (
 from mlia.backend.repo import get_backend_repository
 from mlia.core.performance import PerformanceEstimator
 from mlia.nx_utils.filesystem import is_vgf_file
-from mlia.utils.filesystem import get_mlia_resource_dirs, get_mlia_resources
 from mlia.utils.logging import log_action
-from mlia.utils.proc import Command, OutputLogger, process_command_output
 
 logger = logging.getLogger(__name__)
 
 _BACKEND_METRIC_UNAVAILABLE_REASON = (
     "Backend output did not provide a numeric value for this metric."
 )
-
-
-@dataclass
-class NXPerformanceEstimatorOutputFiles:
-    """Collection of output files of the Neural Accelerator Performance Estimator."""
-
-    debug_database: Path
-    performance_database: Path
-    model_performance: Path
-
-    @classmethod
-    def from_output_dir(
-        cls, output_dir: Path, output_name: str
-    ) -> NXPerformanceEstimatorOutputFiles:
-        """Create files in the Neural Accelerator Performance Estimator output dir."""
-        name_to_suffix = {
-            "debug_database": "_debug_database.dat",
-            "performance_database": "_performance_database.dat",
-            "model_performance": "_network_performance_summary.json",
-        }
-        args = {
-            name: output_dir / f"{output_name}{suffix}"
-            for name, suffix in name_to_suffix.items()
-        }
-        return cls(**args)
-
-    def check_exists(self) -> None:
-        """Raise a FileNotFoundError if one of the files does not exist."""
-        for path in vars(self).values():
-            if isinstance(path, Path) and not path.is_file():
-                raise FileNotFoundError(
-                    f"Expected output file '{path}' of the Neural Accelerator "
-                    "Performance Estimator does not exist."
-                )
 
 
 @dataclass
@@ -358,20 +327,12 @@ class NXPerformanceEstimatorPerformanceMetrics:
         ).to_dict()
 
 
-def _get_nx_resource_dir() -> Path:
-    for resources_dir in get_mlia_resource_dirs():
-        candidate = resources_dir / "nx-performance-estimator"
-        if candidate.exists():
-            return candidate
-    return get_mlia_resources() / "nx-performance-estimator"
-
-
 class NXPerformanceEstimatorPerformanceEstimator(
     PerformanceEstimator[Union[Path, Any], NXPerformanceEstimatorPerformanceMetrics]
 ):
     """Performance estimator for the Neural Accelerator Performance Estimator."""
 
-    resource_dir = _get_nx_resource_dir()
+    resource_dir = get_nx_resource_dir()
 
     def __init__(
         self, output_dir: Path, backend_config: dict, operator_types_mapping: dict
@@ -458,51 +419,12 @@ class NXPerformanceEstimatorPerformanceEstimator(
         self, vgf_file: Path, output_name: str
     ) -> NXPerformanceEstimatorOutputFiles:
         """Run the NX Performance Estimator and return the output files."""
-        backend_repo = get_backend_repository()
-        gc_path, _ = backend_repo.get_backend_settings("nx-performance-estimator")
-        output_dir = self.output_dir / "nx-performance-estimator"
-        output_dir.mkdir(exist_ok=True)
-        # We need to specify the basename for the output files here, i.e. neither
-        # the output directory or the specific output file.
-        output_name = output_name.replace(".", "_")
-        output = output_dir / output_name
-        system_config = self.backend_config.system_config
-        compiler_config = self.backend_config.compiler_config
-
-        output.mkdir()
-
-        system_config_args = (
-            []
-            if system_config == NXPerformanceEstimatorConfig.DEFAULT
-            else ["--system_config", str(system_config)]
+        return run_nx_performance_estimator(
+            self.output_dir,
+            self.backend_config,
+            vgf_file,
+            output_name,
         )
-
-        compiler_config_args = (
-            []
-            if compiler_config == NXPerformanceEstimatorConfig.DEFAULT
-            else ["--compiler_config", str(compiler_config)]
-        )
-
-        cmd = Command(
-            cmd=[
-                str(gc_path / "graph-compiler-performance-estimator"),
-                "-i",
-                str(vgf_file.resolve()),
-                "-o",
-                str(output.name),
-                *system_config_args,
-                *compiler_config_args,
-            ],
-            cwd=output_dir,
-        )
-
-        process_command_output(cmd, [OutputLogger(logger, logging.INFO)])
-
-        output_files = NXPerformanceEstimatorOutputFiles.from_output_dir(
-            output_dir, output_name
-        )
-        output_files.check_exists()
-        return output_files
 
     def json_dump(self, stats_per_chain: dict, output_file_path: Path) -> None:
         """Make a json dump of the stats_per_chain dict."""

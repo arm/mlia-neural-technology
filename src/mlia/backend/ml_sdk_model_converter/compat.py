@@ -21,6 +21,16 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import (
     read_tosa_mlir_ops,
     tosa_flatbuffers_available,
 )
+from mlia.backend.nx_performance_estimator.config import (
+    NXPerformanceEstimatorConfig,
+)
+from mlia.backend.nx_performance_estimator.output_parsing import (
+    NXDebugDatabaseParser,
+)
+from mlia.backend.nx_performance_estimator.runner import (
+    run_nx_performance_estimator,
+    get_nx_resource_dir,
+)
 from mlia.utils.filesystem import sha256
 
 logger = logging.getLogger(__name__)
@@ -258,6 +268,28 @@ class NXModelCompatibilityInfo:
         record.error = error
         record.compat_level = "Non-NX"
 
+    def add_estimator_placement(
+        self,
+        record_key: str,
+        location: str,
+        placement: str,
+        op_type: str | None = None,
+    ) -> None:
+        """Add an op placement recovered from NX performance estimator output."""
+        record = self._find_or_create_record(record_key)
+        record.location = location
+        if op_type is not None:
+            record.type = op_type
+
+        if placement == "NX":
+            record.compat_level = "TOSA"
+            record.placement = "NX"
+        elif placement == "EE":
+            record.compat_level = "Shader"
+            record.placement = "EE"
+        else:
+            raise ValueError(f"Unsupported estimator placement '{placement}'.")
+
     @property
     def layer_map(self) -> dict[str, NXOperatorCompatibilityInfo]:
         """Returns the underlying compatibilty records mapped to locations strings."""
@@ -461,12 +493,28 @@ class NXModelCompatibilityInfo:
 class NXCompatibilityChecker:
     """Checker operator compability for Neural Accelerator targets."""
 
-    def __init__(self, output_dir: Path) -> None:
+    def __init__(
+        self, output_dir: Path, backend_config: dict[str, Any] | None = None
+    ) -> None:
         """Initialize the checker."""
         self.output_dir = output_dir
         self.tosa_mlir_to_tosa_map = {
             f"tosa.{tosa_op.lower()}": tosa_op for tosa_op in _SUPPORTED_TOSA_OPS
         }
+        backend_options = dict(
+            (backend_config or {}).get("nx-performance-estimator", {})
+        )
+        backend_options["system_config"] = (
+            backend_options.get("system_config") or "default"
+        )
+        backend_options["compiler_config"] = (
+            backend_options.get("compiler_config") or "default"
+        )
+        self._backend_config = NXPerformanceEstimatorConfig(
+            backend_options["system_config"],
+            backend_options["compiler_config"],
+        )
+        self._backend_config.set_config_dir(get_nx_resource_dir())
 
     @singledispatchmethod
     def check_compatibility(self, arg: Any) -> NXModelCompatibilityInfo:
@@ -501,13 +549,63 @@ class NXCompatibilityChecker:
         return tosa_flatbuffers_available()
 
     @check_compatibility.register
-    def _(self, _vgf_model: VGFModel) -> NXModelCompatibilityInfo:
+    def _(self, vgf_model: VGFModel) -> NXModelCompatibilityInfo:
         """Check compatibility of a VGF model."""
-        # Currently not supported as VGF models are not inherently NX compatible
-        # and can contain incompatible operations, data types, etc.
-        raise NotImplementedError(
-            "Compatibility info is not supported yet for VGF models for this target."
+        debug_db = self._run_estimator_debug_database(vgf_model.path)
+        return self._build_compatibility_from_debug_database(debug_db)
+
+    def _run_estimator_debug_database(
+        self,
+        vgf_path: Path,
+    ) -> dict[str, dict[str, list[str]]]:
+        """Run graph compiler flow and return parsed debug database output."""
+        output_files = run_nx_performance_estimator(
+            self.output_dir,
+            self._backend_config,
+            vgf_path,
+            vgf_path.stem,
         )
+        return NXDebugDatabaseParser(output_files.debug_database).parse_debug_database()
+
+    def _build_compatibility_from_debug_database(
+        self,
+        debug_db: dict[str, dict[str, list[str]]],
+    ) -> NXModelCompatibilityInfo:
+        """Build compatibility information from estimator debug database."""
+        comp_info = NXModelCompatibilityInfo()
+        self._add_estimator_records(
+            comp_info,
+            op_ids=debug_db.get("tosa_op_id_to_api_labels", {}),
+            placement="NX",
+            types=debug_db.get("tosa_op_id_to_tosa_op", {}),
+        )
+        self._add_estimator_records(
+            comp_info,
+            op_ids=debug_db.get("shader_op_id_to_api_labels", {}),
+            placement="EE",
+            types={},
+        )
+        return comp_info
+
+    def _add_estimator_records(
+        self,
+        comp_info: NXModelCompatibilityInfo,
+        *,
+        op_ids: dict[str, list[str]],
+        placement: str,
+        types: dict[str, list[str]],
+    ) -> None:
+        """Add compatibility records for one debug database table."""
+        for op_id, api_labels in op_ids.items():
+            db_op_type = types.get(op_id, [""])[0]
+
+            for idx, api_label in enumerate(api_labels or ["unknown"]):
+                comp_info.add_estimator_placement(
+                    f"op_id_{op_id}_{idx}",
+                    api_label.strip() or "unknown",
+                    placement,
+                    op_type=db_op_type,
+                )
 
     @check_compatibility.register
     def _(self, tosa_model: TOSAModel) -> NXModelCompatibilityInfo:

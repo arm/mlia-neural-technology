@@ -196,7 +196,9 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
             )
             model = _wrap_compatibility_model(converted_model_path)
 
-        checker = NXCompatibilityChecker(self.context.output_dir)
+        checker = NXCompatibilityChecker(
+            self.context.output_dir, self.cfg.backend_config
+        )
 
         comp_info = checker.check_compatibility(model)
 
