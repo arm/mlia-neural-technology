@@ -10,10 +10,10 @@ env:
   PYTHON_VERSION: "3.10"
   ARTIFACTS_PATH: downloaded_artifacts
   VAULT_COMMON_CI_SECRETS: &vault-common-ci-secrets |
-    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_HOST | INTERNAL_PYPI_HOST ;
-    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
-    kv/data/MLIA/CI?version=9 INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
-    kv/data/MLIA/CI?version=9 VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
+    kv/data/MLIA/CI?version=10 INTERNAL_PYPI_HOST | INTERNAL_PYPI_HOST ;
+    kv/data/MLIA/CI?version=10 INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
+    kv/data/MLIA/CI?version=10 INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
+    kv/data/MLIA/CI?version=10 VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
 
 jobs:
   lint:
@@ -141,8 +141,8 @@ jobs:
           namespace: iac-expkits/prod
           secrets: |
             ${{ env.VAULT_COMMON_CI_SECRETS }} ;
-            kv/data/MLIA/CI?version=9 ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
-            kv/data/MLIA/CI?version=9 ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
+            kv/data/MLIA/CI?version=10 ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
+            kv/data/MLIA/CI?version=10 ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
       - name: Configure uv package index
         run: |
           if [ -n "${INTERNAL_PYPI_HOST:-}" ]; then
@@ -190,6 +190,7 @@ jobs:
           uv run --no-sync \
             --with dist/*.whl \
             --with ${{ matrix.converter_package }} \
+            --with pip \
             -- pytest -v tests/test_e2e.py \
               -x \
               -s \
