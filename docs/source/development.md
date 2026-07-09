@@ -65,7 +65,7 @@ When you update one of these areas, review the adjacent layers as well:
 
 Before you consider a change complete, ask:
 
-- Does the target still appear correctly through `mlia-target list`?
+- Does the target still appear correctly through `mlia target list`?
 - Do backend-specific CLI options still behave as documented?
 - Did estimator config changes affect the documented examples?
 - If conversion is involved, does the end-to-end workflow still make sense?
@@ -73,5 +73,4 @@ Before you consider a change complete, ask:
 ## Documentation expectations
 
 When new profiles, supported input formats, or backend options are added, update
-this repo's docs so it remains understandable on its own and does not rely on
-people remembering the old monolithic documentation.
+this repo's docs so it remains understandable on its own.

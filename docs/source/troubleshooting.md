@@ -22,7 +22,7 @@ run?" but "Did the model reach the estimator stage at all?"
 If MLIA cannot find the Neural Technology target profile, treat that as a setup
 problem first.
 
-- Run `mlia-target list` to confirm the profile name.
+- Run `mlia target list` to confirm the profile name.
 - Check that `mlia-neural-technology` is installed in the active environment.
 - Use a file path if you are testing a custom target profile.
 
@@ -50,8 +50,8 @@ conversion stages rather than in the final backend.
 If MLIA cannot find the estimator backend, confirm that the environment exposes
 it first.
 
-- Run `mlia-backend list`.
-- Install or reinstall with `mlia-backend install nx-performance-estimator`.
+- Run `mlia backend list`.
+- Install or reinstall with `mlia backend install nx-performance-estimator`.
 
 ### Config override errors
 
@@ -74,7 +74,8 @@ reading them.
 
 - Compare `totalCycles` with the operators that dominate `opCycles`.
 - Inspect memory-traffic metrics before assuming the estimator itself is wrong.
-- Check whether the result shape looks complete before drawing conclusions from`n  a single field.
+- Check whether the result shape looks complete before drawing conclusions from
+  a single field.
 
 ## Conversion-path issues
 

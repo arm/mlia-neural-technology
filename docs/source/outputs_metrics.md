@@ -39,7 +39,9 @@ A simplified result shape might look like this:
     {
       "metrics": {
         "totalCycles": 456789,
-        "opCycles": 400000
+        "opCycles": 400000,
+        "inference_time": 1.23,
+        "inferences_per_second": 812.0
       }
     }
   ]
@@ -57,6 +59,10 @@ usually include:
 
 - `totalCycles`
 - `opCycles`
+- `inference_time`
+- `inferences_per_second`
+- `compiled_size`
+- `dram_footprint`
 - Per-operator memory statistics such as `readBytes` and `writeBytes`.
 - Traffic-oriented cycle metrics such as `trafficCycles`.
 - Hardware-section utilisation statistics.
