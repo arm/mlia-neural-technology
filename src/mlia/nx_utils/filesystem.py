@@ -9,7 +9,7 @@ def is_tosa_file(model: str | Path) -> bool:
     """Check if path contains tosa file."""
     model_path = Path(model)
 
-    return model_path.suffix in {".tosamlir", ".tosa"}
+    return model_path.suffix in {".tosamlir", ".tosa", ".mlirbc"}
 
 
 def is_vgf_file(model: str | Path) -> bool:

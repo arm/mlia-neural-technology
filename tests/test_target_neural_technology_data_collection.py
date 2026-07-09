@@ -10,6 +10,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from mlia.backend.ml_sdk_model_converter.conversion import get_front_end_output_subdir
 
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
@@ -58,6 +59,24 @@ def _neural_technology_config(
         profile_name=profile_name,
         backend_config={"nx-performance-estimator": backend_config},
     )
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected_subdir"),
+    [
+        ("model.tflite", "tflite-to-tosa"),
+        ("model.pt2", "pt2-to-tosa"),
+        ("model.pte", "pte-to-delegate"),
+        ("model.tosa", None),
+    ],
+)
+def test_get_front_end_output_subdir_returns_shared_conversion_location(
+    tmp_path: Path,
+    model_name: str,
+    expected_subdir: str | None,
+) -> None:
+    """Frontend conversions should resolve output dirs from one shared helper."""
+    assert get_front_end_output_subdir(tmp_path / model_name) == expected_subdir
 
 
 @pytest.mark.parametrize(
@@ -153,40 +172,34 @@ def test_neural_technology_compatibility_collect_data(
 ) -> None:
     """Tests for the NeuralTechnologyCompatibility class."""
     mock_check_compatibility = MagicMock(return_value=None)
+    captured: dict[str, Any] = {}
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.compat."
         + "NXCompatibilityChecker.check_compatibility",
         mock_check_compatibility,
     )
-    converter_calls: list[dict[str, Any]] = []
 
-    def _fake_converter(
-        _name: str,
-        model: Path,
+    def _fake_transform_front_end_model(
+        model_path: Path,
         output_dir: Path,
         *,
         enable_quantization: bool | None = None,
         output_format: str | None = None,
         emit_debug_info: bool | None = None,
     ) -> Path:
-        converter_calls.append(
-            {
-                "name": _name,
-                "model": model,
-                "output_dir": output_dir,
-                "enable_quantization": enable_quantization,
-                "output_format": output_format,
-                "emit_debug_info": emit_debug_info,
-            }
-        )
-        output_dir.mkdir(exist_ok=True)
-        tosa_path = output_dir / f"{model.stem}.tosa"
-        tosa_path.touch()
-        return tosa_path
+        captured["model_path"] = model_path
+        captured["output_dir"] = output_dir
+        captured["enable_quantization"] = enable_quantization
+        captured["output_format"] = output_format
+        captured["emit_debug_info"] = emit_debug_info
+        suffix = ".vgf" if model_path.suffix == ".pte" else ".tosa"
+        output_path = output_dir / f"{model_path.stem}{suffix}"
+        output_path.touch()
+        return output_path
 
     monkeypatch.setattr(
-        "mlia.target.neural_technology.data_collection.run_named_converter",
-        _fake_converter,
+        "mlia.target.neural_technology.data_collection.transform_front_end_model",
+        _fake_transform_front_end_model,
     )
 
     model = request.getfixturevalue(model_fixture)
@@ -202,16 +215,42 @@ def test_neural_technology_compatibility_collect_data(
         ntc.collect_data()
         mock_check_compatibility.assert_called_once()
         if model_fixture == "test_tflite_model":
-            assert converter_calls == [
-                {
-                    "name": "tflite_to_tosa",
-                    "model": model,
-                    "output_dir": tmp_path / "mlia-output" / "tflite-to-tosa",
-                    "enable_quantization": None,
-                    "output_format": "mlir-text",
-                    "emit_debug_info": True,
-                }
-            ]
+            assert captured["model_path"] == model
+            assert captured["output_dir"] == ntc.context.output_dir / "tflite-to-tosa"
+            assert captured["output_format"] == "mlir-text"
+            assert captured["emit_debug_info"] is True
+        elif model_fixture == "test_pte_model":
+            assert captured["model_path"] == model
+            assert captured["output_dir"] == ntc.context.output_dir / "pte-to-delegate"
+
+
+def test_neural_technology_compatibility_skips_frontend_conversion_for_vgf(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """VGF input should go straight to compatibility checking."""
+    model = tmp_path / "model.vgf"
+    model.write_text("vgf", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "mlia.target.neural_technology.data_collection.transform_front_end_model",
+        MagicMock(side_effect=AssertionError("frontend conversion should be skipped")),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat."
+        "NXCompatibilityChecker.check_compatibility",
+        MagicMock(return_value=None),
+    )
+
+    collector = NeuralTechnologyCompatibility(
+        model,
+        _neural_technology_config(
+            system_config=NeuralTechnologyCompatibility.name(),
+        ),
+    )
+    collector.set_context(ExecutionContext(output_dir=tmp_path))
+
+    collector.collect_data()
 
 
 def test_neural_technology_performance_accepts_pte_input(

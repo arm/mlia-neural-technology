@@ -119,7 +119,7 @@ jobs:
           if-no-files-found: ignore
 
   test_e2e:
-    name: End-to-End Smoke Tests (${{ matrix.suite }})
+    name: End-to-End Smoke Tests (${{ matrix.suite }} Shard ${{ matrix.display_index }}/${{ matrix.total }})
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.repository_owner != 'arm' }}
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     needs:
@@ -128,10 +128,8 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - suite: tflite
-            converter_package: mlia-converters-tflite
-          - suite: pytorch
-            converter_package: mlia-converters-pytorch
+          - {suite: tflite, index: 0, display_index: 1, total: 3, converter_package: mlia-converters-tflite}
+          - {suite: pytorch, index: 0, display_index: 1, total: 1, converter_package: mlia-converters-pytorch}
     steps:
       - name: Import secrets from Vault
         uses: hashicorp/vault-action@v4
@@ -175,60 +173,34 @@ jobs:
         with:
           artifacts: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_ARTIFACTS || vars.MLIA_E2E_TFLITE_ARTIFACTS }}
           destination: ${{ env.ARTIFACTS_PATH }}
-      - name: Prepare API e2e artifacts
-        if: ${{ vars.MLIA_API_E2E_ARTIFACTS != '' }}
-        uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@main
-        env:
-          ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
-          ARTIFACT_GIT_SOURCE_USERNAME: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
-          ARTIFACT_GIT_SOURCE_PASSWORD: ${{ env.ARTIFACT_GIT_SOURCE_PASSWORD }}
-          ARTIFACT_HTTP_SOURCE_HOST: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
-          ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
-          ARTIFACT_HTTP_SOURCE_TOKEN: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
-        with:
-          artifacts: ${{ vars.MLIA_API_E2E_ARTIFACTS }}
-          destination: ${{ env.ARTIFACTS_PATH }}
       - run: uv sync --no-sources --no-install-project --only-group test
       # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
       - run: ./.venv/bin/python -m ensurepip --upgrade
       - name: Run e2e pytest
         env:
           MLIA_E2E_ARTIFACTS: ${{ env.ARTIFACTS_PATH }}
-          MLIA_E2E_BACKENDS: nx-performance-estimator
-          MLIA_API_E2E_MODEL: ${{ vars.MLIA_API_E2E_MODEL }}
-          MLIA_API_E2E_TFLITE_MODEL: ${{ vars.MLIA_API_E2E_TFLITE_MODEL }}
-          MLIA_API_E2E_PYTORCH_MODEL: ${{ vars.MLIA_API_E2E_PYTORCH_MODEL }}
+          MLIA_E2E_BACKENDS: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_BACKENDS || vars.MLIA_E2E_TFLITE_BACKENDS }}
+          MLIA_E2E_EXECUTIONS: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_EXECUTIONS || vars.MLIA_E2E_TFLITE_EXECUTIONS }}
+          MLIA_E2E_SHARD_INDEX: ${{ matrix.index }}
+          MLIA_E2E_SHARD_COUNT: ${{ matrix.total }}
         run: |
-          set -euo pipefail
-          if [ "${{ matrix.suite }}" = "pytorch" ]; then
-            MODEL="${MLIA_API_E2E_PYTORCH_MODEL:-}"
-          else
-            MODEL="${MLIA_API_E2E_TFLITE_MODEL:-${MLIA_API_E2E_MODEL:-}}"
-          fi
-          if [ -z "${MODEL}" ]; then
-            echo "Missing representative ${{ matrix.suite }} e2e model variable."
-            exit 1
-          fi
-
-          MLIA_E2E_EXECUTIONS='[{"command":"check","parameters":{"advice":[["--performance"]],"target":[["--target-profile","neural-technology"]],"backend":[["--backend","nx-performance-estimator"]],"model":[["'"${MODEL}"'"]]}}]'
-          export MLIA_E2E_EXECUTIONS
-
           mkdir -p report
-          rm -f "report/report-${{ matrix.suite }}.xml"
+          rm -f "report/report-${{ matrix.index }}.xml"
+          set -o pipefail
           uv run --no-sync \
             --with dist/*.whl \
             --with ${{ matrix.converter_package }} \
-            -- pytest -v tests/test_e2e.py::test_e2e_performance \
+            -- pytest -v tests/test_e2e.py \
               -x \
               -s \
               --capture=tee-sys \
               -o junit_logging=out-err \
               -o junit_log_passing_tests=true \
               --no-cov \
-              --junitxml="report/report-${{ matrix.suite }}.xml"
+              --junitxml="report/report-${{ matrix.index }}.xml"
       - name: Upload e2e junit
-        if: ${{ always() && hashFiles(format('report/report-{0}.xml', matrix.suite)) != '' }}
+        if: ${{ always() && hashFiles(format('report/report-{0}.xml', matrix.index)) != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-junit-${{ matrix.suite }}
+          name: e2e-junit-shard-${{ matrix.suite }}-${{ matrix.index }}
           path: report/*.xml

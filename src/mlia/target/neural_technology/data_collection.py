@@ -16,7 +16,10 @@ from mlia.backend.ml_sdk_model_converter.compat import (
     TOSAModel,
     VGFModel,
 )
-from mlia.backend.ml_sdk_model_converter.conversion import run_named_converter
+from mlia.backend.ml_sdk_model_converter.conversion import (
+    get_front_end_output_subdir,
+    transform_front_end_model,
+)
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceEstimator,
     NXPerformanceEstimatorPerformanceMetrics,
@@ -37,6 +40,39 @@ logger = logging.getLogger(__name__)
 
 def _is_tflite_file(model: Path) -> bool:
     return model.suffix == ".tflite"
+
+
+def _is_supported_input_model(model: Path) -> bool:
+    return any(
+        [
+            _is_tflite_file(model),
+            is_tosa_file(model),
+            is_vgf_file(model),
+            is_pytorch_file(model),
+            is_pte_file(model),
+        ]
+    )
+
+
+def _get_front_end_output_dir(base_output_dir: Path, model: Path) -> Path:
+    output_subdir = get_front_end_output_subdir(model)
+    if output_subdir is None:
+        return base_output_dir
+
+    output_dir = base_output_dir / output_subdir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def _wrap_compatibility_model(model: Path) -> TOSAModel | VGFModel:
+    if is_tosa_file(model):
+        return TOSAModel(model)
+    if is_vgf_file(model):
+        return VGFModel(model)
+
+    raise ConfigurationError(
+        "Model conversion frontend output must be a TOSA or VGF file."
+    )
 
 
 @dataclass
@@ -70,15 +106,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
         self,
     ) -> NXPerformanceResult | NXPerformanceEstimatorPerformanceMetrics:
         """Run performance estimator."""
-        if not any(
-            [
-                _is_tflite_file(self.model),
-                is_tosa_file(self.model),
-                is_vgf_file(self.model),
-                is_pytorch_file(self.model),
-                is_pte_file(self.model),
-            ]
-        ):
+        if not _is_supported_input_model(self.model):
             raise ConfigurationError(
                 "Input must be a TOSA, VGF, TFLite, PyTorch or PTE file."
             )
@@ -147,52 +175,26 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         self,
     ) -> NXCompatibilityResult | NXModelCompatibilityInfo:
         """Run performance estimator."""
-        model: TOSAModel | VGFModel | None = None
-        if _is_tflite_file(self.model):
-            output_dir = self.context.output_dir / "tflite-to-tosa"
-            output_dir.mkdir(exist_ok=True)
-            tosa_path = run_named_converter(
-                "tflite_to_tosa",
-                self.model,
-                output_dir,
-                output_format="mlir-text",
-                emit_debug_info=True,
-            )
-            model = TOSAModel(tosa_path)
-        elif is_vgf_file(self.model):
-            model = VGFModel(self.model)
-        elif is_tosa_file(self.model):
-            model = TOSAModel(self.model)
-        elif is_pytorch_file(self.model):
-            output_dir = self.context.output_dir / "pt2-to-tosa"
-            output_dir.mkdir(exist_ok=True)
-            tosa_path = run_named_converter(
-                "pt2_to_tosa",
-                self.model,
-                output_dir,
-                enable_quantization=self.cfg.backend_config.get(
-                    "nx-performance-estimator", {}
-                ).get("enable_quantization", True),
-            )
-            model = TOSAModel(tosa_path)
-        elif is_pte_file(self.model):
-            output_dir = self.context.output_dir / "pte-to-delegate"
-            output_dir.mkdir(exist_ok=True)
-            delegate_output = run_named_converter(
-                "pte_to_delegate", self.model, output_dir
-            )
-            if is_tosa_file(delegate_output):
-                model = TOSAModel(delegate_output)
-            elif is_vgf_file(delegate_output):
-                model = VGFModel(delegate_output)
-            else:
-                raise ConfigurationError(
-                    "PTE delegate output must be a TOSA or VGF file."
-                )
-        else:
+        if not _is_supported_input_model(self.model):
             raise ConfigurationError(
                 "Input must be a TOSA, VGF, TFLite, PyTorch or PTE file."
             )
+
+        model: TOSAModel | VGFModel
+        if is_vgf_file(self.model):
+            model = VGFModel(self.model)
+        else:
+            is_tflite = _is_tflite_file(self.model)
+            converted_model_path = transform_front_end_model(
+                self.model,
+                _get_front_end_output_dir(self.context.output_dir, self.model),
+                enable_quantization=self.cfg.backend_config.get(
+                    "nx-performance-estimator", {}
+                ).get("enable_quantization", True),
+                output_format="mlir-text" if is_tflite else None,
+                emit_debug_info=True if is_tflite else None,
+            )
+            model = _wrap_compatibility_model(converted_model_path)
 
         checker = NXCompatibilityChecker(self.context.output_dir)
 

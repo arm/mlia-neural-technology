@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from mlia.nx_utils.filesystem import (
     is_tosa_file,
     is_vgf_file,
 )
+from mlia.transformers.error import TransformerNotFoundError
+from mlia.transformers.registry import TransformRequest, transform_model
 from mlia.utils.logging import log_action
 from mlia.utils.proc import (
     Command,
@@ -22,8 +25,6 @@ from mlia.utils.proc import (
     OutputLogger,
     process_command_output,
 )
-from mlia.transformers.error import TransformerNotFoundError
-from mlia.transformers.registry import TransformRequest, transform_model
 
 logger = logging.getLogger(__name__)
 
@@ -32,33 +33,67 @@ def _is_tflite_file(model: Path) -> bool:
     return model.suffix == ".tflite"
 
 
-_CONVERTER_TARGET_FORMATS = {
-    "tflite_to_tosa": "tosa",
-    "pt2_to_tosa": "tosa",
-    "pte_to_delegate": "delegate",
-}
-
-
-def _converter_unavailable_error(name: str) -> ConfigurationError:
-    if name == "tflite_to_tosa":
+def _converter_unavailable_error(model_file: Path) -> ConfigurationError:
+    if _is_tflite_file(model_file):
         return ConfigurationError(
             "TFLite conversion requires the 'mlia-converters-tflite' plugin "
             "to be installed."
         )
-    if name == "pt2_to_tosa":
+    if is_pytorch_file(model_file) or is_pte_file(model_file):
         return ConfigurationError(
-            "PyTorch conversion requires the 'mlia-converters-pytorch' plugin to be installed."
+            "PyTorch conversion requires the 'mlia-converters-pytorch' plugin "
+            "to be installed."
         )
-    if name == "pte_to_delegate":
-        return ConfigurationError(
-            "PTE delegate conversion requires the 'mlia-converters-pytorch' "
-            "plugin to be installed."
-        )
-    return ConfigurationError(f"Converter '{name}' is not available.")
+    return ConfigurationError("Transformer for model is not available.")
 
 
-def run_named_converter(
-    name: str,
+def get_front_end_output_subdir(model_file: Path) -> str | None:
+    """Return the standard output subdir for a converted frontend model."""
+    if _is_tflite_file(model_file):
+        return "tflite-to-tosa"
+    if is_pytorch_file(model_file):
+        return "pt2-to-tosa"
+    if is_pte_file(model_file):
+        return "pte-to-delegate"
+    return None
+
+
+def build_front_end_transform_request(
+    model_file: Path,
+    output_dir: Path,
+    *,
+    enable_quantization: bool | None = None,
+    output_format: str | None = None,
+    emit_debug_info: bool | None = None,
+) -> TransformRequest:
+    """Build the transformer request for a supported frontend model."""
+    if not any(
+        [
+            _is_tflite_file(model_file),
+            is_pytorch_file(model_file),
+            is_pte_file(model_file),
+        ]
+    ):
+        raise ConfigurationError("Input must be a TFLite, PyTorch or PTE file.")
+
+    target_format = "delegate" if is_pte_file(model_file) else "tosa"
+    transform_options: dict[str, Any] = {}
+    if is_pytorch_file(model_file) and enable_quantization is not None:
+        transform_options["enable_quantization"] = enable_quantization
+    if output_format is not None:
+        transform_options["output_format"] = output_format
+    if emit_debug_info is not None:
+        transform_options["emit_debug_info"] = emit_debug_info
+
+    return TransformRequest(
+        model=model_file,
+        output_dir=output_dir,
+        target_format=target_format,
+        transform_options=transform_options,
+    )
+
+
+def transform_front_end_model(
     model_file: Path,
     output_dir: Path,
     *,
@@ -66,30 +101,21 @@ def run_named_converter(
     output_format: str | None = None,
     emit_debug_info: bool | None = None,
 ) -> Path:
-    """Run a registered converter transformer."""
-    target_format = _CONVERTER_TARGET_FORMATS.get(name)
-    if target_format is None:
-        raise _converter_unavailable_error(name)
+    """Convert a supported frontend input to TOSA/VGF or pass through TOSA."""
+    if is_tosa_file(model_file):
+        return model_file
 
-    kwargs: dict[str, Any] = {}
-    if enable_quantization is not None:
-        kwargs["enable_quantization"] = enable_quantization
-    if output_format is not None:
-        kwargs["output_format"] = output_format
-    if emit_debug_info is not None:
-        kwargs["emit_debug_info"] = emit_debug_info
-
+    request = build_front_end_transform_request(
+        model_file,
+        output_dir,
+        enable_quantization=enable_quantization,
+        output_format=output_format,
+        emit_debug_info=emit_debug_info,
+    )
     try:
-        return transform_model(
-            TransformRequest(
-                model=model_file,
-                output_dir=output_dir,
-                target_format=target_format,
-                transform_options=kwargs,
-            )
-        )
+        return transform_model(request)
     except TransformerNotFoundError as err:
-        raise _converter_unavailable_error(name) from err
+        raise _converter_unavailable_error(model_file) from err
 
 
 class MLSDKModelConverterBase:
@@ -125,7 +151,18 @@ class MLSDKModelConverterBase:
             if is_vgf_file(converted_model_path):
                 vgf_file = converted_model_path
             elif is_tosa_file(converted_model_path):
-                vgf_file = self.run_back_end(converted_model_path, output_dir)
+                try:
+                    vgf_file = self.run_back_end(converted_model_path, output_dir)
+                except subprocess.CalledProcessError:
+                    if not (
+                        _is_tflite_file(model_file)
+                        and converted_model_path.suffix == ".mlirbc"
+                    ):
+                        raise
+                    vgf_file = self.run_back_end(
+                        output_dir / f"{model_file.stem}.tosamlir",
+                        output_dir,
+                    )
             else:
                 raise ConfigurationError(
                     "Model conversion frontend output must be a TOSA or VGF file."
@@ -140,43 +177,24 @@ class MLSDKModelConverterBase:
         if not model_file.is_file():
             raise FileNotFoundError(f"Input model file does not exist: {model_file}")
 
-        # Check the file extension to see if we've been given a TOSA file.
-        if is_tosa_file(model_file):
-            converted_model_path = model_file
-        elif is_pytorch_file(model_file):
-            converted_model_path = run_named_converter(
-                "pt2_to_tosa",
-                model_file,
-                output_dir,
-                enable_quantization=(
-                    self.enable_quantization
-                    if self.enable_quantization is not None
-                    else True
-                ),
-            )
-        elif _is_tflite_file(model_file):
-            tosa_file = run_named_converter(
-                "tflite_to_tosa",
+        if _is_tflite_file(model_file):
+            converted_model_path = transform_front_end_model(
                 model_file,
                 output_dir,
                 output_format="mlir-bytecode",
                 emit_debug_info=True,
             )
-            run_named_converter(
-                "tflite_to_tosa",
+            transform_front_end_model(
                 model_file,
                 output_dir,
                 output_format="mlir-text",
                 emit_debug_info=True,
             )
-            converted_model_path = tosa_file
-        elif is_pte_file(model_file):
-            converted_model_path = run_named_converter(
-                "pte_to_delegate", model_file, output_dir
-            )
         else:
-            raise ConfigurationError(
-                "Input must be a TOSA, TFLite, PyTorch or PTE file."
+            converted_model_path = transform_front_end_model(
+                model_file,
+                output_dir,
+                enable_quantization=self.enable_quantization,
             )
 
         if not converted_model_path.is_file():

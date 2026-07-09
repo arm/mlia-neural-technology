@@ -22,6 +22,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from mlia.transformers.registry import TransformRequest
 
 mlia_api = importlib.import_module("mlia.api")
 run_advisor = mlia_api.run_advisor
@@ -275,6 +276,14 @@ def test_run_advisor_compatibility_accepts_torch_module_input(
     )
     monkeypatch.setitem(sys.modules, "torch", fake_torch)
 
+    def fake_transform_model(request: TransformRequest) -> Path:
+        captured["export_request"] = request
+        captured["example_inputs"] = request.transform_options["example_inputs"]
+        fake_save(object(), request.output_dir / "model.pt2")
+        return request.output_dir / "model.pt2"
+
+    monkeypatch.setattr("mlia.api.transform_model", fake_transform_model)
+
     def fake_converter(
         model_path: Path,
         output_dir: Path,
@@ -298,13 +307,22 @@ def test_run_advisor_compatibility_accepts_torch_module_input(
                 "results": [{}],
             }
 
-    monkeypatch.setattr(
-        "mlia.target.neural_technology.data_collection.run_named_converter",
-        lambda name, model_path, output_dir, enable_quantization=None: fake_converter(
+    def fake_transform_front_end_model(
+        model_path: Path,
+        output_dir: Path,
+        *,
+        enable_quantization: bool | None = None,
+        **_kwargs: Any,
+    ) -> Path:
+        return fake_converter(
             model_path,
             output_dir,
             enable_quantization=enable_quantization,
-        ),
+        )
+
+    monkeypatch.setattr(
+        "mlia.target.neural_technology.data_collection.transform_front_end_model",
+        fake_transform_front_end_model,
     )
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.compat."
@@ -325,6 +343,15 @@ def test_run_advisor_compatibility_accepts_torch_module_input(
     assert output["schema_version"] == "1.0.0"
     assert output["model"]["name"] == "FakeModule"
     assert exported_paths["pt2"].name == "model.pt2"
+    assert captured["export_request"] == TransformRequest(
+        model=module,
+        output_dir=exported_paths["pt2"].parent,
+        target_format="pt2",
+        transform_options={
+            "example_inputs": captured["example_inputs"],
+            "enable_quantization": False,
+        },
+    )
     assert captured["converter_input"] == exported_paths["pt2"]
     assert captured["converter_enable_quantization"] is False
     assert captured["example_inputs"] != ()

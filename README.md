@@ -92,7 +92,7 @@ Use `.tosa` as the clearest default example for this package on its own. Direct
 `.tflite`, `.pt2`, and `.pte` flows depend on the matching converter plugins being
 installed.
 
-The package depends on `mlia==0.11.0.dev28` and is intended to be used as part
+The package depends on `mlia` and is intended to be used as part
 of a wider MLIA installation rather than as a standalone CLI.
 
 ## Reporting bugs

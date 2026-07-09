@@ -2,16 +2,19 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for missing converter plugins."""
 
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
+from unittest.mock import call
 
 import pytest
 
 from mlia.backend.ml_sdk_model_converter import install as model_converter_install
 from mlia.backend.ml_sdk_model_converter.conversion import (
     MLSDKModelConverterBase,
-    run_named_converter,
+    build_front_end_transform_request,
+    transform_front_end_model,
 )
 from mlia.core.errors import ConfigurationError
 from mlia.transformers.error import TransformerNotFoundError
@@ -147,11 +150,14 @@ def test_converter_converts_pte_to_vgf(
     vgf_path = tmp_path / "model.vgf"
     captured: dict[str, TransformRequest] = {}
 
-    def fake_transform_model(req: TransformRequest) -> Path:
-        captured["request"] = req
-        delegate_output = req.output_dir / f"{input_model.stem}{delegate_suffix}"
+    def fake_pte_converter(model_file: Path, output_dir: Path) -> Path:
+        delegate_output = output_dir / f"{model_file.stem}{delegate_suffix}"
         delegate_output.touch()
         return delegate_output
+
+    def fake_transform_model(request: TransformRequest) -> Path:
+        captured["request"] = request
+        return fake_pte_converter(request.model, request.output_dir)
 
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
@@ -168,173 +174,220 @@ def test_converter_converts_pte_to_vgf(
     )
 
 
-def test_tflite_front_end_requests_mlir_bytecode(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_build_front_end_transform_request_passes_disable_quantization_for_pt2_to_tosa(
+    tmp_path: Path,
 ) -> None:
-    """TFLite performance conversion should keep bytecode and text debug output."""
-    model = tmp_path / "model.tflite"
-    model.touch()
-    bytecode_path = tmp_path / "model.tosa.mlirbc"
-    text_path = tmp_path / "model.tosamlir"
-    captured: list[dict[str, Any]] = []
-    converter = MLSDKModelConverterBase(tmp_path)
-
-    def fake_run_named_converter(
-        name: str,
-        model_file: Path,
-        output_dir: Path,
-        *,
-        output_format: str | None = None,
-        emit_debug_info: bool | None = None,
-    ) -> Path:
-        captured.append(
-            {
-                "name": name,
-                "model_file": model_file,
-                "output_dir": output_dir,
-                "output_format": output_format,
-                "emit_debug_info": emit_debug_info,
-            }
-        )
-        output_path = bytecode_path if output_format == "mlir-bytecode" else text_path
-        output_path.touch()
-        return output_path
-
-    monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.run_named_converter",
-        fake_run_named_converter,
-    )
-
-    result = converter.run_front_end(model, tmp_path)
-
-    assert result == bytecode_path
-    assert captured == [
-        {
-            "name": "tflite_to_tosa",
-            "model_file": model,
-            "output_dir": tmp_path,
-            "output_format": "mlir-bytecode",
-            "emit_debug_info": True,
-        },
-        {
-            "name": "tflite_to_tosa",
-            "model_file": model,
-            "output_dir": tmp_path,
-            "output_format": "mlir-text",
-            "emit_debug_info": True,
-        },
-    ]
-
-
-def test_run_named_converter_forwards_enable_quantization(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    expected_path = tmp_path / "supported.tosa"
-    captured: dict[str, TransformRequest] = {}
-
-    def fake_transform_model(req: TransformRequest) -> Path:
-        captured["request"] = req
-        return expected_path
-
-    monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
-        fake_transform_model,
-    )
-
-    model = tmp_path / "model.pt2"
-    result = run_named_converter(
-        "pt2_to_tosa",
-        model,
+    request = build_front_end_transform_request(
+        tmp_path / "model.pt2",
         tmp_path,
         enable_quantization=False,
     )
 
-    assert result == expected_path
-    assert captured["request"] == TransformRequest(
-        model=model,
+    assert request == TransformRequest(
+        model=tmp_path / "model.pt2",
         output_dir=tmp_path,
         target_format="tosa",
         transform_options={"enable_quantization": False},
     )
 
 
-def test_run_named_converter_maps_unknown_converter_to_configuration_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_build_front_end_transform_request_passes_enable_quantization_for_pt2_to_tosa(
+    tmp_path: Path,
 ) -> None:
-    transform_model_mock = MagicMock()
-    monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
-        transform_model_mock,
-    )
-
-    with pytest.raises(
-        ConfigurationError, match="Converter 'unknown' is not available"
-    ):
-        run_named_converter("unknown", tmp_path / "model.tflite", tmp_path)
-    transform_model_mock.assert_not_called()
-
-
-def test_run_named_converter_forwards_output_format(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Converter output format should be forwarded to transformer plugins."""
-    expected_path = tmp_path / "model.tosa.mlirbc"
-    captured: dict[str, TransformRequest] = {}
-
-    def fake_transform_model(req: TransformRequest) -> Path:
-        captured["request"] = req
-        return expected_path
-
-    monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
-        fake_transform_model,
-    )
-
-    model = tmp_path / "model.tflite"
-    result = run_named_converter(
-        "tflite_to_tosa",
-        model,
+    request = build_front_end_transform_request(
+        tmp_path / "model.pt2",
         tmp_path,
-        output_format="mlir-bytecode",
+        enable_quantization=True,
     )
 
-    assert result == expected_path
-    assert captured["request"] == TransformRequest(
-        model=model,
+    assert request == TransformRequest(
+        model=tmp_path / "model.pt2",
         output_dir=tmp_path,
         target_format="tosa",
-        transform_options={"output_format": "mlir-bytecode"},
+        transform_options={"enable_quantization": True},
     )
 
 
-def test_run_named_converter_forwards_emit_debug_info(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_build_front_end_transform_request_omits_quantization_flag_when_unset_for_pt2_to_tosa(
+    tmp_path: Path,
 ) -> None:
-    """Converter debug info should be forwarded to transformer plugins."""
-    expected_path = tmp_path / "model.tosamlir"
-    captured: dict[str, TransformRequest] = {}
-
-    def fake_transform_model(req: TransformRequest) -> Path:
-        captured["request"] = req
-        return expected_path
-
-    monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
-        fake_transform_model,
+    request = build_front_end_transform_request(
+        tmp_path / "model.pt2",
+        tmp_path,
+        enable_quantization=None,
     )
 
-    model = tmp_path / "model.tflite"
-    result = run_named_converter(
-        "tflite_to_tosa",
-        model,
+    assert request == TransformRequest(
+        model=tmp_path / "model.pt2",
+        output_dir=tmp_path,
+        target_format="tosa",
+        transform_options={},
+    )
+
+
+def test_build_front_end_transform_request_forwards_tflite_output_options(
+    tmp_path: Path,
+) -> None:
+    request = build_front_end_transform_request(
+        tmp_path / "model.tflite",
         tmp_path,
+        output_format="mlir-bytecode",
         emit_debug_info=True,
     )
 
+    assert request == TransformRequest(
+        tmp_path / "model.tflite",
+        tmp_path,
+        "tosa",
+        {"output_format": "mlir-bytecode", "emit_debug_info": True},
+    )
+
+
+def test_transform_front_end_model_dispatches_transform_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected_path = tmp_path / "converted.tosa"
+    captured: dict[str, Any] = {}
+
+    def fake_transform_model(request: TransformRequest) -> Path:
+        captured["request"] = request
+        return expected_path
+
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        fake_transform_model,
+    )
+
+    result = transform_front_end_model(
+        tmp_path / "model.pt2",
+        tmp_path,
+        enable_quantization=False,
+    )
+
     assert result == expected_path
     assert captured["request"] == TransformRequest(
-        model=model,
+        model=tmp_path / "model.pt2",
         output_dir=tmp_path,
         target_format="tosa",
-        transform_options={"emit_debug_info": True},
+        transform_options={"enable_quantization": False},
     )
+
+
+def test_transform_front_end_model_rejects_missing_pt2_transformer_for_no_ptq(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        MagicMock(side_effect=TransformerNotFoundError("missing")),
+    )
+
+    with pytest.raises(ConfigurationError, match="mlia-converters-pytorch"):
+        transform_front_end_model(
+            tmp_path / "model.pt2",
+            tmp_path,
+            enable_quantization=False,
+        )
+
+
+def test_transform_front_end_model_ignores_unsupported_flag_for_non_pt2_transform(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected_path = tmp_path / "legacy.tosa"
+    captured: dict[str, Any] = {}
+
+    def fake_transform_model(request: TransformRequest) -> Path:
+        captured["request"] = request
+        return expected_path
+
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        fake_transform_model,
+    )
+
+    result = transform_front_end_model(
+        tmp_path / "model.tflite",
+        tmp_path,
+        enable_quantization=False,
+    )
+
+    assert result == expected_path
+    assert captured["request"] == TransformRequest(
+        model=tmp_path / "model.tflite",
+        output_dir=tmp_path,
+        target_format="tosa",
+        transform_options={},
+    )
+
+
+def test_tflite_front_end_requests_mlir_bytecode_and_debug_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = tmp_path / "model.tflite"
+    model.touch()
+    bytecode_path = tmp_path / "model.tosa.mlirbc"
+    text_path = tmp_path / "model.tosamlir"
+    captured: list[TransformRequest] = []
+    converter = MLSDKModelConverterBase(tmp_path)
+
+    def fake_transform_model(request: TransformRequest) -> Path:
+        captured.append(request)
+        output_path = (
+            bytecode_path
+            if request.transform_options.get("output_format") == "mlir-bytecode"
+            else text_path
+        )
+        output_path.touch()
+        return output_path
+
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        fake_transform_model,
+    )
+
+    assert converter.run_front_end(model, tmp_path) == bytecode_path
+    assert captured == [
+        TransformRequest(
+            model=model,
+            output_dir=tmp_path,
+            target_format="tosa",
+            transform_options={
+                "output_format": "mlir-bytecode",
+                "emit_debug_info": True,
+            },
+        ),
+        TransformRequest(
+            model=model,
+            output_dir=tmp_path,
+            target_format="tosa",
+            transform_options={
+                "output_format": "mlir-text",
+                "emit_debug_info": True,
+            },
+        ),
+    ]
+
+
+def test_tflite_back_end_prefers_bytecode_and_falls_back_to_sibling_mlir_text(
+    tmp_path: Path,
+) -> None:
+    model = tmp_path / "model.tflite"
+    model.touch()
+    bytecode_path = tmp_path / "model.tosa.mlirbc"
+    bytecode_path.touch()
+    text_path = tmp_path / "model.tosamlir"
+    text_path.touch()
+    vgf_path = tmp_path / "model.vgf"
+    converter = MLSDKModelConverterBase(tmp_path)
+    converter.run_front_end = MagicMock(return_value=bytecode_path)  # type: ignore[method-assign]
+    converter.run_back_end = MagicMock(  # type: ignore[method-assign]
+        side_effect=[
+            subprocess.CalledProcessError(255, ["model-converter"]),
+            vgf_path,
+        ]
+    )
+
+    assert converter(model, tmp_path) == vgf_path
+    assert converter.run_back_end.call_args_list == [
+        call(bytecode_path, tmp_path),
+        call(text_path, tmp_path),
+    ]
