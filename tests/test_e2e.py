@@ -19,12 +19,6 @@ NEURAL_TECHNOLOGY_COMPATIBILITY_PATTERNS = (
 
 NEURAL_TECHNOLOGY_PERFORMANCE_PATTERNS = (
     r".*Neural Accelerator raw performance report:.*",
-    r".*│.*Operator((.|\n)*)Location.*│.*",
-    r".*│.*Operator((.|\n)*)Type.*│.*",
-    r".*│.*Operator((.|\n)*)Cycles.*│.*",
-    r".*│.*Total((.|\n)*)Cycles.*│.*",
-    r".*│.*HW((.|\n)*)Utilisation.*│.*",
-    r".*│.*Memory((.|\n)*)Name.*│.*",
 )
 
 

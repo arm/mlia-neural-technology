@@ -6,13 +6,10 @@
 # than when wrapped by the formatter. Disable line length check for this file.
 # ruff: noqa: E501
 
-from functools import partial
 from pathlib import Path
-from typing import List
 from unittest.mock import MagicMock
 
 import pytest
-from rich.console import Console
 
 from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp, TosaOpType
@@ -41,7 +38,6 @@ from mlia.target.neural_technology.reporters import (
     neural_technology_formatters,
     report_target,
 )
-from mlia.utils.console import remove_ascii_codes
 
 
 def test_report_target() -> None:
@@ -52,31 +48,7 @@ def test_report_target() -> None:
     assert report.to_plain_text()
 
 
-def assert_table_contents(report: Table, json: dict) -> None:
-    """Assert that a given Table renders the expected JSON output."""
-    assert isinstance(report, Table)
-    assert report.to_json() == json
-
-
-def assert_table_lines(report: Table, expected_lines: list) -> None:
-    """Assert that a given Table renders the expected JSON output.
-
-    In case of failure, it renders actual and expected textual tables in a form
-    that's easy to overview and can directly be used as "golden" data in the test.
-    """
-    assert isinstance(report, Table)
-    actual_lines = remove_ascii_codes(report.to_plain_text()).split("\n")
-
-    def to_diff_string(lines: List[str]) -> str:
-        test_line = [f'          "{line}",' for line in lines]
-        return ("\n").join(test_line)
-
-    actual = to_diff_string(actual_lines)
-    expected = to_diff_string(expected_lines)
-    assert actual_lines == expected_lines, f"Expected:\n{expected}\n\nActual:\n{actual}"
-
-
-def test_nx_performance_estimator_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_nx_performance_estimator_reporting() -> None:
     """Test function neural_technology_formatters() with Neural Accelerator performance
     data."""
 
@@ -151,73 +123,42 @@ def test_nx_performance_estimator_reporting(monkeypatch: pytest.MonkeyPatch) -> 
         model_performance_stats=MagicMock(spec=NXModelPerformanceStats),
     )
 
-    monkeypatch.setattr("mlia.utils.console.Console", partial(Console, width=80))
-
     formatter = neural_technology_formatters(metrics)
     report = formatter(metrics)
     assert isinstance(report, Table)
 
-    assert_table_lines(
-        report,
-        [
-            "Neural Accelerator raw performance report:",
-            "┌────┬──────┬──────┬──────┬──────┬──────┬──────┬─────┬──────┬─────┬──────┬─────┐",
-            "│    │ Ope… │ Ope… │ Ope… │ Tot… │ HW   │ Act… │ HW  │ Mem… │ Re… │ Wri… │ Tr… │",
-            "│ ID │ Loc… │ Type │ Cyc… │ Cyc… │ Sec… │ Cyc… │ Ut… │ Name │ by… │ byt… │ cy… │",
-            "╞════╪══════╪══════╪══════╪══════╪══════╪══════╪═════╪══════╪═════╪══════╪═════╡",
-            "│ 25 │ dee… │ Dep… │ 4    │ 13   │ Out… │ 625  │ 48… │ L1   │ 0   │ 4    │ 0   │",
-            "│    │ p/e… │ Res… │      │      │ Vec… │ 0    │ 0.… │ L2   │ 0   │ 0    │ 0   │",
-            "│    │ se_… │      │      │      │ Inp… │ 0    │ 0.… │ Sys… │ 0   │ 0    │ 0   │",
-            "│    │ us_… │      │      │      │      │      │     │ DRAM │ 128 │ 4    │ 4   │",
-            "│    │ con… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ Bat… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ _mb… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ nv_… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ ;de… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ 0p/… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ ise… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ p/e… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ se_… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ us_… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ con… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ Bat… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ _mb… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ nv_… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ ;de… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ 0p/… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ ise… │      │      │      │      │      │     │      │     │      │     │",
-            "├────┼──────┼──────┼──────┼──────┼──────┼──────┼─────┼──────┼─────┼──────┼─────┤",
-            "│ 26 │ dee… │ Con… │ 1800 │ 212  │ Out… │ 100  │ 47… │ L1   │ 0   │ 0    │ 0   │",
-            "│    │ p/e… │ Res… │      │      │ Vec… │ 75   │ 35… │ L2   │ 0   │ 0    │ 0   │",
-            "│    │ _BN… │ Res… │      │      │ Tra… │ 50   │ 23… │ Sys… │ 0   │ 0    │ 0   │",
-            "│    │ lab… │ Res… │      │      │ Inp… │ 1500 │ 70… │ DRAM │ 320 │ 12   │ 10  │",
-            "│    │ pan… │ Add  │      │      │      │      │     │      │     │      │     │",
-            "│    │ v2D… │ Res… │      │      │      │      │     │      │     │      │     │",
-            "│    │ 108… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ jec… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ p/e… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ _BN… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ lab… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ pan… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ v2D… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ 108… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ jec… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ p/e… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ p/e… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ p/e… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ dee… │      │      │      │      │      │     │      │     │      │     │",
-            "│    │ p/e… │      │      │      │      │      │     │      │     │      │     │",
-            "└────┴──────┴──────┴──────┴──────┴──────┴──────┴─────┴──────┴─────┴──────┴─────┘",
-        ],
+    report_json = report.to_json()
+    assert list(report_json) == ["nx_perf_db"]
+
+    rows = report_json["nx_perf_db"]
+    assert len(rows) == 2
+    assert [row["id"] for row in rows] == [["25"], ["26"]]
+    assert [row["opCycles"] for row in rows] == [4, 1800]
+    assert [row["totalCycles"] for row in rows] == [13, 212]
+    assert [entry["hwSection"] for entry in rows[1]["hwSection"]] == [
+        "OutputWriter",
+        "VectorEngine",
+        "TransformUnit",
+        "InputReader",
+    ]
+    assert [entry["memoryName"] for entry in rows[1]["memoryName"]] == [
+        "L1",
+        "L2",
+        "SystemCache",
+        "DRAM",
+    ]
+    assert [entry["memoryName"] for entry in rows[1]["readBytes"]] == [
+        0,
+        0,
+        0,
+        320,
+    ]
+    assert report.to_plain_text().startswith(
+        "Neural Accelerator raw performance report:"
     )
 
 
-def test_nx_compatibility_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_nx_compatibility_reporting() -> None:
     """Test function neural_technology_formatters() with Neural Accelerator
     compatibility data."""
 
@@ -231,24 +172,35 @@ def test_nx_compatibility_reporting(monkeypatch: pytest.MonkeyPatch) -> None:
     report = formatter(comp_info)
     assert isinstance(report, Table)
 
-    monkeypatch.setattr("mlia.utils.console.Console", partial(Console, width=80))
-    assert_table_lines(
-        report,
-        [
-            "Operators:",
-            "┌───┬───────────────────┬───────────────┬──────────────┬──────────────────┐",
-            "│ # │ Operator location │ Operator type │ NX placement │ NX compatibility │",
-            "╞═══╪═══════════════════╪═══════════════╪══════════════╪══════════════════╡",
-            "│ 1 │ /myop1            │ COMP2D        │ NX           │ TOSA             │",
-            "├───┼───────────────────┼───────────────┼──────────────┼──────────────────┤",
-            "│ 2 │ /myop2            │ Unknown       │ EE           │ Shader           │",
-            "├───┼───────────────────┼───────────────┼──────────────┼──────────────────┤",
-            "│ 3 │ /myop3            │ Unknown       │ NX           │ TOSA             │",
-            "├───┼───────────────────┼───────────────┼──────────────┼──────────────────┤",
-            "│ 4 │ /myop4            │ NMS           │ FAIL         │ Non-NX           │",
-            "└───┴───────────────────┴───────────────┴──────────────┴──────────────────┘",
-        ],
-    )
+    assert report.to_json() == {
+        "operators": [
+            {
+                "operator_location": "/myop1",
+                "operator_type": "COMP2D",
+                "nx_placement": "NX",
+                "nx_compatibility": "TOSA",
+            },
+            {
+                "operator_location": "/myop2",
+                "operator_type": "Unknown",
+                "nx_placement": "EE",
+                "nx_compatibility": "Shader",
+            },
+            {
+                "operator_location": "/myop3",
+                "operator_type": "Unknown",
+                "nx_placement": "NX",
+                "nx_compatibility": "TOSA",
+            },
+            {
+                "operator_location": "/myop4",
+                "operator_type": "NMS",
+                "nx_placement": "FAIL",
+                "nx_compatibility": "Non-NX",
+            },
+        ]
+    }
+    assert report.to_plain_text().startswith("Operators:")
 
 
 def test_neural_technology_formatters_advice_list() -> None:
