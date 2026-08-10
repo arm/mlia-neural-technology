@@ -21,7 +21,10 @@ jobs:
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     steps:
       - name: Import secrets from Vault
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        # Vault secrets must not be exposed to pull requests from forks.
+        if: >-
+          ${{ github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository }}
         uses: hashicorp/vault-action@v4
         with:
           url: ${{ secrets.VAULT_URL }}
@@ -49,7 +52,10 @@ jobs:
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     steps:
       - name: Import secrets from Vault
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        # Vault secrets must not be exposed to pull requests from forks.
+        if: >-
+          ${{ github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository }}
         uses: hashicorp/vault-action@v4
         with:
           url: ${{ secrets.VAULT_URL }}
@@ -80,7 +86,10 @@ jobs:
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     steps:
       - name: Import secrets from Vault
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        # Vault secrets must not be exposed to pull requests from forks.
+        if: >-
+          ${{ github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository }}
         uses: hashicorp/vault-action@v4
         with:
           url: ${{ secrets.VAULT_URL }}
@@ -120,7 +129,11 @@ jobs:
 
   test_e2e:
     name: End-to-End Smoke Tests (${{ matrix.suite }} Shard ${{ matrix.display_index }}/${{ matrix.total }})
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.repository_owner != 'arm' }}
+    # End-to-end tests require secrets and therefore cannot run for fork PRs.
+    if: >-
+      ${{ (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.repository_owner != 'arm' }}
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     needs:
       - build
@@ -132,6 +145,10 @@ jobs:
           - {suite: pytorch, index: 0, display_index: 1, total: 1, converter_package: mlia-converters-pytorch}
     steps:
       - name: Import secrets from Vault
+        # Vault secrets must not be exposed to pull requests from forks.
+        if: >-
+          ${{ github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository }}
         uses: hashicorp/vault-action@v4
         with:
           url: ${{ secrets.VAULT_URL }}
