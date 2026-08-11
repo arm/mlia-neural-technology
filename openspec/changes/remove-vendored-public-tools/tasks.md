@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 ## 1. Dependency Metadata
 
 - [x] 1.1 Add public package dependencies to `mlia-neural-technology` and
-  `mlia-converters-tflite`.
+  `mlia-converters-litert`.
 - [x] 1.2 Remove build hook artifact wiring for public packages while retaining
   the NX performance estimator vendor artifact.
 - [x] 1.3 Remove wheel/sdist inclusion rules and vendor sidecars for removed

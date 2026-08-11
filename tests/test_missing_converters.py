@@ -96,7 +96,7 @@ def test_run_front_end_raises_when_tflite_converter_missing(
         MagicMock(side_effect=TransformerNotFoundError("missing")),
     )
 
-    with pytest.raises(ConfigurationError, match="mlia-converters-tflite"):
+    with pytest.raises(ConfigurationError, match="mlia-converters-litert"):
         converter.run_front_end(input_model, tmp_path)
 
 

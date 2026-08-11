@@ -18,7 +18,7 @@ files that should be resolved by normal Python package metadata.
 - Use the public `tosa-tools` distribution for TOSA FlatBuffers support instead
   of the vendored `tosa-flatbuffers` wheel.
 - Use the public `tosa-converter-for-tflite` distribution in
-  `mlia-converters-tflite` instead of the vendored converter wheel.
+  `mlia-converters-litert` instead of the vendored converter wheel.
 - Keep the NX performance estimator vendored through the existing artifact flow.
 - Leave the PyTorch converter vendored `tosa-tools` artifact unchanged for this
   change because the current public `tosa-tools` release conflicts with
@@ -45,7 +45,7 @@ None.
   metadata and executable resolution for the public model converter package.
 - `mlia-neural-technology/src/mlia/backend/tosa_flatbuffers/`: install
   metadata for the public TOSA tools package.
-- `mlia-converters-tflite/pyproject.toml`, `hatch_build.py`, and
+- `mlia-converters-litert/pyproject.toml`, `hatch_build.py`, and
   `src/mlia/backend/tosa_converter_for_tflite/install.py`: public dependency
   and auto-install behavior.
 - Vendor artifact directories and pre-commit exclusions for the removed

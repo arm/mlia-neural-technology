@@ -60,8 +60,8 @@ mlia check model.pt2 --target-profile neural-technology --performance
 If the run fails early, the problem may belong to the conversion stages before
 the estimator ever runs.
 
-The same idea applies to TensorFlow Lite input. Use `.tosa` for the plain
-plugin-only path, then install `mlia-converters-tflite` or
+The same idea applies to LiteRT / TensorFlow Lite `.tflite` input. Use `.tosa` for the plain
+plugin-only path, then install `mlia-converters-litert` or
 `mlia-converters-pytorch` when you want MLIA to accept `.tflite`, `.pt2`, or
 `.pte` directly.
 

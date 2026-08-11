@@ -17,7 +17,7 @@ performance estimator path.
 - `mlia-neural-technology` declares:
   - `ai-ml-sdk-model-converter` for the `model-converter` executable.
   - `tosa-tools` for the importable TOSA FlatBuffers package.
-- `mlia-converters-tflite` declares `tosa-converter-for-tflite`.
+- `mlia-converters-litert` declares `tosa-converter-for-tflite`.
 
 Public tool versions are pinned exactly so MLIA uses a known-compatible tool
 set rather than silently mixing converter and compiler releases.

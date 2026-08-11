@@ -111,7 +111,7 @@ test = [
     "flaky~=3.8.1",
     "jsonschema>=4.24,<5",
     "numpy==2.1.3",
-    "mlia-converters-tflite",
+    "mlia-converters-litert",
     "tensorflow",
     "tf-keras"
 ]

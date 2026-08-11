@@ -17,7 +17,8 @@ SPDX-License-Identifier: Apache-2.0
 - Use `tosa-flatbuffers` as the low-level TOSA support backend.
 
 Compatible converter plugins for upstream model formats include
-`mlia-converters-tflite` and `mlia-converters-pytorch`.
+`mlia-converters-litert` (for LiteRT / TensorFlow Lite `.tflite` models) and
+`mlia-converters-pytorch`.
 
 ## Documentation Map
 

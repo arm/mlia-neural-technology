@@ -126,7 +126,7 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - {suite: tflite, index: 0, display_index: 1, total: 3, converter_package: mlia-converters-tflite}
+          - {suite: tflite, index: 0, display_index: 1, total: 3, converter_package: mlia-converters-litert}
           - {suite: pytorch, index: 0, display_index: 1, total: 1, converter_package: mlia-converters-pytorch}
     steps:
       - name: Import secrets from Vault

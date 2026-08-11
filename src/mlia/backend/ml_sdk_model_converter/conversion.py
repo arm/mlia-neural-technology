@@ -36,7 +36,7 @@ def _is_tflite_file(model: Path) -> bool:
 def _converter_unavailable_error(model_file: Path) -> ConfigurationError:
     if _is_tflite_file(model_file):
         return ConfigurationError(
-            "TFLite conversion requires the 'mlia-converters-tflite' plugin "
+            "TFLite conversion requires the 'mlia-converters-litert' plugin "
             "to be installed."
         )
     if is_pytorch_file(model_file) or is_pte_file(model_file):

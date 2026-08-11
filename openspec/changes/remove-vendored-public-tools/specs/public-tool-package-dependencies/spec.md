@@ -15,7 +15,7 @@ that are available from public package indexes.
   available through normal package dependency resolution
 
 #### Scenario: TFLite converter dependency is installed
-- **WHEN** `mlia-converters-tflite` is installed
+- **WHEN** `mlia-converters-litert` is installed
 - **THEN** the `tosa-converter-for-tflite` distribution is available through
   normal package dependency resolution
 
@@ -31,7 +31,7 @@ converter packages.
   URLs
 
 #### Scenario: Building converter packages
-- **WHEN** `mlia-converters-tflite` or `mlia-converters-pytorch` is built
+- **WHEN** `mlia-converters-litert` or `mlia-converters-pytorch` is built
 - **THEN** the wheel and sdist do not include vendored public tool wheels
 
 ### Requirement: Backend installs use public packages

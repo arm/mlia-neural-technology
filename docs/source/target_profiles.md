@@ -32,7 +32,7 @@ name from CLI commands.
 
 This package participates in workflows for several model formats:
 
-- TensorFlow Lite (`.tflite`).
+- LiteRT / TensorFlow Lite (`.tflite`).
 - TOSA (`.tosa`, `.tosamlir`).
 - VGF (`.vgf`).
 - PyTorch export (`.pt2`).
@@ -47,7 +47,7 @@ installed alongside it.
 Use these converter plugins when the input is not already in a directly usable
 format for the Neural Technology flow:
 
-- `mlia-converters-tflite` for TensorFlow Lite (`.tflite`) inputs.
+- `mlia-converters-litert` for LiteRT / TensorFlow Lite (`.tflite`) inputs.
 - `mlia-converters-pytorch` for PyTorch export (`.pt2`) and ExecuTorch PTE
   (`.pte`) inputs.
 
@@ -79,8 +79,9 @@ In the PyTorch case, MLIA can automatically invoke the PyTorch-to-TOSA
 conversion path before the performance estimator runs, provided
 `mlia-converters-pytorch` is installed.
 
-TensorFlow Lite inputs can also flow through the Neural Technology path, but
-they depend on `mlia-converters-tflite` to prepare the estimator input.
+LiteRT / TensorFlow Lite `.tflite` inputs can also flow through the Neural
+Technology path, but they depend on `mlia-converters-litert` to prepare the
+estimator input.
 
 ## Configuration concepts
 
