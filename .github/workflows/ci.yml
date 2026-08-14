@@ -5,15 +5,24 @@ name: CI
 
 on:
   pull_request:
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: "3.10"
   ARTIFACTS_PATH: downloaded_artifacts
+
+  # Separate uv installations from each other on self-hosten runners
+  # in case they share the working directory
+  UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache-ci-${{ github.run_id }}-${{ github.run_attempt }}
+  UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/.venv-ci-${{ github.run_id }}-${{ github.run_attempt }}
+  UV_TOOL_DIR: ${{ github.workspace }}/.uv-tools-ci-${{ github.run_id }}-${{ github.run_attempt }}
+  UV_TOOL_BIN_DIR: ${{ github.workspace }}/.uv-bin-ci-${{ github.run_id }}-${{ github.run_attempt }}
+
   VAULT_COMMON_CI_SECRETS: &vault-common-ci-secrets |
-    kv/data/MLIA/CI UV_DEFAULT_INDEX | UV_DEFAULT_INDEX ;
-    kv/data/MLIA/CI INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
-    kv/data/MLIA/CI INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
-    kv/data/MLIA/CI VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
+    kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} UV_DEFAULT_INDEX | UV_DEFAULT_INDEX ;
+    kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
+    kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD ;
+    kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
 
 jobs:
   lint:
@@ -143,8 +152,8 @@ jobs:
           namespace: iac-expkits/prod
           secrets: |
             ${{ env.VAULT_COMMON_CI_SECRETS }} ;
-            kv/data/MLIA/CI ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
-            kv/data/MLIA/CI ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
+            kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
+            kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
@@ -172,7 +181,7 @@ jobs:
           destination: ${{ env.ARTIFACTS_PATH }}
       - run: uv sync --no-sources --no-install-project --only-group test
       # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
-      - run: ./.venv/bin/python -m ensurepip --upgrade
+      - run: ${{ env.UV_PROJECT_ENVIRONMENT }}/bin/python -m ensurepip --upgrade
       - name: Run e2e pytest
         env:
           MLIA_E2E_ARTIFACTS: ${{ env.ARTIFACTS_PATH }}
