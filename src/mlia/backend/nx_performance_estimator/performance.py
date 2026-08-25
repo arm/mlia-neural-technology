@@ -270,16 +270,33 @@ class NXPerformanceEstimatorPerformanceMetrics:
         metrics = schema.ensure_standard_performance_metrics(metrics)
 
         breakdowns = []
+        entities = []
+        stripe_entity_ids = {
+            stripe_id: f"stripe/{stripe_id}"
+            for stripe_id in self.stripe_performance_metrics
+        }
         for chain_name, stats in self.chain_performance_metrics.items():
             breakdown_metrics = self._build_breakdown_metrics(stats)
+            entity_id = f"chain/{chain_name}"
+            location = ";".join([";".join(op["opLocation"]) for op in stats.operators])
 
+            entities.append(
+                schema.Entity(
+                    id=entity_id,
+                    kind="chain",
+                    name=chain_name,
+                    placement="nx",
+                    child_ids=[
+                        stripe_entity_ids[op_id]
+                        for op_id in stats.op_id
+                        if op_id in stripe_entity_ids
+                    ],
+                    attributes={"location": location, "stripe_ids": stats.op_id},
+                )
+            )
             breakdowns.append(
                 schema.Breakdown(
-                    scope=schema.OperatorScope.OPERATOR_CHAIN,
-                    name=chain_name,
-                    location=";".join(
-                        [";".join(op["opLocation"]) for op in stats.operators]
-                    ),
+                    entity_id=entity_id,
                     metrics=breakdown_metrics,
                     id=";".join(stats.op_id),
                     qualifiers={},
@@ -288,14 +305,29 @@ class NXPerformanceEstimatorPerformanceMetrics:
 
         for stripe_id, stats in self.stripe_performance_metrics.items():
             breakdown_metrics = self._build_breakdown_metrics(stats)
+            entity_id = stripe_entity_ids[stripe_id]
+            name = ";".join([";".join(op["opType"]) for op in stats.operators])
+            location = ";".join([";".join(op["opLocation"]) for op in stats.operators])
 
+            entities.append(
+                schema.Entity(
+                    id=entity_id,
+                    kind="operator",
+                    name=name,
+                    placement="nx",
+                    parent_ids=[
+                        f"chain/{chain_name}"
+                        for chain_name, chain_stats in (
+                            self.chain_performance_metrics.items()
+                        )
+                        if stripe_id in chain_stats.op_id
+                    ],
+                    attributes={"location": location, "stripe_id": stripe_id},
+                )
+            )
             breakdowns.append(
                 schema.Breakdown(
-                    scope=schema.OperatorScope.OPERATOR,
-                    name=";".join([";".join(op["opType"]) for op in stats.operators]),
-                    location=";".join(
-                        [";".join(op["opLocation"]) for op in stats.operators]
-                    ),
+                    entity_id=entity_id,
                     metrics=breakdown_metrics,
                     id=stripe_id,
                     qualifiers={},
@@ -311,6 +343,11 @@ class NXPerformanceEstimatorPerformanceMetrics:
             metrics=metrics,
             mode=None,  # NX doesn't specify simulation/measured,
             breakdowns=breakdowns,
+            entities=entities,
+            entity_kinds=[
+                schema.EntityKind(id="chain", child_kinds=["operator"]),
+                schema.EntityKind(id="operator", parent_kinds=["chain"]),
+            ],
         )
 
         return schema.StandardizedOutput(

@@ -482,9 +482,7 @@ def test_nx_performance_metrics_to_standardized_output(
 
     assert breakdowns == [
         {
-            "scope": "operator_chain",
-            "name": "chain_0",
-            "location": "OpLocation0;OpLocation1",
+            "entity_id": "chain/chain_0",
             "metrics": [
                 {"name": "total_cycles", "value": 5000, "unit": "cycles"},
                 {"name": "op_cycles", "value": 4500, "unit": "cycles"},
@@ -500,9 +498,7 @@ def test_nx_performance_metrics_to_standardized_output(
             "id": "0;1",
         },
         {
-            "scope": "operator_chain",
-            "name": "chain_1",
-            "location": "OpLocation3;OpLocation4",
+            "entity_id": "chain/chain_1",
             "metrics": [
                 {"name": "total_cycles", "value": 10000, "unit": "cycles"},
                 {"name": "op_cycles", "value": 9000, "unit": "cycles"},
@@ -518,9 +514,7 @@ def test_nx_performance_metrics_to_standardized_output(
             "id": "3;4",
         },
         {
-            "scope": "operator",
-            "name": "OpType0",
-            "location": "OpLocation0",
+            "entity_id": "stripe/0",
             "metrics": [
                 {"name": "total_cycles", "value": 3000, "unit": "cycles"},
                 {"name": "op_cycles", "value": 2700, "unit": "cycles"},
@@ -534,6 +528,42 @@ def test_nx_performance_metrics_to_standardized_output(
                 {"name": "memory_cycles", "value": 600, "unit": "cycles"},
             ],
             "id": "0",
+        },
+    ]
+
+    assert result["entity_kinds"] == [
+        {"id": "chain", "child_kinds": ["operator"]},
+        {"id": "operator", "parent_kinds": ["chain"]},
+    ]
+    assert result["entities"] == [
+        {
+            "id": "chain/chain_0",
+            "kind": "chain",
+            "name": "chain_0",
+            "placement": "nx",
+            "child_ids": ["stripe/0"],
+            "attributes": {
+                "location": "OpLocation0;OpLocation1",
+                "stripe_ids": ["0", "1"],
+            },
+        },
+        {
+            "id": "chain/chain_1",
+            "kind": "chain",
+            "name": "chain_1",
+            "placement": "nx",
+            "attributes": {
+                "location": "OpLocation3;OpLocation4",
+                "stripe_ids": ["3", "4"],
+            },
+        },
+        {
+            "id": "stripe/0",
+            "kind": "operator",
+            "name": "OpType0",
+            "placement": "nx",
+            "parent_ids": ["chain/chain_0"],
+            "attributes": {"location": "OpLocation0", "stripe_id": "0"},
         },
     ]
 

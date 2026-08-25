@@ -58,6 +58,10 @@ def test_compatibility_output_reports_nx_operator_percentage(tmp_path: Path) -> 
         "ee",
         "cpu",
     ]
+    assert result["entity_kinds"] == [{"id": "operator"}]
+    assert [check["entity_id"] for check in result["checks"]] == [
+        entity["id"] for entity in result["entities"]
+    ]
     assert [check["status"] for check in result["checks"]] == [
         "pass",
         "pass",

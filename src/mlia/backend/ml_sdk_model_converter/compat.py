@@ -419,12 +419,12 @@ class NXModelCompatibilityInfo:
             if record.tosa_op:
                 entity_attrs["tosa_op"] = record.tosa_op
 
+            entity_attrs["location"] = record.location
             entity = schema.Entity(
-                scope=schema.OperatorScope.OPERATOR,
-                name=record.location,
-                location=record.location,
-                placement=placement,
                 id=entity_id,
+                kind="operator",
+                name=record.location,
+                placement=placement,
                 attributes=entity_attrs,
             )
             entities.append(entity)
@@ -442,6 +442,7 @@ class NXModelCompatibilityInfo:
             check = schema.Check(
                 id=f"nx_support_{entity_id}",
                 status=status,
+                entity_id=entity_id,
                 details=details,
             )
             checks.append(check)
@@ -466,6 +467,7 @@ class NXModelCompatibilityInfo:
             metrics=[self._build_accelerator_operator_percentage_metric(records)],
             checks=checks,
             entities=entities,
+            entity_kinds=[schema.EntityKind(id="operator")],
         )
 
         return schema.StandardizedOutput(
