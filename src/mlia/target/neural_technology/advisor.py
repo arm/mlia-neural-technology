@@ -7,25 +7,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Sequence
 
-from mlia.core.advice_generation import AdviceProducer
 from mlia.core.advisor import DefaultInferenceAdvisor, InferenceAdvisor
 from mlia.core.common import AdviceCategory
 from mlia.core.context import Context, ExecutionContext
 from mlia.core.data_analysis import DataAnalyzer
 from mlia.core.data_collection import DataCollector
 from mlia.core.errors import ConfigurationError
-from mlia.core.events import Event
-from mlia.target.neural_technology.advice_generation import (
-    NeuralTechnologyAdviceProducer,
-)
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.data_analysis import NeuralTechnologyDataAnalyzer
 from mlia.target.neural_technology.data_collection import (
     NeuralTechnologyCompatibility,
     NeuralTechnologyPerformance,
 )
-from mlia.target.neural_technology.events import NeuralTechnologyAdvisorStartedEvent
-from mlia.target.neural_technology.handlers import NeuralTechnologyEventHandler
 
 
 class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
@@ -55,21 +48,6 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
         """Return list of the data analyzers."""
         return [
             NeuralTechnologyDataAnalyzer(),
-        ]
-
-    def get_producers(self, context: Context) -> list[AdviceProducer]:
-        """Return list of the advice producers."""
-        return [NeuralTechnologyAdviceProducer()]
-
-    def get_events(self, context: Context) -> list[Event]:
-        """Return list of the startup events."""
-        model = self.get_model(context)
-        target_profile = self.get_target_profile(context)
-
-        return [
-            NeuralTechnologyAdvisorStartedEvent(
-                model, NeuralTechnologyConfiguration.load_profile(target_profile)
-            ),
         ]
 
     def get_pattern_analyzers(self, _context: Context) -> list:
@@ -104,9 +82,6 @@ def configure_and_get_neural_technology_advisor(
     **extra_args: Any,
 ) -> InferenceAdvisor:
     """Create and configure Neural Technology advisor."""
-    if context.event_handlers is None:
-        context.event_handlers = [NeuralTechnologyEventHandler(context.output_dir)]
-
     if context.config_parameters is None:
         context.config_parameters = _get_config_parameters(
             model, target_profile, **extra_args

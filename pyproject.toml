@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
     "ai-ml-sdk-model-converter==0.9.0",
     "tosa-tools==2026.2.1",
-    "mlia==0.12.1"
+    "mlia==0.12.2.dev11+f5e4b2f"
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
 authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
