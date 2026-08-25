@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -237,6 +238,77 @@ def test_nx_performance_estimator_reads_tosa_fallback_for_missing_spirv_ids(
         "716": "model/real_mul",
         "999": "model/rescale",
     }
+
+
+def test_nx_performance_estimator_uses_platform_executable_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """NX performance estimator command should use the platform executable name."""
+    system_config = tmp_path / "system.ini"
+    compiler_config = tmp_path / "compiler.ini"
+    system_config.write_bytes(b"size=32kb\r\n")
+    compiler_config.write_bytes(b"enableDirectStriping=true\r\n")
+    commands = []
+    mock_repo = MagicMock()
+    mock_repo.get_backend_settings = MagicMock(return_value=(tmp_path / "backend", {}))
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.runner.get_backend_repository",
+        MagicMock(return_value=mock_repo),
+    )
+    estimator = NXPerformanceEstimatorPerformanceEstimator(
+        tmp_path,
+        {
+            "nx-performance-estimator": {
+                "system_config": system_config,
+                "compiler_config": compiler_config,
+            }
+        },
+        {},
+    )
+
+    expected_output = NXPerformanceEstimatorOutputFiles.from_output_dir(
+        tmp_path / "nx-performance-estimator", "model"
+    )
+
+    def record_command(command, _consumers):
+        commands.append(command)
+        for file in vars(expected_output).values():
+            file.touch()
+
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.runner.process_command_output",
+        record_command,
+    )
+
+    estimator._run_nx_performance_estimator(tmp_path / "model.vgf", "model")
+
+    executable = Path(commands[0].cmd[0])
+    expected_name = (
+        "graph-compiler-performance-estimator.exe"
+        if sys.platform == "win32"
+        else "graph-compiler-performance-estimator"
+    )
+    assert executable == tmp_path / "backend" / expected_name
+
+    if sys.platform == "win32":
+        output_dir = tmp_path / "nx-performance-estimator"
+        assert commands[0].cmd[-4:] == [
+            "-s",
+            str(output_dir / "system.ini"),
+            "-c",
+            str(output_dir / "compiler.ini"),
+        ]
+        assert (output_dir / "system.ini").read_bytes() == b"size=32kb\n"
+        assert (
+            output_dir / "compiler.ini"
+        ).read_bytes() == b"enableDirectStriping=true\n"
+    else:
+        assert commands[0].cmd[-4:] == [
+            "-s",
+            str(system_config),
+            "-c",
+            str(compiler_config),
+        ]
 
 
 def test_nx_performance_estimator_keeps_enable_quantization_out_of_config(

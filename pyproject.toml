@@ -78,6 +78,18 @@ pattern = "default-unprefixed"
 bump = true
 fallback-version = "0.0.0.dev0"
 
+[tool.uv]
+# The editable wheel's build hook bundles vendor artifacts, so changes to its
+# inputs must invalidate uv's cached package build rather than only exposing
+# live Python source through the editable installation.
+cache-keys = [
+    {file = "pyproject.toml"},
+    {file = "hatch_build.py"},
+    {file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.linux"},
+    {file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.windows"},
+    {git = {commit = true}}
+]
+
 [tool.mypy]
 # Suppress errors for optional dependencies and cross-repo imports.
 ignore_missing_imports = true

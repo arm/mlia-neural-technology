@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import urllib.request
 from pathlib import Path
 
@@ -19,17 +20,22 @@ ENV_USER = "UV_INDEX_INTERNAL_USERNAME"
 ENV_TOKEN = "UV_INDEX_INTERNAL_PASSWORD"
 
 
-class ArtifactSpec(TypedDict, total=False):
+class ArtifactSpec(TypedDict):
     """Spec describing a vendored artifact."""
 
     vendor_dir: Path
     type: Literal["tar", "whl"]
+    sha256_by_platform: dict[str, str]
 
 
 ARTIFACTS: dict[str, ArtifactSpec] = {
     "graph-compiler-performance-estimator": {
         "vendor_dir": Path("mlia/_vendor/artifacts/nx-performance-estimator"),
         "type": "tar",
+        "sha256_by_platform": {
+            "Linux": ".sha256.linux",
+            "Windows": ".sha256.windows",
+        },
     }
 }
 
@@ -42,6 +48,17 @@ def _read_expected_sha256(path: Path) -> tuple[str, str]:
     if len(parts) < 2:
         raise RuntimeError(f"Invalid sha256 file format: {path}")
     return parts[0], parts[1]
+
+
+def _platform_sha256_filename(spec: ArtifactSpec) -> str:
+    current_platform = platform.system()
+    try:
+        return spec["sha256_by_platform"][current_platform]
+    except KeyError as exc:
+        supported = ", ".join(sorted(spec["sha256_by_platform"]))
+        raise RuntimeError(
+            f"Unsupported platform '{current_platform}'. Supported platforms: {supported}."
+        ) from exc
 
 
 def _file_sha256(path: Path) -> str:
@@ -114,11 +131,12 @@ class CustomBuildHook(BuildHookInterface):
 
         urls = _load_vendor_urls()
         for key, spec in ARTIFACTS.items():
+            sha256_filename = _platform_sha256_filename(spec)
             vendor_dir = base_root / spec["vendor_dir"]
-            sha_path = vendor_dir / ".sha256"
+            sha_path = vendor_dir / sha256_filename
             if not sha_path.exists():
                 alt_vendor_dir = alt_root / spec["vendor_dir"]
-                alt_sha = alt_vendor_dir / ".sha256"
+                alt_sha = alt_vendor_dir / sha256_filename
                 if alt_sha.exists():
                     vendor_dir = alt_vendor_dir
                     sha_path = alt_sha

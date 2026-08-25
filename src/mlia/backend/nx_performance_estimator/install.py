@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import sys
 
 from mlia.backend.install import BackendInstallation, PackagePathChecker
 
@@ -15,10 +16,12 @@ def get_nx_performance_estimator_installation() -> BackendInstallation:
         description="Neural Accelerator Performance Estimator",
         fvp_dir_name="nx-performance-estimator",
         download_config=None,
-        supported_platforms=["Linux"],
+        supported_platforms=["Linux", "Windows"],
         path_checker=PackagePathChecker(
             expected_files=[
-                "graph-compiler-performance-estimator",
+                "graph-compiler-performance-estimator.exe"
+                if sys.platform == "win32"
+                else "graph-compiler-performance-estimator",
             ],
         ),
         backend_installer=None,

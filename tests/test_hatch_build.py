@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
+import platform
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -18,6 +20,10 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib
 
 PROJECT_ROOT = Path(__file__).parents[1]
+PLATFORM_SHA256_FILES = {
+    "Linux": ".sha256.linux",
+    "Windows": ".sha256.windows",
+}
 
 
 @pytest.fixture()
@@ -62,18 +68,27 @@ def _read_expected_sha256(path: Path) -> tuple[str, str]:
 
 
 def test_wheel_includes_nx_estimator_archive_and_excludes_public_artifacts() -> None:
-    """Wheel metadata should vendor only the NX estimator archive."""
+    """Wheel metadata should vendor only the platform's NX estimator archive."""
     pyproject = tomllib.loads(
         (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
     wheel_target = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
 
     vendor_dir = PROJECT_ROOT / "src/mlia/_vendor/artifacts/nx-performance-estimator"
-    expected_sha, expected_name = _read_expected_sha256(vendor_dir / ".sha256")
+    current_platform = platform.system()
+    assert current_platform in PLATFORM_SHA256_FILES
 
-    assert expected_sha
-    assert expected_name.endswith(".tar.gz")
-    assert (vendor_dir / expected_name).is_file()
+    for sha256_filename in PLATFORM_SHA256_FILES.values():
+        expected_sha, expected_name = _read_expected_sha256(
+            vendor_dir / sha256_filename
+        )
+        assert expected_sha
+        assert expected_name.endswith(".tar.gz")
+
+    _, selected_name = _read_expected_sha256(
+        vendor_dir / PLATFORM_SHA256_FILES[current_platform]
+    )
+    assert (vendor_dir / selected_name).is_file()
     assert "src/mlia" in wheel_target["only-include"]
 
     excluded_paths = set(wheel_target["exclude"])
@@ -85,7 +100,7 @@ def test_wheel_includes_nx_estimator_archive_and_excludes_public_artifacts() -> 
 def test_build_hook_force_includes_nx_estimator_archive(
     hatch_build: ModuleType,
 ) -> None:
-    """The ignored NX estimator archive must be forced into built wheels."""
+    """The current platform's estimator archive must be forced into wheels."""
     hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
     hook.root = str(PROJECT_ROOT)
     build_data: dict[str, object] = {}
@@ -94,11 +109,64 @@ def test_build_hook_force_includes_nx_estimator_archive(
 
     force_include = build_data["force_include"]
     assert isinstance(force_include, dict)
-    archive = next(
-        PROJECT_ROOT.glob(
-            "src/mlia/_vendor/artifacts/nx-performance-estimator/*.tar.gz"
-        )
+    vendor_dir = PROJECT_ROOT / "src/mlia/_vendor/artifacts/nx-performance-estimator"
+    _, selected_name = _read_expected_sha256(
+        vendor_dir / PLATFORM_SHA256_FILES[platform.system()]
     )
+    archive = vendor_dir / selected_name
     assert force_include[str(archive.relative_to(PROJECT_ROOT))] == (
         f"mlia/_vendor/artifacts/nx-performance-estimator/{archive.name}"
     )
+
+
+@pytest.mark.parametrize(
+    ("system", "sha256_filename", "archive_name"),
+    (
+        ("Linux", ".sha256.linux", "estimator-linux.tar.gz"),
+        ("Windows", ".sha256.windows", "estimator-windows.tar.gz"),
+    ),
+)
+def test_build_hook_selects_platform_checksum_metadata(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    system: str,
+    sha256_filename: str,
+    archive_name: str,
+) -> None:
+    """The runtime hook should select and validate metadata for its platform."""
+    vendor_dir = tmp_path / "src/mlia/_vendor/artifacts/nx-performance-estimator"
+    vendor_dir.mkdir(parents=True)
+    archive = vendor_dir / archive_name
+    archive.write_bytes(f"{system} estimator".encode())
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    (vendor_dir / sha256_filename).write_text(
+        f"{digest}  {archive_name}\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(hatch_build.platform, "system", lambda: system)
+    hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
+    hook.root = str(tmp_path)
+    build_data: dict[str, object] = {}
+
+    hook.initialize("0.0.0", build_data)
+
+    force_include = build_data["force_include"]
+    assert isinstance(force_include, dict)
+    assert force_include[str(archive.relative_to(tmp_path))] == (
+        f"mlia/_vendor/artifacts/nx-performance-estimator/{archive_name}"
+    )
+
+
+def test_build_hook_rejects_unsupported_platform(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Unsupported systems should fail before selecting vendor metadata."""
+    monkeypatch.setattr(hatch_build.platform, "system", lambda: "Darwin")
+    hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
+    hook.root = str(tmp_path)
+
+    with pytest.raises(RuntimeError, match="Unsupported platform 'Darwin'"):
+        hook.initialize("0.0.0", {})

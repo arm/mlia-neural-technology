@@ -164,6 +164,15 @@ def test_converter_converts_pte_to_vgf(
         fake_transform_model,
     )
 
+    def fake_process_command(command, _consumers) -> None:
+        output = Path(command.cmd[command.cmd.index("-o") + 1])
+        output.touch()
+
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.conversion.process_command_output",
+        fake_process_command,
+    )
+
     assert converter(input_model, tmp_path) == vgf_path
     assert vgf_path.is_file()
     assert captured["request"] == TransformRequest(

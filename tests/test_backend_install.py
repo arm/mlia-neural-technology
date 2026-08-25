@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for Neural Technology backend installation metadata."""
 
+import sys
+
+import pytest
+
 from mlia.backend.config import BackendType
 from mlia.backend.install import InstallFromVendorPackage
 from mlia.backend.ml_sdk_model_converter.plugin import MLSDKModelConverterPlugin
@@ -29,3 +33,27 @@ def test_nx_performance_estimator_only_manages_estimator_backend() -> None:
     assert flatbuffers_config.installation is None
     assert nx_config.installation.dependencies == []
     assert nx_config.installation.supports(InstallFromVendorPackage())
+
+
+@pytest.mark.parametrize(
+    ("platform_name", "expected_executable"),
+    [
+        ("linux", "graph-compiler-performance-estimator"),
+        ("win32", "graph-compiler-performance-estimator.exe"),
+    ],
+)
+def test_nx_performance_estimator_uses_platform_executable_name(
+    monkeypatch: pytest.MonkeyPatch,
+    platform_name: str,
+    expected_executable: str,
+) -> None:
+    """The backend installer should validate the binary invoked by the runner."""
+    monkeypatch.setattr(sys, "platform", platform_name)
+
+    registry = BackendRegistry()
+    NXPerformanceEstimatorPlugin.register(registry)
+    installation = registry.items["nx-performance-estimator"].installation
+
+    assert installation is not None
+    assert installation.supported_platforms == ["Linux", "Windows"]
+    assert installation.path_checker.expected_files == [expected_executable]

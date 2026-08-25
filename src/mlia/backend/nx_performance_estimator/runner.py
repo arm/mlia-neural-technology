@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,37 @@ from mlia.utils.filesystem import get_mlia_resource_dirs, get_mlia_resources
 from mlia.utils.proc import Command, OutputLogger, process_command_output
 
 logger = logging.getLogger(__name__)
+
+_NX_PERFORMANCE_ESTIMATOR_EXECUTABLE = "graph-compiler-performance-estimator"
+
+
+def _get_nx_performance_estimator_executable(gc_path: Path) -> Path:
+    """Return the platform-specific NX performance estimator executable."""
+    executable = gc_path / _NX_PERFORMANCE_ESTIMATOR_EXECUTABLE
+    if sys.platform == "win32":
+        return executable.with_suffix(".exe")
+    return executable
+
+
+def _prepare_nx_performance_estimator_config(
+    config_path: Path | str, output_dir: Path, resource_dir: Path
+) -> Path | str:
+    """Return a backend config path suitable for the platform estimator binary."""
+    if sys.platform != "win32" or config_path == NXPerformanceEstimatorConfig.DEFAULT:
+        return config_path
+
+    source = Path(config_path)
+    try:
+        source.relative_to(resource_dir)
+    except ValueError:
+        pass
+    else:
+        return NXPerformanceEstimatorConfig.DEFAULT
+
+    destination = output_dir / source.name
+    content = source.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    destination.write_bytes(content)
+    return destination
 
 
 @dataclass
@@ -68,23 +100,30 @@ def run_nx_performance_estimator(
     system_config = backend_config.system_config
     compiler_config = backend_config.compiler_config
 
-    output.mkdir()
+    output.mkdir(exist_ok=True)
+    resource_dir = get_nx_resource_dir()
+    system_config = _prepare_nx_performance_estimator_config(
+        system_config, output_dir, resource_dir
+    )
+    compiler_config = _prepare_nx_performance_estimator_config(
+        compiler_config, output_dir, resource_dir
+    )
 
     system_config_args = (
         []
         if system_config == NXPerformanceEstimatorConfig.DEFAULT
-        else ["--system_config", str(system_config)]
+        else ["-s", str(system_config)]
     )
 
     compiler_config_args = (
         []
         if compiler_config == NXPerformanceEstimatorConfig.DEFAULT
-        else ["--compiler_config", str(compiler_config)]
+        else ["-c", str(compiler_config)]
     )
 
     cmd = Command(
         cmd=[
-            str(gc_path / "graph-compiler-performance-estimator"),
+            str(_get_nx_performance_estimator_executable(gc_path)),
             "-i",
             str(vgf_file.resolve()),
             "-o",
