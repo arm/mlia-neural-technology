@@ -423,7 +423,7 @@ class NXModelCompatibilityInfo:
             entity = schema.Entity(
                 id=entity_id,
                 kind="operator",
-                name=record.location,
+                name=record.type or record.tosa_op or record.location,
                 placement=placement,
                 attributes=entity_attrs,
             )

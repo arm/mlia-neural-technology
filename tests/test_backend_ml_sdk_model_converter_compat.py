@@ -33,7 +33,7 @@ def _result_metrics(output: dict) -> dict[str, dict]:
 
 def test_compatibility_output_reports_nx_operator_percentage(tmp_path: Path) -> None:
     """Only NX placements count toward the accelerator operator percentage."""
-    compatibility = NXModelCompatibilityInfo()
+    compatibility = NXModelCompatibilityInfo({"/0_nx": "source.add"})
     compatibility.add_lowered_to_tosa(TosaOp("ADD", "/0_nx", TosaOpType.INT))
     compatibility.add_lowered_to_tosa(TosaOp("CONV2D", "/1_nx", TosaOpType.INT))
     compatibility.add_lowered_to_tosa(
@@ -57,6 +57,13 @@ def test_compatibility_output_reports_nx_operator_percentage(tmp_path: Path) -> 
         "ee",
         "ee",
         "cpu",
+    ]
+    assert [entity["name"] for entity in result["entities"]] == [
+        "source.add",
+        "CONV2D",
+        "tosa.custom",
+        "MUL",
+        "/4_unsupported",
     ]
     assert result["entity_kinds"] == [{"id": "operator"}]
     assert [check["entity_id"] for check in result["checks"]] == [
