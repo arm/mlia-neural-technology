@@ -5,9 +5,13 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.machinery
 import json
 import os
 import platform
+import subprocess
+import sys
+import sysconfig
 import urllib.request
 from pathlib import Path
 
@@ -38,6 +42,60 @@ ARTIFACTS: dict[str, ArtifactSpec] = {
         },
     }
 }
+
+VGF_BUILD_DIR = Path(".native/build")
+
+
+def _find_built_vgfpy(build_root: Path) -> Path:
+    """Find the vgfpy extension produced by the upstream CMake build."""
+    suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
+    matches = sorted(
+        path
+        for path in build_root.rglob("vgfpy*")
+        if path.is_file()
+        and path.name.startswith("vgfpy")
+        and path.name.endswith(suffixes)
+    )
+    if not matches:
+        raise FileNotFoundError(
+            f"Could not find a built vgfpy extension under {build_root}."
+        )
+
+    for path in matches:
+        if "vgf_library-build" in path.parts:
+            return path
+    return matches[0]
+
+
+def _build_vgfpy(root: Path) -> Path:
+    """Temporarily build vgfpy from source until PyPI provides usable wheels."""
+    build_root = root / VGF_BUILD_DIR
+    subprocess.run(
+        [
+            "cmake",
+            "-S",
+            str(root),
+            "-B",
+            str(build_root),
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DPython3_EXECUTABLE={sys.executable}",
+            f"-DPython3_INCLUDE_DIR={sysconfig.get_path('include')}",
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "cmake",
+            "--build",
+            str(build_root),
+            "--target",
+            "vgfpy",
+            "--config",
+            "Release",
+        ],
+        check=True,
+    )
+    return _find_built_vgfpy(build_root)
 
 
 def _read_expected_sha256(path: Path) -> tuple[str, str]:
@@ -117,14 +175,20 @@ def _load_vendor_urls() -> dict[str, str]:
 
 
 class CustomBuildHook(BuildHookInterface):
-    """Download vendored artifacts before building."""
+    """Build native bindings and download vendored artifacts before packaging."""
 
     def initialize(self, version: str, build_data: dict) -> None:
-        """Ensure vendored artifacts are present with expected hashes."""
+        """Prepare native and downloaded artifacts for the selected target."""
         del version
         force_include: dict[str, str] = build_data.setdefault("force_include", {})
 
         root = Path(self.root)
+        if getattr(self, "target_name", "wheel") == "wheel":
+            vgfpy = _build_vgfpy(root)
+            force_include[str(vgfpy.relative_to(root))] = vgfpy.name
+            build_data["pure_python"] = False
+            build_data["infer_tag"] = True
+
         src_root = root / "src"
         base_root = src_root if (src_root / "mlia").exists() else root
         alt_root = root if base_root is src_root else src_root

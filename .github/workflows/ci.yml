@@ -48,6 +48,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dev
       - run: uv sync --no-sources --group dev --no-install-project
       - run: uv run pre-commit run --all-files
 
@@ -72,6 +76,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dev
       - run: uv build --wheel
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
@@ -101,6 +109,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dev
       - run: uv sync --no-sources --group test
       - run: |
           set -o pipefail

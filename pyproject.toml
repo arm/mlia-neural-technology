@@ -38,7 +38,9 @@ tosa_flatbuffers = "mlia.backend.tosa_flatbuffers.plugin:TosaFlatBuffersPlugin"
 
 [build-system]
 requires = [
+    "cmake>=3.28",
     "hatchling>=1.27.0",
+    "pybind11>=2.13",
     "uv-dynamic-versioning>=0.8.2,<0.9.0"
 ]
 build-backend = "hatchling.build"
@@ -58,6 +60,7 @@ exclude = [
 [tool.hatch.build.targets.sdist]
 include = [
     "src/mlia/**",
+    "CMakeLists.txt",
     "LICENSES/*.txt",
     "README.md",
     "hatch_build.py",
@@ -84,6 +87,7 @@ fallback-version = "0.0.0.dev0"
 # live Python source through the editable installation.
 cache-keys = [
     {file = "pyproject.toml"},
+    {file = "CMakeLists.txt"},
     {file = "hatch_build.py"},
     {file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.linux"},
     {file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.windows"},

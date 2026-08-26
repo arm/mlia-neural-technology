@@ -97,10 +97,60 @@ def test_wheel_includes_nx_estimator_archive_and_excludes_public_artifacts() -> 
     assert all("nx-performance-estimator" not in path for path in excluded_paths)
 
 
-def test_build_hook_force_includes_nx_estimator_archive(
+def test_build_vgfpy_configures_and_builds_pinned_source(
     hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    """The current platform's estimator archive must be forced into wheels."""
+    """The native helper should configure CMake and return its vgfpy output."""
+    output_dir = tmp_path / hatch_build.VGF_BUILD_DIR / "_deps/vgf_library-build/src"
+    output_dir.mkdir(parents=True)
+    vgfpy = output_dir / (
+        f"vgfpy{hatch_build.importlib.machinery.EXTENSION_SUFFIXES[0]}"
+    )
+    vgfpy.write_bytes(b"native extension")
+    calls: list[list[str]] = []
+
+    def record_run(command: list[str], *, check: bool) -> None:
+        assert check is True
+        calls.append(command)
+
+    monkeypatch.setattr(hatch_build.subprocess, "run", record_run)
+
+    assert hatch_build._build_vgfpy(tmp_path) == vgfpy
+    build_root = tmp_path / hatch_build.VGF_BUILD_DIR
+    assert calls == [
+        [
+            "cmake",
+            "-S",
+            str(tmp_path),
+            "-B",
+            str(build_root),
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DPython3_EXECUTABLE={hatch_build.sys.executable}",
+            f"-DPython3_INCLUDE_DIR={hatch_build.sysconfig.get_path('include')}",
+        ],
+        [
+            "cmake",
+            "--build",
+            str(build_root),
+            "--target",
+            "vgfpy",
+            "--config",
+            "Release",
+        ],
+    ]
+
+
+def test_build_hook_force_includes_native_and_estimator_artifacts(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The wheel must include vgfpy and the platform's estimator archive."""
+    vgfpy = (
+        PROJECT_ROOT / f"vgfpy{hatch_build.importlib.machinery.EXTENSION_SUFFIXES[0]}"
+    )
+    monkeypatch.setattr(hatch_build, "_build_vgfpy", lambda _root: vgfpy)
     hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
     hook.root = str(PROJECT_ROOT)
     build_data: dict[str, object] = {}
@@ -109,6 +159,9 @@ def test_build_hook_force_includes_nx_estimator_archive(
 
     force_include = build_data["force_include"]
     assert isinstance(force_include, dict)
+    assert force_include[vgfpy.name] == vgfpy.name
+    assert build_data["pure_python"] is False
+    assert build_data["infer_tag"] is True
     vendor_dir = PROJECT_ROOT / "src/mlia/_vendor/artifacts/nx-performance-estimator"
     _, selected_name = _read_expected_sha256(
         vendor_dir / PLATFORM_SHA256_FILES[platform.system()]
@@ -144,6 +197,8 @@ def test_build_hook_selects_platform_checksum_metadata(
         f"{digest}  {archive_name}\n", encoding="utf-8"
     )
 
+    vgfpy = tmp_path / f"vgfpy{hatch_build.importlib.machinery.EXTENSION_SUFFIXES[0]}"
+    monkeypatch.setattr(hatch_build, "_build_vgfpy", lambda _root: vgfpy)
     monkeypatch.setattr(hatch_build.platform, "system", lambda: system)
     hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
     hook.root = str(tmp_path)
@@ -164,6 +219,8 @@ def test_build_hook_rejects_unsupported_platform(
     tmp_path: Path,
 ) -> None:
     """Unsupported systems should fail before selecting vendor metadata."""
+    vgfpy = tmp_path / f"vgfpy{hatch_build.importlib.machinery.EXTENSION_SUFFIXES[0]}"
+    monkeypatch.setattr(hatch_build, "_build_vgfpy", lambda _root: vgfpy)
     monkeypatch.setattr(hatch_build.platform, "system", lambda: "Darwin")
     hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
     hook.root = str(tmp_path)

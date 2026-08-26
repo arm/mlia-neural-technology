@@ -64,6 +64,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dev
       - run: uv sync --no-sources --no-install-project --only-group docs
       - run: uv run mkdocs build --strict --no-directory-urls
       - name: Upload docs artifact

@@ -4,6 +4,7 @@
 *~
 \.coverage
 \.eggs
+.native
 build
 dist
 src/*.egg-info
