@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.12"
   ARTIFACTS_PATH: downloaded_artifacts
 
   # Separate uv installations from each other on self-hosten runners

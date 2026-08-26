@@ -26,9 +26,9 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.12'
 
-  # Separate uv installations from each other on self-hosten runners
+  # Separate uv installations from each other on self-hosted runners
   # in case they share the working directory
   UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache-ci-${{ github.run_id }}-${{ github.run_attempt }}
   UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/.venv-ci-${{ github.run_id }}-${{ github.run_attempt }}

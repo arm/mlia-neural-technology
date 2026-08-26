@@ -17,7 +17,7 @@ import pytest
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib
+    import tomli as tomllib  # type: ignore[no-redef]
 
 PROJECT_ROOT = Path(__file__).parents[1]
 PLATFORM_SHA256_FILES = {

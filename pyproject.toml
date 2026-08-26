@@ -6,7 +6,7 @@ name = "mlia-neural-technology"
 dynamic = ["version"]
 description = "ML Inference Advisor NX Plugin"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "ai-ml-sdk-model-converter==0.9.0",
     "tosa-tools==2026.2.1",
@@ -21,7 +21,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence"
 ]
 

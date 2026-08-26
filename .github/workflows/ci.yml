@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.12"
   ARTIFACTS_PATH: downloaded_artifacts
 
   # Separate uv installations from each other on self-hosten runners
@@ -136,7 +136,7 @@ jobs:
       matrix:
         include:
           - {suite: tflite, index: 0, display_index: 1, total: 3, converter_package: mlia-converters-litert}
-          - {suite: pytorch, index: 0, display_index: 1, total: 1, converter_package: mlia-converters-pytorch}
+          - {suite: pytorch, index: 0, display_index: 1, total: 1, converter_package: "mlia-converters-pytorch>=0.1.1.dev8,<0.2"}
     steps:
       - name: Import secrets from Vault
         # Vault secrets must not be exposed to pull requests from forks.
@@ -195,7 +195,7 @@ jobs:
           set -o pipefail
           uv run --no-sync \
             --with dist/*.whl \
-            --with ${{ matrix.converter_package }} \
+            --with "${{ matrix.converter_package }}" \
             --with pip \
             -- pytest -v tests/test_e2e.py \
               -x \
