@@ -15,9 +15,15 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import (
     read_tosa_flatbuffer_ops,
     read_tosa_mlir_ops,
 )
+from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
 from mlia.backend.nx_performance_estimator.output_parsing import (
     DebugDatabaseContentsType,
     PerformanceDatabaseContentsType,
+)
+from mlia.backend.nx_performance_estimator.provenance import (
+    code_stacks_from_api_labels,
+    nn_module_stacks_from_api_labels,
+    source_operator_id_from_api_label,
 )
 
 _SPIRV_ID_LABEL_RE = re.compile(r"^TOSA[A-Z0-9_]*_spirv_id_(\d+)$")
@@ -199,9 +205,14 @@ class NXOperatorPerformanceStats:
             }
             self.utilization.append(util)
 
-    def merge(self, op_perf_stats: "NXOperatorPerformanceStats") -> None:
-        """Merge statistics belonging to different stripes."""
-        if self.operators != op_perf_stats.operators:
+    def merge(
+        self,
+        op_perf_stats: "NXOperatorPerformanceStats",
+        *,
+        require_same_operators: bool = True,
+    ) -> None:
+        """Merge statistics belonging to different emitted stripes."""
+        if require_same_operators and self.operators != op_perf_stats.operators:
             raise ValueError("The same chain should map to the same location strings!")
 
         self.op_id.extend(op_perf_stats.op_id)
@@ -222,6 +233,11 @@ class NXOperatorPerformanceStats:
                     "Missing key in memory statistics. Cannot merge."
                 ) from exc
 
+        if not require_same_operators:
+            for operator in op_perf_stats.operators:
+                if operator not in self.operators:
+                    self.operators.append(operator)
+
         self.utilization.extend(op_perf_stats.utilization)
         self.sanitize_utilization_fields()
 
@@ -233,12 +249,14 @@ class NXPerformanceStats:
         self,
         debug_db: DebugDatabaseContentsType,
         performance_db: PerformanceDatabaseContentsType,
-        spirv_id_locations: dict[str, str] | None = None,
+        segment_index: int = 0,
+        debug_names: SpirvDebugNameMap | None = None,
     ) -> None:
         """Initialize the class with the debug and performance database dictionaries."""
         self.debug_db: DebugDatabaseContentsType = debug_db
         self.performance_db: PerformanceDatabaseContentsType = performance_db
-        self.spirv_id_locations = spirv_id_locations or {}
+        self.segment_index = segment_index
+        self.debug_names = debug_names
 
     def process_stats_per_chain(
         self,
@@ -256,7 +274,7 @@ class NXPerformanceStats:
         performance_stats_per_stripe = self.process_stats_per_stripe()
         performance_stats_per_chain: Dict[str, NXOperatorPerformanceStats] = {}
         for stripe_id, operator_stats in performance_stats_per_stripe.items():
-            chain_op_id, _, _ = self.track_op(stripe_op_id=stripe_id)
+            chain_op_id, *_ = self.track_op(stripe_op_id=stripe_id)
 
             if chain_op_id in performance_stats_per_chain:
                 performance_stats_per_chain[chain_op_id].merge(operator_stats)
@@ -265,6 +283,22 @@ class NXPerformanceStats:
 
         return performance_stats_per_chain
 
+    def process_stats_per_cascade(self) -> dict:
+        """Aggregate emitted-stripe statistics by cascade op id."""
+        performance_stats_per_stripe = self.process_stats_per_stripe()
+        performance_stats_per_cascade: Dict[str, NXOperatorPerformanceStats] = {}
+        for stripe_id, operator_stats in performance_stats_per_stripe.items():
+            cascade_op_id = self.track_cascade(stripe_op_id=stripe_id)
+
+            if cascade_op_id in performance_stats_per_cascade:
+                performance_stats_per_cascade[cascade_op_id].merge(
+                    operator_stats, require_same_operators=False
+                )
+            else:
+                performance_stats_per_cascade[cascade_op_id] = operator_stats
+
+        return performance_stats_per_cascade
+
     def process_stats_per_stripe(self) -> dict:
         """Get performance stats per op."""
         performance_stats_per_stripe: Dict[str, NXOperatorPerformanceStats] = {}
@@ -272,11 +306,38 @@ class NXPerformanceStats:
             row = copy.deepcopy(row)  # Make sure nested dicts are copied
             operators = []
 
-            _, api_labels, operator_types = self.track_op(stripe_op_id=str(row["id"]))
+            (
+                _,
+                source_operator_ids,
+                operator_types,
+                module_stacks,
+                stack_traces,
+            ) = self.track_op(stripe_op_id=str(row["id"]))
 
-            for api_str, operator_str in zip(api_labels, operator_types):
-                op_location_type = {"opLocation": api_str, "opType": operator_str}
-                operators.append(op_location_type)
+            for (
+                source_operator_ids,
+                operator_str,
+                nn_module_stack,
+                stack_trace,
+            ) in zip(
+                source_operator_ids,
+                operator_types,
+                module_stacks,
+                stack_traces,
+            ):
+                operator = {
+                    "source_operator_ids": [
+                        source_operator_id
+                        for source_operator_id in source_operator_ids
+                        if source_operator_id is not None
+                    ],
+                    "operator_types": operator_str,
+                }
+                if nn_module_stack:
+                    operator["nn_module_stacks"] = nn_module_stack
+                if stack_trace:
+                    operator["code_stacks"] = stack_trace
+                operators.append(operator)
 
             stripe_stats = NXOperatorPerformanceStats(
                 op_id=[str(row["id"])],
@@ -294,8 +355,8 @@ class NXPerformanceStats:
 
         return performance_stats_per_stripe
 
-    def track_op(self, stripe_op_id: str) -> tuple[str, list, list]:
-        """Track the ID of a stripe to the location string."""
+    def track_op(self, stripe_op_id: str) -> tuple[str, list, list, list, list]:
+        """Track a stripe to canonical source IDs and presentation metadata."""
         chain_op_id = self.debug_db["stripe_op_id_to_op_id"][stripe_op_id]
 
         if len(chain_op_id) > 1:
@@ -307,29 +368,42 @@ class NXPerformanceStats:
         for fused_op_id in fused_op_ids:
             tosa_op_ids.extend(self.debug_db["fused_op_id_to_tosa_op_ids"][fused_op_id])
 
-        api_labels = []
+        source_operator_ids = []
+        module_stacks = []
+        stack_traces = []
         for tosa_op_id in tosa_op_ids:
-            api_labels.append(
-                self._resolve_spirv_id_labels(
-                    self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id]
-                )
+            raw_api_labels = self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id]
+            source_operator_ids.append(
+                [
+                    source_operator_id_from_api_label(
+                        api_label, self.segment_index, self.debug_names
+                    )
+                    for api_label in raw_api_labels
+                ]
             )
+            module_stacks.append(nn_module_stacks_from_api_labels(raw_api_labels))
+            stack_traces.append(code_stacks_from_api_labels(raw_api_labels))
 
         operator_types = []
         for tosa_op_id in tosa_op_ids:
             operator_types.append(self.debug_db["tosa_op_id_to_tosa_op"][tosa_op_id])
 
-        return chain_op_id[0], api_labels, operator_types
+        return (
+            chain_op_id[0],
+            source_operator_ids,
+            operator_types,
+            module_stacks,
+            stack_traces,
+        )
 
-    def _resolve_spirv_id_labels(self, api_labels: list[str]) -> list[str]:
-        """Replace estimator SPIR-V id placeholders with VGF debug locations."""
-        resolved_labels = []
-        for api_label in api_labels:
-            if match := _SPIRV_ID_LABEL_RE.search(api_label):
-                resolved_labels.append(self.spirv_id_locations.get(match[1], api_label))
-            else:
-                resolved_labels.append(api_label)
-        return resolved_labels
+    def track_cascade(self, stripe_op_id: str) -> str:
+        """Track a stripe to its cascade op id."""
+        cascade_op_id = self.debug_db["stripe_op_id_to_cascade_op_id"][stripe_op_id]
+
+        if len(cascade_op_id) > 1:
+            raise ValueError("There should be only one cascade per stripe, found more!")
+
+        return cascade_op_id[0]
 
 
 def read_tosa_mlir_spirv_id_locations(

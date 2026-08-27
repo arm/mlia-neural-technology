@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 import re
 from abc import abstractmethod
 from itertools import islice
@@ -19,6 +20,8 @@ DebugDatabaseContentsType = Dict[str, Dict[str, List]]
 # except for one table that has three. This constant helps
 # us handle that case and error catching.
 MAX_NUM_DEBUG_DB_HEADERS = 3
+
+logger = logging.getLogger(__name__)
 
 
 class ColumnParser:
@@ -244,10 +247,23 @@ class NXPerformanceDatabaseParser(NXOutputParser):
 class NXDebugDatabaseParser(NXOutputParser):
     """Parser for Neural Accelerator debug database."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path | None = None,
+        known_api_labels: list[str] | None = None,
+    ) -> None:
         """Initialise the debug database parser."""
         super().__init__(db_path)
         self.debug_db: dict = {}
+        self.known_api_labels = (
+            sorted(
+                {label for label in known_api_labels if label},
+                key=len,
+                reverse=True,
+            )
+            if known_api_labels is not None
+            else None
+        )
 
     def parse_debug_database(self) -> DebugDatabaseContentsType:
         """Parse the contents of the debug DB.
@@ -319,25 +335,56 @@ class NXDebugDatabaseParser(NXOutputParser):
             ]
             self.debug_db[headers[0]][row[0]] = op_ids_list
             if len(headers) == MAX_NUM_DEBUG_DB_HEADERS:
-                # Try to extract api_label from data in row[2] onwards
-                api_label = self._extract_torch_fx_node_name(row[2:])
-                if api_label:
-                    op_ids_list = [api_label]
-                else:
-                    # Fallback to old behavior if parsing fails
-                    op_ids_list = [row[2].strip(";").strip()]
-                self.debug_db[headers[1]][row[0]] = op_ids_list
+                raw_value = ",".join(row[2:]).strip()
+                values = (
+                    self._parse_api_labels(raw_value)
+                    if headers[1].endswith("_to_api_labels")
+                    else [
+                        value.strip() for value in raw_value.split(";") if value.strip()
+                    ]
+                )
+                self.debug_db[headers[1]][row[0]] = values
 
-    def _extract_torch_fx_node_name(self, csv_fragments: list[str]) -> str | None:
-        """Extract the api_label (node name) from the CSV row."""
-        try:
-            # Join all fragments to reconstruct the text
-            full_text = " ".join(csv_fragments)
+    def _parse_api_labels(self, value: str) -> list[str]:
+        """Recover known complete labels and semicolon-delimited fallback labels.
 
-            match = re.search(r'"node_name"\s*:\s*"([^"]+)"', full_text)
-            if match:
-                return match.group(1)
+        GCPE concatenates labels with semicolons without escaping semicolons
+        inside the labels themselves. Prefer complete labels read from SPIR-V;
+        when none matches, preserve the next semicolon-delimited fallback label.
+        See MLCE-1937.
+        """
+        if self.known_api_labels is None:
+            return [label.strip() for label in value.split(";") if label.strip()]
 
-            return None
-        except (AttributeError, IndexError):
-            return None
+        labels: list[str] = []
+        cursor = 0
+        while cursor < len(value):
+            while cursor < len(value) and value[cursor] == ";":
+                cursor += 1
+            if cursor >= len(value):
+                break
+
+            matched = next(
+                (
+                    label
+                    for label in self.known_api_labels
+                    if value.startswith(label, cursor)
+                    and (
+                        cursor + len(label) == len(value)
+                        or value[cursor + len(label)] == ";"
+                    )
+                ),
+                None,
+            )
+            if matched is not None:
+                labels.append(matched)
+                cursor += len(matched)
+                continue
+
+            next_delimiter = value.find(";", cursor)
+            segment_end = len(value) if next_delimiter < 0 else next_delimiter
+            fallback_label = value[cursor:segment_end].strip()
+            if fallback_label:
+                labels.append(fallback_label)
+            cursor = segment_end + 1 if next_delimiter >= 0 else len(value)
+        return labels

@@ -12,6 +12,7 @@ from mlia.backend.nx_performance_estimator.install import (
 from mlia.backend.registry import BackendRegistry
 from mlia.core.common import AdviceCategory
 from mlia.plugins.plugins import BackendPlugin
+from mlia.target.neural_technology.filtering import DEFAULT_COLLAPSE_RULES
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class NXPerformanceEstimatorPlugin(BackendPlugin):
                 backend_type=BackendType.CUSTOM,
                 installation=get_nx_performance_estimator_installation(),
                 cli_options=CONFIG_TO_CLI_OPTION,
+                default_collapse_rules=DEFAULT_COLLAPSE_RULES,
             ),
             pretty_name="Neural Accelerator Performance Estimator",
         )

@@ -27,9 +27,17 @@ from mlia.backend.nx_performance_estimator.config import (
 from mlia.backend.nx_performance_estimator.output_parsing import (
     NXDebugDatabaseParser,
 )
+from mlia.backend.nx_performance_estimator.provenance import (
+    NXProvenanceEntityBuilder,
+    source_provenance_from_api_label,
+)
 from mlia.backend.nx_performance_estimator.runner import (
     run_nx_performance_estimator,
     get_nx_resource_dir,
+)
+from mlia.backend.nx_performance_estimator.vgf import (
+    GCPEVGFSegment,
+    prepare_gcpe_compatible_vgfs,
 )
 from mlia.utils.filesystem import sha256
 
@@ -218,12 +226,16 @@ class VMCCompatbilityChecker(MLSDKModelConverterBase):
 class NXOperatorCompatibilityInfo:
     """Describes a particular operator's compatibility with NX."""
 
-    location: str
+    display_label: str
+    source_operator_id: str | None = None
     compat_level: str | None = None
     type: str | None = None
     tosa_op: str | None = None
     error: str | None = None
     placement: str | None = None
+    name: str | None = None
+    nn_module_stacks: list[list[dict[str, str]]] | None = None
+    code_stacks: list[list[dict[str, str]]] | None = None
 
 
 class NXModelCompatibilityInfo:
@@ -235,19 +247,31 @@ class NXModelCompatibilityInfo:
         """Initialize the database."""
         self._layer_map = {}
         self._location_to_type = location_to_type or {}
+        self._structural_source_operator_ids: list[str] = []
 
-    def _find_or_create_record(self, location: str) -> NXOperatorCompatibilityInfo:
-        """Get a record for a particular model location, create if necessary."""
-        record: NXOperatorCompatibilityInfo | None = self._layer_map.get(location)
+    def add_structural_source_operators(self, source_operator_ids: list[str]) -> None:
+        """Register the complete canonical source-operator population."""
+        for source_operator_id in source_operator_ids:
+            if source_operator_id not in self._structural_source_operator_ids:
+                self._structural_source_operator_ids.append(source_operator_id)
+
+    def _find_or_create_record(
+        self, record_key: str, display_label: str | None = None
+    ) -> NXOperatorCompatibilityInfo:
+        """Get or create one compatibility record by its internal key."""
+        record: NXOperatorCompatibilityInfo | None = self._layer_map.get(record_key)
         if record is None:
-            record = NXOperatorCompatibilityInfo(location)
-            record.type = self._location_to_type.get(location)
-            self._layer_map[location] = record
+            record = NXOperatorCompatibilityInfo(display_label or record_key)
+            record.type = self._location_to_type.get(record_key)
+            self._layer_map[record_key] = record
+        elif display_label is not None:
+            record.display_label = display_label
         return record
 
-    def add_lowered_to_tosa(self, tosa_op: TosaOp) -> None:
+    def add_lowered_to_tosa(self, tosa_op: TosaOp, *, source_operator_id: str) -> None:
         """Add an op to the database, that was reported to be lowered to TOSA."""
         record = self._find_or_create_record(tosa_op.loc)
+        record.source_operator_id = source_operator_id
         record.tosa_op = tosa_op.name
 
         is_shader_op = tosa_op.name in ["tosa.custom", "CUSTOM"]
@@ -262,22 +286,33 @@ class NXModelCompatibilityInfo:
             record.compat_level = "TOSA"
             record.placement = "NX"
 
-    def add_lowering_error(self, location: str, error: str) -> None:
+    def add_lowering_error(
+        self, location: str, error: str, *, source_operator_id: str
+    ) -> None:
         """Add an op to the database, which can't be lowered due to some error."""
         record = self._find_or_create_record(location)
+        record.source_operator_id = source_operator_id
         record.error = error
         record.compat_level = "Non-NX"
 
     def add_estimator_placement(
         self,
         record_key: str,
-        location: str,
+        display_label: str,
         placement: str,
         op_type: str | None = None,
+        *,
+        source_operator_id: str | None = None,
+        name: str | None = None,
+        nn_module_stacks: list[list[dict[str, str]]] | None = None,
+        code_stacks: list[list[dict[str, str]]] | None = None,
     ) -> None:
         """Add an op placement recovered from NX performance estimator output."""
-        record = self._find_or_create_record(record_key)
-        record.location = location
+        record = self._find_or_create_record(record_key, display_label)
+        record.source_operator_id = source_operator_id
+        record.name = name
+        record.nn_module_stacks = nn_module_stacks
+        record.code_stacks = code_stacks
         if op_type is not None:
             record.type = op_type
 
@@ -292,7 +327,7 @@ class NXModelCompatibilityInfo:
 
     @property
     def layer_map(self) -> dict[str, NXOperatorCompatibilityInfo]:
-        """Returns the underlying compatibilty records mapped to locations strings."""
+        """Return compatibility records mapped by internal record keys."""
         return self._layer_map
 
     def get_records(self) -> list[NXOperatorCompatibilityInfo]:
@@ -393,15 +428,12 @@ class NXModelCompatibilityInfo:
             cli_arguments=cli_arguments or [],
         )
 
-        # Create checks and entities for each operator
+        # Create checks and shared provenance entities for each operator.
         checks: list[schema.Check] = []
-        entities: list[schema.Entity] = []
+        provenance_builder = NXProvenanceEntityBuilder()
         records = self.get_records()
 
         for idx, record in enumerate(records):
-            entity_id = f"op_{idx}"
-
-            # Determine placement based on compat level
             if record.compat_level in ("TOSA", "Shader"):
                 placement = record.placement.lower() if record.placement else "nx"
                 supported = True
@@ -409,27 +441,32 @@ class NXModelCompatibilityInfo:
                 placement = "cpu"
                 supported = False
 
-            # Create entity for this operator
             entity_attrs = {
                 "index": idx,
                 "compat_level": record.compat_level,
+                "display_label": record.display_label,
             }
             if record.type:
                 entity_attrs["op_type"] = record.type
             if record.tosa_op:
                 entity_attrs["tosa_op"] = record.tosa_op
 
-            entity_attrs["location"] = record.location
-            entity = schema.Entity(
-                id=entity_id,
-                kind="operator",
-                name=record.type or record.tosa_op or record.location,
-                placement=placement,
-                attributes=entity_attrs,
-            )
-            entities.append(entity)
+            entity_id = None
+            if record.source_operator_id is not None:
+                entity_id = provenance_builder.add_source_operator(
+                    record.source_operator_id,
+                    name=(
+                        record.name
+                        or record.type
+                        or record.tosa_op
+                        or record.display_label
+                    ),
+                    placement=placement,
+                    attributes=entity_attrs,
+                    nn_module_stacks=record.nn_module_stacks or [],
+                    code_stacks=record.code_stacks or [],
+                )
 
-            # Create check for NX compatibility
             if supported:
                 status = schema.CheckStatus.PASS
                 details: dict[str, Any] = {}
@@ -439,13 +476,25 @@ class NXModelCompatibilityInfo:
                 if record.error:
                     details["error"] = record.error
 
-            check = schema.Check(
-                id=f"nx_support_{entity_id}",
-                status=status,
-                entity_id=entity_id,
-                details=details,
+            checks.append(
+                schema.Check(
+                    id=f"nx_support_{idx}",
+                    status=status,
+                    entity_id=entity_id,
+                    details=details,
+                )
             )
-            checks.append(check)
+
+        for source_operator_id in self._structural_source_operator_ids:
+            if provenance_builder.has_source_operator(source_operator_id):
+                continue
+            provenance_builder.add_source_operator(
+                source_operator_id,
+                name=source_operator_id,
+                placement=None,
+            )
+
+        entities = provenance_builder.entities()
 
         # Determine overall result status
         if not records:
@@ -467,7 +516,7 @@ class NXModelCompatibilityInfo:
             metrics=[self._build_accelerator_operator_percentage_metric(records)],
             checks=checks,
             entities=entities,
-            entity_kinds=[schema.EntityKind(id="operator")],
+            entity_kinds=provenance_builder.entity_kind_declarations(),
         )
 
         return schema.StandardizedOutput(
@@ -552,42 +601,56 @@ class NXCompatibilityChecker:
 
     @check_compatibility.register
     def _(self, vgf_model: VGFModel) -> NXModelCompatibilityInfo:
-        """Check compatibility of a VGF model."""
-        debug_db = self._run_estimator_debug_database(vgf_model.path)
-        return self._build_compatibility_from_debug_database(debug_db)
+        """Check compatibility of every graph segment in a VGF model."""
+        segments = prepare_gcpe_compatible_vgfs(
+            vgf_model.path, self.output_dir / "gcpe-vgf-segments"
+        )
+        comp_info = NXModelCompatibilityInfo()
+        for segment in segments:
+            comp_info.add_structural_source_operators(
+                segment.structural_source_operator_ids
+            )
+            debug_db = self._run_estimator_debug_database(segment)
+            self._add_compatibility_from_debug_database(comp_info, debug_db, segment)
+        return comp_info
 
     def _run_estimator_debug_database(
         self,
-        vgf_path: Path,
+        segment: GCPEVGFSegment,
     ) -> dict[str, dict[str, list[str]]]:
         """Run graph compiler flow and return parsed debug database output."""
         output_files = run_nx_performance_estimator(
             self.output_dir,
             self._backend_config,
-            vgf_path,
-            vgf_path.stem,
+            segment.path,
+            segment.path.stem,
         )
-        return NXDebugDatabaseParser(output_files.debug_database).parse_debug_database()
+        return NXDebugDatabaseParser(
+            output_files.debug_database,
+            known_api_labels=list(segment.debug_names.debug_name_to_spirv_ids),
+        ).parse_debug_database()
 
-    def _build_compatibility_from_debug_database(
+    def _add_compatibility_from_debug_database(
         self,
+        comp_info: NXModelCompatibilityInfo,
         debug_db: dict[str, dict[str, list[str]]],
-    ) -> NXModelCompatibilityInfo:
-        """Build compatibility information from estimator debug database."""
-        comp_info = NXModelCompatibilityInfo()
+        segment: GCPEVGFSegment,
+    ) -> None:
+        """Add one VGF segment's compatibility and canonical provenance."""
         self._add_estimator_records(
             comp_info,
             op_ids=debug_db.get("tosa_op_id_to_api_labels", {}),
             placement="NX",
             types=debug_db.get("tosa_op_id_to_tosa_op", {}),
+            segment=segment,
         )
         self._add_estimator_records(
             comp_info,
             op_ids=debug_db.get("shader_op_id_to_api_labels", {}),
             placement="EE",
             types={},
+            segment=segment,
         )
-        return comp_info
 
     def _add_estimator_records(
         self,
@@ -596,17 +659,27 @@ class NXCompatibilityChecker:
         op_ids: dict[str, list[str]],
         placement: str,
         types: dict[str, list[str]],
+        segment: GCPEVGFSegment,
     ) -> None:
-        """Add compatibility records for one debug database table."""
+        """Add compatibility records for one segment debug-database table."""
         for op_id, api_labels in op_ids.items():
             db_op_type = types.get(op_id, [""])[0]
 
             for idx, api_label in enumerate(api_labels or ["unknown"]):
+                provenance = source_provenance_from_api_label(
+                    api_label,
+                    segment_index=segment.segment_index,
+                    debug_names=segment.debug_names,
+                )
                 comp_info.add_estimator_placement(
-                    f"op_id_{op_id}_{idx}",
-                    api_label.strip() or "unknown",
+                    f"segment_{segment.segment_index}_op_id_{op_id}_{idx}",
+                    provenance.display_label,
                     placement,
                     op_type=db_op_type,
+                    source_operator_id=provenance.source_operator_id,
+                    name=provenance.name,
+                    nn_module_stacks=provenance.nn_module_stacks,
+                    code_stacks=provenance.code_stacks,
                 )
 
     @check_compatibility.register
@@ -640,11 +713,17 @@ class NXCompatibilityChecker:
         for op_id, tosa_op in tosa_ops.items():
             op_name = self._get_supported_tosa_op_name(tosa_op, is_mlir)
             unique_location = self._get_tosa_unique_location(tosa_op.loc, op_id)
+            source_operator_id = schema.tosa_source_operator_id(op_id)
             if op_name:
                 comp_info.add_lowered_to_tosa(
-                    TosaOp(op_name, unique_location, tosa_op.type)
+                    TosaOp(op_name, unique_location, tosa_op.type),
+                    source_operator_id=source_operator_id,
                 )
             else:
-                comp_info.add_lowering_error(unique_location, "unsupported operation")
+                comp_info.add_lowering_error(
+                    unique_location,
+                    "unsupported operation",
+                    source_operator_id=source_operator_id,
+                )
 
         return comp_info

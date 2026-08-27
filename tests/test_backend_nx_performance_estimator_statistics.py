@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
 from mlia.backend.nx_performance_estimator.output_parsing import (
     NXDebugDatabaseParser,
     NXPerformanceDatabaseParser,
@@ -622,8 +623,8 @@ def test_process_stats_per_chain(test_resources_path: Path) -> None:
             {"sectionName": "OutputWriter", "cycles": "12", "percentage": "5.4%"},
         ],
         operators=[
-            {"opLocation": ["Identity"], "opType": ["Sub"]},
-            {"opLocation": ["Identity"], "opType": ["Rescale"]},
+            {"source_operator_ids": [], "operator_types": ["Sub"]},
+            {"source_operator_ids": [], "operator_types": ["Rescale"]},
         ],
     )
 
@@ -654,12 +655,96 @@ def test_process_stats_per_chain(test_resources_path: Path) -> None:
             {"sectionName": "OutputWriter", "cycles": "832", "percentage": "8.6%"},
         ],
         operators=[
-            {"opLocation": ["model/re_lu_6/Relu"], "opType": ["Conv2D"]},
-            {"opLocation": ["model/re_lu_6/Relu"], "opType": ["Rescale"]},
+            {"source_operator_ids": [], "operator_types": ["Conv2D"]},
+            {"source_operator_ids": [], "operator_types": ["Rescale"]},
         ],
     )
 
     assert performance_stats_per_chain["668"] == performance_stats_per_chain_668
+
+
+def test_process_stats_aggregates_stripes_by_chain_and_cascade_independently() -> None:
+    """Raw stripe stats are independently aggregated by chain and cascade ids."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["100"], "1": ["200"], "2": ["100"]},
+        "stripe_op_id_to_cascade_op_id": {"0": ["300"], "1": ["300"], "2": ["400"]},
+        "chain_op_id_to_fused_op_ids": {"100": ["10"], "200": ["20"]},
+        "fused_op_id_to_tosa_op_ids": {"10": ["1"], "20": ["2"]},
+        "tosa_op_id_to_api_labels": {
+            "1": ["TOSACONV2D_spirv_id_11"],
+            "2": ["TOSAADD_spirv_id_22"],
+        },
+        "tosa_op_id_to_tosa_op": {"1": ["Conv2D"], "2": ["Add"]},
+    }
+    performance_db = [
+        {
+            "id": 0,
+            "opCycles": 10,
+            "totalCycles": 100,
+            "Memory": {
+                "Internal": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+                "DRAM": {"readBytes": 1, "writeBytes": 2, "trafficCycles": 3},
+            },
+            "Utilization": [{"sectionName": "VectorEngine", "cycles": 10}],
+        },
+        {
+            "id": 1,
+            "opCycles": 20,
+            "totalCycles": 200,
+            "Memory": {
+                "Internal": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+                "DRAM": {"readBytes": 4, "writeBytes": 5, "trafficCycles": 6},
+            },
+            "Utilization": [{"sectionName": "VectorEngine", "cycles": 20}],
+        },
+        {
+            "id": 2,
+            "opCycles": 30,
+            "totalCycles": 300,
+            "Memory": {
+                "Internal": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+                "DRAM": {"readBytes": 7, "writeBytes": 8, "trafficCycles": 9},
+            },
+            "Utilization": [{"sectionName": "VectorEngine", "cycles": 30}],
+        },
+    ]
+
+    performance_stats = NXPerformanceStats(debug_db, performance_db)
+
+    chain_stats = performance_stats.process_stats_per_chain()
+    cascade_stats = performance_stats.process_stats_per_cascade()
+
+    assert set(chain_stats) == {"100", "200"}
+    assert chain_stats["100"].op_id == ["0", "2"]
+    assert chain_stats["100"].op_cycles == 40
+    assert chain_stats["100"].total_cycles == 400
+    assert chain_stats["100"].memory == {
+        "DRAM": {"readBytes": 8, "writeBytes": 10, "trafficCycles": 12}
+    }
+    assert chain_stats["100"].operators == [
+        {
+            "source_operator_ids": ["source_operator/segment_0/spirv-11"],
+            "operator_types": ["Conv2D"],
+        }
+    ]
+
+    assert set(cascade_stats) == {"300", "400"}
+    assert cascade_stats["300"].op_id == ["0", "1"]
+    assert cascade_stats["300"].op_cycles == 30
+    assert cascade_stats["300"].total_cycles == 300
+    assert cascade_stats["300"].memory == {
+        "DRAM": {"readBytes": 5, "writeBytes": 7, "trafficCycles": 9}
+    }
+    assert cascade_stats["300"].operators == [
+        {
+            "source_operator_ids": ["source_operator/segment_0/spirv-11"],
+            "operator_types": ["Conv2D"],
+        },
+        {
+            "source_operator_ids": ["source_operator/segment_0/spirv-22"],
+            "operator_types": ["Add"],
+        },
+    ]
 
 
 def test_track_op(test_resources_path: Path) -> None:
@@ -681,25 +766,22 @@ def test_track_op(test_resources_path: Path) -> None:
         debug_db=debug_db, performance_db=performance_db
     )
 
-    chain_op_id, api_labels, operator_types = performance_stats.track_op("26")
+    chain_op_id, api_labels, operator_types, module_stacks, stack_traces = (
+        performance_stats.track_op("26")
+    )
 
     assert chain_op_id == "962"
-    assert api_labels == [
-        ["Identity"],
-        ["Identity"],
-    ]
+    assert api_labels == [[None], [None]]
     assert operator_types == [
         ["Sub"],
         ["Rescale"],
     ]
 
-    chain_op_id, api_labels, operator_types = performance_stats.track_op("22")
+    chain_op_id, api_labels, operator_types, module_stacks, stack_traces = (
+        performance_stats.track_op("22")
+    )
     assert chain_op_id == "678"
-    assert api_labels == [
-        ["model/average_pooling2d/AvgPool"],
-        ["model/average_pooling2d/AvgPool"],
-        ["model/dense/BiasAdd"],
-    ]
+    assert api_labels == [[None], [None], [None]]
     assert operator_types == [
         ["AvgPool"],
         ["Rescale"],
@@ -722,18 +804,14 @@ def test_track_op_maps_spirv_id_labels_to_vgf_locations() -> None:
             "635": ["Rescale"],
         },
     }
-    performance_stats = NXPerformanceStats(
-        debug_db=debug_db,
-        performance_db=[],
-        spirv_id_locations={"716": "model/real_mul"},
-    )
+    performance_stats = NXPerformanceStats(debug_db=debug_db, performance_db=[])
 
-    chain_op_id, api_labels, operator_types = performance_stats.track_op("0")
+    chain_op_id, api_labels, operator_types, _, _ = performance_stats.track_op("0")
 
     assert chain_op_id == "chain_0"
     assert api_labels == [
-        ["model/real_mul"],
-        ["TOSARESCALE_spirv_id_999"],
+        ["source_operator/segment_0/spirv-716"],
+        ["source_operator/segment_0/spirv-999"],
     ]
     assert operator_types == [["Mul"], ["Rescale"]]
 
@@ -846,8 +924,8 @@ module {
     }
 
 
-def test_track_op_preserves_legacy_spirv_id_suffix_labels() -> None:
-    """Test that non-r56 labels ending with SPIR-V-like suffixes are preserved."""
+def test_track_op_converts_spirv_id_suffix_labels() -> None:
+    """Test that labels ending with SPIR-V-like suffixes become source locations."""
     debug_db = {
         "stripe_op_id_to_op_id": {"0": ["chain_0"]},
         "chain_op_id_to_fused_op_ids": {"chain_0": ["fused_0"]},
@@ -859,15 +937,11 @@ def test_track_op_preserves_legacy_spirv_id_suffix_labels() -> None:
             "545": ["Mul"],
         },
     }
-    performance_stats = NXPerformanceStats(
-        debug_db=debug_db,
-        performance_db=[],
-        spirv_id_locations={"716": "model/real_mul"},
-    )
+    performance_stats = NXPerformanceStats(debug_db=debug_db, performance_db=[])
 
-    _, api_labels, _ = performance_stats.track_op("0")
+    _, api_labels, _, _, _ = performance_stats.track_op("0")
 
-    assert api_labels == [["model/foo_spirv_id_716"]]
+    assert api_labels == [["source_operator/segment_0/spirv-716"]]
 
 
 def test_process_stats_per_chain_uses_resolved_spirv_locations() -> None:
@@ -906,13 +980,15 @@ def test_process_stats_per_chain_uses_resolved_spirv_locations() -> None:
     performance_stats = NXPerformanceStats(
         debug_db=debug_db,
         performance_db=performance_db,
-        spirv_id_locations={"716": "model/real_mul"},
     )
 
     stats = performance_stats.process_stats_per_chain()
 
     assert stats["chain_0"].operators == [
-        {"opLocation": ["model/real_mul"], "opType": ["Mul"]}
+        {
+            "source_operator_ids": ["source_operator/segment_0/spirv-716"],
+            "operator_types": ["Mul"],
+        }
     ]
 
 
@@ -1301,3 +1377,405 @@ def test_nx_model_performance_stats_rejects_fractional_count_value(
         ),
     ):
         NXModelPerformanceStats.read_from_json(json_path)
+
+
+def test_track_op_converts_vgf_spirv_api_labels_to_source_locations() -> None:
+    """VGF/SPIR-V GCPE labels are converted to stable source locations."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": ["TOSACONV2D_spirv_id_60"]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    performance_stats = NXPerformanceStats(debug_db=debug_db, performance_db=[])
+
+    chain_op_id, api_labels, operator_types, module_stacks, stack_traces = (
+        performance_stats.track_op("0")
+    )
+
+    assert chain_op_id == "72"
+    assert api_labels == [["source_operator/segment_0/spirv-60"]]
+    assert operator_types == [["Conv2D"]]
+    assert module_stacks == [[]]
+    assert stack_traces == [[]]
+
+
+def test_track_op_maps_unique_debug_label_back_to_vgf_spirv_location() -> None:
+    """Unique Graph DebugInfo labels recover canonical VGF/SPIR-V locations."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": ["model/re_lu_6/Relu"]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    debug_names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"60": "model/re_lu_6/Relu"},
+        debug_name_to_spirv_ids={"model/re_lu_6/Relu": ["60"]},
+    )
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        segment_index=7,
+        debug_names=debug_names,
+    )
+
+    chain_op_id, api_labels, operator_types, module_stacks, stack_traces = (
+        performance_stats.track_op("0")
+    )
+
+    assert chain_op_id == "72"
+    assert api_labels == [["source_operator/segment_7/spirv-60"]]
+    assert operator_types == [["Conv2D"]]
+    assert module_stacks == [[]]
+    assert stack_traces == [[]]
+
+
+def test_track_op_omits_unmatched_debug_label_location() -> None:
+    """Unmatched debug labels cannot safely recover a SPIR-V result id."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": ["model/re_lu_6/Relu"]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    debug_names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"60": "other"},
+        debug_name_to_spirv_ids={"other": ["60"]},
+    )
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        debug_names=debug_names,
+    )
+
+    _, api_labels, _, module_stacks, stack_traces = performance_stats.track_op("0")
+
+    assert api_labels == [[None]]
+    assert module_stacks == [[]]
+    assert stack_traces == [[]]
+
+
+def test_track_op_omits_ambiguous_debug_label_location() -> None:
+    """Ambiguous debug labels cannot safely recover a SPIR-V result id."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": ["bob"]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    debug_names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"60": "bob", "61": "bob"},
+        debug_name_to_spirv_ids={"bob": ["60", "61"]},
+    )
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        debug_names=debug_names,
+    )
+
+    _, api_labels, _, module_stacks, stack_traces = performance_stats.track_op("0")
+
+    assert api_labels == [[None]]
+    assert module_stacks == [[]]
+    assert stack_traces == [[]]
+
+
+def test_track_op_rejects_fallback_spirv_id_absent_from_vgf() -> None:
+    """Fallback labels cannot invent an operator outside the supplied VGF."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": ["TOSACONV2D_spirv_id_60"]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        debug_names=SpirvDebugNameMap(),
+    )
+
+    with pytest.raises(ValueError, match="not present in supplied VGF segment 0"):
+        performance_stats.track_op("0")
+
+
+def test_track_op_extracts_nn_module_stack_from_executorch_json_label() -> None:
+    """ExecuTorch debug JSON exposes nn_module_stack, but not source locations."""
+    debug_label = json.dumps(
+        {
+            "aten_info": {"node_name": "aten_convolution_default"},
+            "torch_info": {
+                "nn_module_stack": {
+                    "L['model']": ("model", "Model"),
+                    "L['model'].features.0": ("model.features.0", "Conv2d"),
+                }
+            },
+        }
+    )
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": [debug_label]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    debug_names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"60": debug_label},
+        debug_name_to_spirv_ids={debug_label: ["60"]},
+    )
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        debug_names=debug_names,
+    )
+
+    _, api_labels, operator_types, module_stacks, stack_traces = (
+        performance_stats.track_op("0")
+    )
+
+    assert api_labels == [["source_operator/segment_0/spirv-60"]]
+    assert operator_types == [["Conv2D"]]
+    assert module_stacks == [
+        [
+            [
+                {"tracer_key": "<root>", "name": "<root>"},
+                {
+                    "tracer_key": "L['model']",
+                    "name": "model",
+                    "module_type": "Model",
+                },
+                {
+                    "tracer_key": "L['model'].features.0",
+                    "name": "model.features.0",
+                    "module_type": "Conv2d",
+                },
+            ]
+        ]
+    ]
+    assert stack_traces == [[]]
+
+
+def test_track_op_preserves_divergent_nn_module_stacks() -> None:
+    """Multiple JSON labels should remain independent module-stack paths."""
+    first_label = json.dumps(
+        {
+            "aten_info": {"node_name": "aten_convolution_default"},
+            "torch_info": {
+                "nn_module_stack": {
+                    "L['model']": ("model", "Model"),
+                    "L['model'].left": ("model.left", "Conv2d"),
+                }
+            },
+        }
+    )
+    second_label = json.dumps(
+        {
+            "aten_info": {"node_name": "aten_relu_default"},
+            "torch_info": {
+                "nn_module_stack": {
+                    "L['model']": ("model", "Model"),
+                    "L['model'].right": ("model.right", "Relu"),
+                }
+            },
+        }
+    )
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": [first_label, second_label]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    performance_stats = NXPerformanceStats(debug_db=debug_db, performance_db=[])
+
+    _, _, _, module_stacks, stack_traces = performance_stats.track_op("0")
+
+    assert module_stacks == [
+        [
+            [
+                {"tracer_key": "<root>", "name": "<root>"},
+                {"tracer_key": "L['model']", "name": "model", "module_type": "Model"},
+                {
+                    "tracer_key": "L['model'].left",
+                    "name": "model.left",
+                    "module_type": "Conv2d",
+                },
+            ],
+            [
+                {"tracer_key": "<root>", "name": "<root>"},
+                {"tracer_key": "L['model']", "name": "model", "module_type": "Model"},
+                {
+                    "tracer_key": "L['model'].right",
+                    "name": "model.right",
+                    "module_type": "Relu",
+                },
+            ],
+        ]
+    ]
+    assert stack_traces == [[]]
+
+
+def test_track_op_extracts_stack_trace_from_executorch_json_label() -> None:
+    """ExecuTorch debug JSON stack_trace entries become Python frame records."""
+    debug_label = json.dumps(
+        {
+            "aten_info": {"node_name": "aten_convolution_default"},
+            "torch_info": {
+                "stack_trace": [
+                    '  File "E:\\XPK\\OPPO\\IFNet_HDv3.py", line 156, in forward',
+                    "    return self.block(x)",
+                    '  File "/tmp/project/model.py", line 214, in call',
+                    "",
+                    "No stack trace available",
+                    "malformed",
+                ]
+            },
+        }
+    )
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": [debug_label]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    performance_stats = NXPerformanceStats(debug_db=debug_db, performance_db=[])
+
+    _, _, _, module_stacks, stack_traces = performance_stats.track_op("0")
+
+    assert module_stacks == [[]]
+    assert stack_traces == [
+        [
+            [
+                {
+                    "file": "E:\\XPK\\OPPO\\IFNet_HDv3.py",
+                    "line": "156",
+                    "function": "forward",
+                },
+                {"file": "/tmp/project/model.py", "line": "214", "function": "call"},
+            ]
+        ]
+    ]
+
+
+def test_process_stats_per_stripe_includes_stack_trace_metadata() -> None:
+    """Python stack traces are attached to operator records."""
+    debug_label = json.dumps(
+        {
+            "torch_info": {
+                "stack_trace": [
+                    '  File "E:\\XPK\\OPPO\\IFNet_HDv3.py", line 156, in forward'
+                ]
+            }
+        }
+    )
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": [debug_label]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    performance_db = [
+        {
+            "id": 0,
+            "opCycles": 10,
+            "totalCycles": 20,
+            "Memory": {
+                "Internal": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+                "DRAM": {"readBytes": 1, "writeBytes": 2, "trafficCycles": 3},
+            },
+            "Utilization": [],
+        }
+    ]
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db, performance_db=performance_db
+    )
+
+    stripe_stats = performance_stats.process_stats_per_stripe()["0"]
+
+    assert stripe_stats.operators == [
+        {
+            "source_operator_ids": [],
+            "operator_types": ["Conv2D"],
+            "code_stacks": [
+                [
+                    {
+                        "file": "E:\\XPK\\OPPO\\IFNet_HDv3.py",
+                        "line": "156",
+                        "function": "forward",
+                    }
+                ]
+            ],
+        }
+    ]
+
+
+def test_track_op_preserves_empty_api_label_list() -> None:
+    """No GCPE API labels should remain an empty location list."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": []},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=[],
+        debug_names=SpirvDebugNameMap(
+            spirv_id_to_debug_name={"60": "model/re_lu_6/Relu"},
+            debug_name_to_spirv_ids={"model/re_lu_6/Relu": ["60"]},
+        ),
+    )
+
+    _, api_labels, operator_types, module_stacks, stack_traces = (
+        performance_stats.track_op("0")
+    )
+
+    assert api_labels == [[]]
+    assert operator_types == [["Conv2D"]]
+    assert module_stacks == [[]]
+    assert stack_traces == [[]]
+
+
+def test_process_stats_per_stripe_filters_unresolved_locations() -> None:
+    """Unresolved debug labels are omitted from operator locations."""
+    debug_db = {
+        "stripe_op_id_to_op_id": {"0": ["72"]},
+        "chain_op_id_to_fused_op_ids": {"72": ["52"]},
+        "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
+        "tosa_op_id_to_api_labels": {"45": ["ambiguous"]},
+        "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
+    }
+    performance_db = [
+        {
+            "id": 0,
+            "opCycles": 10,
+            "totalCycles": 20,
+            "Memory": {
+                "Internal": {"readBytes": 0, "writeBytes": 0, "trafficCycles": 0},
+                "DRAM": {"readBytes": 1, "writeBytes": 2, "trafficCycles": 3},
+            },
+            "Utilization": [],
+        }
+    ]
+    debug_names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"60": "ambiguous", "61": "ambiguous"},
+        debug_name_to_spirv_ids={"ambiguous": ["60", "61"]},
+    )
+    performance_stats = NXPerformanceStats(
+        debug_db=debug_db,
+        performance_db=performance_db,
+        debug_names=debug_names,
+    )
+
+    stripe_stats = performance_stats.process_stats_per_stripe()["0"]
+
+    assert stripe_stats.operators == [
+        {"source_operator_ids": [], "operator_types": ["Conv2D"]}
+    ]

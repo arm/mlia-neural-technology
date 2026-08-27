@@ -488,6 +488,59 @@ def test_parse_debug_database() -> None:
     assert records["stripe_op_id_to_cascade_op_id"]["0"] == ["1693"]
 
 
+def test_known_api_labels_do_not_affect_other_third_columns() -> None:
+    """Known labels are used only when parsing an api_labels column."""
+    contents = (
+        "<debug>\n"
+        '<table name="tosa_op_id">\n'
+        '<![CDATA[\n"id", "tosa_op", "api_labels"\n'
+        "62, Transpose, known;label;\n"
+        "]]>\n"
+        "</table>\n"
+        '<table name="stripe_op_id">\n'
+        '<![CDATA[\n"id", "op_id", "cascade_op_id"\n'
+        "0, 1178, 1672;\n"
+        "]]>\n"
+        "</table>\n"
+        "</debug>"
+    )
+    parser = NXDebugDatabaseParser(known_api_labels=["known;label"])
+    parser.raw_xmlish = contents
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["62"] == ["known;label"]
+    assert records["stripe_op_id_to_op_id"]["0"] == ["1178"]
+    assert records["stripe_op_id_to_cascade_op_id"]["0"] == ["1672"]
+
+
+def test_parse_debug_database_uses_empty_list_for_blank_api_labels() -> None:
+    """Blank api_labels cells mean the op has no source location."""
+    contents = (
+        "<debug>\n"
+        '<table name="tosa_op_id">\n'
+        '<![CDATA[\n"id", "tosa_op", "api_labels"\n'
+        "878, Reinterleave, \n"
+        "879, Conv2D, TOSACONV2D_spirv_id_411;\n"
+        "]]>\n"
+        "</table>\n"
+        "</debug>"
+    )
+    parser = NXDebugDatabaseParser()
+    parser.raw_xmlish = contents
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_tosa_op"] == {
+        "878": ["Reinterleave"],
+        "879": ["Conv2D"],
+    }
+    assert records["tosa_op_id_to_api_labels"] == {
+        "878": [],
+        "879": ["TOSACONV2D_spirv_id_411"],
+    }
+
+
 def test_parse_debug_database_invalid_num_db_headers() -> None:
     """Test error is raised if the debug database has too many headers."""
     contents = (
@@ -655,3 +708,109 @@ def test_column_parsers() -> None:
         col1: 1,
         col2: "string",
     }
+
+
+def _debug_database_with_api_labels(value: str) -> str:
+    """Return a minimal debug database containing one api_labels value."""
+    return (
+        "<debug>\n"
+        '<table name="tosa_op_id">\n'
+        '<![CDATA[\n"id", "tosa_op", "api_labels"\n'
+        f"879, Conv2D, {value}\n"
+        "]]>\n"
+        "</table>\n"
+        "</debug>"
+    )
+
+
+def test_parse_debug_database_preserves_known_label_containing_semicolons() -> None:
+    """Semicolons inside a known label are not treated as delimiters."""
+    label = '{"source": "first(); second()"}'
+    parser = NXDebugDatabaseParser(known_api_labels=[label])
+    parser.raw_xmlish = _debug_database_with_api_labels(f"{label};")
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["879"] == [label]
+
+
+def test_parse_debug_database_recovers_multiple_known_labels_in_order() -> None:
+    """Multiple known labels retain their serialized order."""
+    first = "prefix"
+    second = '{"source": "left(); right()"}'
+    parser = NXDebugDatabaseParser(known_api_labels=[second, first])
+    parser.raw_xmlish = _debug_database_with_api_labels(f"{first};{second};")
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["879"] == [first, second]
+
+
+def test_parse_debug_database_prefers_longest_known_label() -> None:
+    """Shared-prefix labels choose the longest complete match."""
+    short = "shared"
+    long = "shared;continued"
+    parser = NXDebugDatabaseParser(known_api_labels=[short, long])
+    parser.raw_xmlish = _debug_database_with_api_labels(f"{long};{short};")
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["879"] == [long, short]
+
+
+def test_parse_debug_database_preserves_fallback_labels_between_known_labels() -> None:
+    """Unknown fallback labels are retained alongside complete known labels."""
+    first = "first"
+    second = "second"
+    fallback = "backend-generated-fallback"
+    parser = NXDebugDatabaseParser(known_api_labels=[first, second])
+    parser.raw_xmlish = _debug_database_with_api_labels(f"{first};{fallback};{second};")
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["879"] == [
+        first,
+        fallback,
+        second,
+    ]
+
+
+def test_parse_debug_database_preserves_trailing_fallback_label() -> None:
+    """A trailing fallback label without a delimiter is retained."""
+    parser = NXDebugDatabaseParser(known_api_labels=["known"])
+    parser.raw_xmlish = _debug_database_with_api_labels("known;fallback")
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["879"] == ["known", "fallback"]
+
+
+def test_parse_debug_database_mixes_semicolon_known_and_fallback_labels() -> None:
+    """Known labels containing semicolons coexist with arbitrary fallback labels."""
+    known = '{"source": "first(); second()"}'
+    first_fallback = "TOSAMATMUL_spirv_id_45"
+    second_fallback = "arbitrary fallback label"
+    parser = NXDebugDatabaseParser(known_api_labels=[known])
+    parser.raw_xmlish = _debug_database_with_api_labels(
+        f"{first_fallback};{known};{second_fallback};"
+    )
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["879"] == [
+        first_fallback,
+        known,
+        second_fallback,
+    ]
+
+
+def test_parse_debug_database_retains_legacy_semicolon_splitting_without_known_labels() -> (
+    None
+):
+    """Callers without known labels retain legacy plain-text parsing."""
+    parser = NXDebugDatabaseParser()
+    parser.raw_xmlish = _debug_database_with_api_labels("first;second;")
+
+    records = parser.parse_debug_database()
+
+    assert records["tosa_op_id_to_api_labels"]["879"] == ["first", "second"]

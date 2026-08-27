@@ -37,6 +37,26 @@ from mlia.utils.logging import log_action
 
 logger = logging.getLogger(__name__)
 
+PERFORMANCE_ADVICE_MESSAGE = (
+    "Please refer to the performance metrics shown in the report "
+    "to find possible optimizations."
+)
+
+
+def _add_performance_advice(output: dict[str, Any]) -> None:
+    """Add Neural Technology advice directly to each performance result."""
+    for result in output.get("results", []):
+        if not isinstance(result, dict) or result.get("kind") != "performance":
+            continue
+        result.setdefault("advice", []).append(
+            {
+                "id": "performance_metrics",
+                "category": "performance",
+                "severity": "info",
+                "message": PERFORMANCE_ADVICE_MESSAGE,
+            }
+        )
+
 
 def _is_tflite_file(model: Path) -> bool:
     return model.suffix == ".tflite"
@@ -144,6 +164,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
                 target_config=target_config,
                 cli_arguments=cli_args,
             )
+            _add_performance_advice(standardized)
 
             return NXPerformanceResult(
                 legacy_info=metrics,

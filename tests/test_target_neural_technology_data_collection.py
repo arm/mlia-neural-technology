@@ -118,7 +118,7 @@ def test_neural_technology_performance_collect_data(
                     system_config=NeuralTechnologyPerformance.name(), compiler_config=""
                 ),
                 performance_db_parser=NXPerformanceDatabaseParser(),
-                stripe_performance_metrics={
+                cascade_performance_metrics={
                     "op0": MagicMock(spec=NXOperatorPerformanceStats)
                 },
                 chain_performance_metrics={
