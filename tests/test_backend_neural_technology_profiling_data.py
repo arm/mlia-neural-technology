@@ -396,6 +396,52 @@ def test_parse_capture_accepts_text_statistics_info(tmp_path: Path) -> None:
     assert parsed.performance_database[0]["id"] == 0
 
 
+def test_parse_profiling_data_preserves_selected_zero_counter_stripes(
+    tmp_path: Path,
+) -> None:
+    """Statistics info identifies valid blocks, including zero-counter blocks."""
+    root = _write_capture(
+        tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)])], mode=1
+    )
+    pipeline_dir = root / "pipeline_000000"
+    info_path = pipeline_dir / "neural_statistics_info.bin"
+    info_path.write_bytes(_u32_blob([0, 2]))
+
+    dispatch_dir = pipeline_dir / "session_000000" / "dispatch_000000"
+    statistics_path = dispatch_dir / "statistics_mode1.bin"
+    words = [0] * (3 * 256 * 32)
+    words[1] = 10
+    statistics_path.write_bytes(_u32_blob(words))
+
+    pipeline_document = json.loads(
+        (pipeline_dir / "pipeline.json").read_text(encoding="utf-8")
+    )
+    # Keep the manifest's declared size in sync with the rewritten fixture artifact.
+    next(
+        item
+        for item in pipeline_document["artifacts"]
+        if item["type"] == "statistics_info"
+    )["size"] = info_path.stat().st_size
+    _write_json(pipeline_dir / "pipeline.json", pipeline_document)
+
+    dispatch_document = json.loads(
+        (dispatch_dir / "dispatch.json").read_text(encoding="utf-8")
+    )
+    dispatch_document["artifacts"][0]["size"] = statistics_path.stat().st_size
+    _write_json(dispatch_dir / "dispatch.json", dispatch_document)
+
+    capture = parse_capture(root)
+    pipeline = capture.pipelines[0]
+    parsed = parse_profiling_data(capture, pipeline, pipeline.dispatches[0])
+
+    assert [row["id"] for row in parsed.performance_database] == [0, 2]
+    assert [row["opCycles"] for row in parsed.performance_database] == [10, 0]
+
+    info_path.write_bytes(_u32_blob([0, 3]))
+    with pytest.raises(ConfigurationError, match="outside the statistics block range"):
+        parse_profiling_data(capture, pipeline, pipeline.dispatches[0])
+
+
 def test_parse_capture_derives_generation_from_layer_device_name(
     tmp_path: Path,
 ) -> None:
@@ -437,34 +483,23 @@ def test_parse_capture_rejects_non_arm_generation_name(tmp_path: Path) -> None:
         parse_capture(root)
 
 
-@pytest.mark.parametrize(
-    ("relative", "directory"),
-    [
-        ("orphan.bin", False),
-        ("orphan", True),
-        ("pipeline_0x123_mode0.bin", False),
-        ("pipelines", True),
-        ("PIPELINES", True),
-        ("sessions", True),
-        ("dispatches", True),
-        (".capture-internal-leftover", False),
-        (".CAPTURE-INTERNAL-leftover", False),
-        ("residue.tmp", False),
-        ("residue.TMP", False),
-    ],
-)
-def test_parse_capture_rejects_unexpected_namespace_entries(
-    tmp_path: Path, relative: str, directory: bool
-) -> None:
-    """The complete public namespace must contain only referenced layer output."""
+def test_parse_capture_allows_unreferenced_regular_entries(tmp_path: Path) -> None:
+    """Unreferenced regular files and directories do not invalidate a capture."""
     root = _write_capture(tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)])])
-    path = root / relative
-    if directory:
-        path.mkdir()
-    else:
-        path.write_bytes(b"orphan")
+    (root / "notes.txt").write_text("metadata", encoding="utf-8")
+    extra_directory = root / "tool-output"
+    extra_directory.mkdir()
+    (extra_directory / "results.json").write_text("{}", encoding="utf-8")
 
-    with pytest.raises(ConfigurationError, match="capture namespace"):
+    parse_capture(root)
+
+
+def test_parse_capture_rejects_missing_referenced_file(tmp_path: Path) -> None:
+    """Every file referenced by the capture manifests must be present."""
+    root = _write_capture(tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)])])
+    (root / "pipeline_000000" / "debug_database.bin").unlink()
+
+    with pytest.raises(ConfigurationError, match="debug_database.bin"):
         parse_capture(root)
 
 

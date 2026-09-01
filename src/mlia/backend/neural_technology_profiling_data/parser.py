@@ -27,8 +27,6 @@ _SCHEMA_VERSION = 2
 _ARM_VENDOR_ID = 0x13B5
 _DEVICE_GENERATION_RE = re.compile(r"^Mali-G([12])(?:$|[- ])")
 _INDEX_RE = re.compile(r"^(pipeline|session|dispatch)_(\d{6,})$")
-_FORBIDDEN_CONTAINER_NAMES = {"pipelines", "sessions", "dispatches"}
-_OLD_FLAT_RE = re.compile(r"pipeline_0x[0-9a-f]+.*\.bin$", re.IGNORECASE)
 _DEBUG_DATABASE_MAGIC = 0x1122FFEE
 _STATISTICS_INFO_MAGIC = 0x2211EEFF
 _CAPTURE_ARTIFACT_VERSION = 1
@@ -452,20 +450,29 @@ def parse_profiling_data(
         source_spirv_path=pipeline.spirv_path,
         device=capture.device_for_pipeline(pipeline).profiling_device,
     )
+    stripe_ids = parse_statistics_info(files.statistics_info_path)
+    if len(stripe_ids) != len(set(stripe_ids)):
+        raise ConfigurationError("Statistics info contains duplicate stripe IDs.")
     performance_database = parse_statistics_file(
         files.primary_stats_path,
         mode=files.primary_mode,
         device=files.device,
+        included_zero_block_ids=frozenset(stripe_ids),
     )
-    stripe_ids = parse_statistics_info(files.statistics_info_path)
-    if len(stripe_ids) != len(performance_database):
+    rows_by_id = {row["id"]: row for row in performance_database}
+    unexpected_ids = set(rows_by_id).difference(stripe_ids)
+    if unexpected_ids:
         raise ConfigurationError(
-            f"Statistics info contains {len(stripe_ids)} stripe IDs but mode "
-            f"{files.primary_mode} statistics produced "
-            f"{len(performance_database)} performance rows."
+            "Statistics contains nonzero rows absent from statistics info: "
+            f"{summarize_list(sorted(unexpected_ids))}."
         )
-    for row, stripe_id in zip(performance_database, stripe_ids):
-        row["id"] = stripe_id
+    missing_ids = set(stripe_ids).difference(rows_by_id)
+    if missing_ids:
+        raise ConfigurationError(
+            "Statistics info contains stripe IDs outside the statistics block range: "
+            f"{summarize_list(sorted(missing_ids))}."
+        )
+    performance_database = [rows_by_id[stripe_id] for stripe_id in stripe_ids]
     debug_database = _complete_debug_database(
         parse_debug_database(files.debug_database_path),
         [str(row["id"]) for row in performance_database],
@@ -741,7 +748,7 @@ def _path_is_link(path: Path) -> bool:
 
 
 def _validate_capture_namespace(capture: StructuredCapture) -> None:
-    """Require the complete capture root to match the referenced public namespace."""
+    """Require every manifest-referenced entry to exist in the capture namespace."""
     expected_files, expected_directories = _expected_capture_namespace(capture)
     actual_files: set[str] = set()
     actual_directories: set[str] = set()
@@ -779,7 +786,6 @@ def _validate_capture_namespace(capture: StructuredCapture) -> None:
                 directory_names.remove(name)
                 continue
             actual_directories.add(relative)
-            errors.extend(_namespace_name_errors(name, relative))
 
         for name in file_names:
             path = current_path / name
@@ -800,23 +806,17 @@ def _validate_capture_namespace(capture: StructuredCapture) -> None:
                 errors.append(f"non-regular capture namespace entry: {relative}")
             else:
                 actual_files.add(relative)
-            errors.extend(_namespace_name_errors(name, relative))
 
-    if actual_files != expected_files:
-        unexpected = summarize_list(sorted(actual_files - expected_files)) or "none"
-        missing = summarize_list(sorted(expected_files - actual_files)) or "none"
+    missing_files = expected_files - actual_files
+    if missing_files:
         errors.append(
-            f"public file set mismatch: unexpected={unexpected}, missing={missing}"
+            "referenced files are missing: " + summarize_list(sorted(missing_files))
         )
-    if actual_directories != expected_directories:
-        unexpected = (
-            summarize_list(sorted(actual_directories - expected_directories)) or "none"
-        )
-        missing = (
-            summarize_list(sorted(expected_directories - actual_directories)) or "none"
-        )
+    missing_directories = expected_directories - actual_directories
+    if missing_directories:
         errors.append(
-            f"public directory set mismatch: unexpected={unexpected}, missing={missing}"
+            "referenced directories are missing: "
+            + summarize_list(sorted(missing_directories))
         )
     if errors:
         raise ConfigurationError(
@@ -854,24 +854,6 @@ def _expected_capture_namespace(
                     }
                 )
     return files, directories
-
-
-def _namespace_name_errors(name: str, relative: str) -> list[str]:
-    errors = []
-    normalized = name.casefold()
-    if normalized in _FORBIDDEN_CONTAINER_NAMES:
-        errors.append(f"forbidden container name in capture namespace: {relative}")
-    if normalized.endswith(".tmp"):
-        errors.append(f"temporary residue remains in capture namespace: {relative}")
-    if normalized.startswith(".capture-internal-"):
-        errors.append(
-            f"internal publication residue remains in capture namespace: {relative}"
-        )
-    if _OLD_FLAT_RE.fullmatch(name):
-        errors.append(
-            f"old flat profiling artifact remains in capture namespace: {relative}"
-        )
-    return errors
 
 
 def _read_document(
@@ -1248,19 +1230,22 @@ def parse_statistics_file(
     *,
     mode: ProfilingMode,
     device: ProfilingDevice,
+    included_zero_block_ids: frozenset[int] = frozenset(),
 ) -> PerformanceDatabaseContentsType:
-    """Parse one raw statistics file into GCPE-compatible stripe rows."""
+    """Parse statistics, retaining requested blocks whose counters are all zero."""
     words = _decode_words(path.read_bytes())
     if mode == 0:
         tasks_per_block = 512 if device == "Mali-G1" else 1024
-        return _parse_mode0(words, tasks_per_block)
+        return _parse_mode0(words, tasks_per_block, included_zero_block_ids)
     words_per_task = 32 if device == "Mali-G1" else 64
     labels = _MODE1_LABELS_G1 if device == "Mali-G1" else _MODE1_LABELS_G2
-    return _parse_mode1(words, words_per_task, labels)
+    return _parse_mode1(words, words_per_task, labels, included_zero_block_ids)
 
 
 def _parse_mode0(
-    words: list[int], tasks_per_block: int
+    words: list[int],
+    tasks_per_block: int,
+    included_zero_block_ids: frozenset[int],
 ) -> PerformanceDatabaseContentsType:
     words_per_task = 16
     _validate_statistics_words(words, words_per_task, "Mode0")
@@ -1279,6 +1264,12 @@ def _parse_mode0(
                 total + value for total, value in zip(section_totals, task)
             ]
         if not any(section_totals):
+            if block_index in included_zero_block_ids:
+                rows.append(
+                    _performance_row(
+                        block_index, op_cycles=0, total_cycles=0, counters={}
+                    )
+                )
             continue
         total_cycles = sum(section_totals)
         rows.append(
@@ -1299,6 +1290,7 @@ def _parse_mode1(
     words: list[int],
     words_per_task: int,
     labels: tuple[str | None, ...],
+    included_zero_block_ids: frozenset[int],
 ) -> PerformanceDatabaseContentsType:
     _validate_statistics_words(words, words_per_task, "Mode1")
     tasks_per_block = 256
@@ -1319,6 +1311,12 @@ def _parse_mode1(
                     continue
                 counter_totals[label] = counter_totals.get(label, 0) + task[word_index]
         if not counter_totals:
+            if block_index in included_zero_block_ids:
+                rows.append(
+                    _performance_row(
+                        block_index, op_cycles=0, total_cycles=0, counters={}
+                    )
+                )
             continue
         op_cycles = counter_totals.get("nx_active", 0)
         total_cycles = op_cycles or sum(counter_totals.values())
