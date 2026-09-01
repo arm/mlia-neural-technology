@@ -44,11 +44,11 @@ def _assert_direct_tosa_output(output: dict) -> None:
 
     assert [entity["id"] for entity in entities] == expected_source_ids
     assert [entity["placement"] for entity in entities] == [
-        "nx",
-        "nx",
-        "ee",
-        "ee",
-        "cpu",
+        "NX",
+        "NX",
+        "EE",
+        "EE",
+        "CPU",
     ]
     assert [check["entity_id"] for check in result["checks"]] == expected_source_ids
     assert len({entity["id"] for entity in entities}) == 5
@@ -445,7 +445,7 @@ def test_vgf_compatibility_emits_shared_provenance_entities(
         }
     ]
     assert entities[source_id]["name"] == "aten.convolution.default"
-    assert entities[source_id]["placement"] == "nx"
+    assert entities[source_id]["placement"] == "NX"
     assert entities[source_id]["parent_ids"] == [
         layer_module_id,
         frame_entities[-1]["id"],

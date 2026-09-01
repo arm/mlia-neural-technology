@@ -435,10 +435,10 @@ class NXModelCompatibilityInfo:
 
         for idx, record in enumerate(records):
             if record.compat_level in ("TOSA", "Shader"):
-                placement = record.placement.lower() if record.placement else "nx"
+                placement = record.placement or schema.PlacementType.NX.value
                 supported = True
             else:
-                placement = "cpu"
+                placement = schema.PlacementType.CPU.value
                 supported = False
 
             entity_attrs = {
