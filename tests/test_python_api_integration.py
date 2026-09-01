@@ -21,6 +21,9 @@ from mlia.target.registry import registry as target_registry
 from mlia.transformers.registry import TransformRequest, transformer_registry
 
 from mlia.backend.ml_sdk_model_converter.plugin import MLSDKModelConverterPlugin
+from mlia.backend.neural_technology_profiling_data.plugin import (
+    NeuralTechnologyProfilingDataPlugin,
+)
 from mlia.backend.nx_performance_estimator.plugin import NXPerformanceEstimatorPlugin
 from mlia.backend.tosa_flatbuffers.plugin import TosaFlatBuffersPlugin
 from mlia.target.neural_technology.plugin import NeuralTechnologyTargetPlugin
@@ -55,6 +58,7 @@ def _register_neural_technology_api_plugins(
     target_registry_module.create_target_profile.cache_clear()
 
     NXPerformanceEstimatorPlugin.register(backend_registry)
+    NeuralTechnologyProfilingDataPlugin.register(backend_registry)
     MLSDKModelConverterPlugin.register(backend_registry)
     TosaFlatBuffersPlugin.register(backend_registry)
     NeuralTechnologyTargetPlugin.register(target_registry)
@@ -266,6 +270,52 @@ def test_run_advisor_performance_routes_backend_options(
         "profile_name": "NX-peak",
     }
     assert output["context"] == {}
+
+
+def test_run_advisor_routes_profiling_data_through_target_workflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The public API should use the target advisor for measured data."""
+    _register_neural_technology_api_plugins(
+        monkeypatch, auto_install=lambda *_, **__: None
+    )
+    profile = _write_profile(tmp_path, "NX-measured")
+    profiling_data = tmp_path / "profiling-data"
+    profiling_data.mkdir()
+    captured: dict[str, object] = {}
+
+    def fake_analyze(**kwargs: object) -> dict[str, Any]:
+        captured.update(kwargs)
+        return _fake_standardized_output(
+            "profiling-data", "profiling-data", "performance"
+        )
+
+    monkeypatch.setattr(
+        "mlia.target.neural_technology.data_collection.analyze_profiling_data",
+        fake_analyze,
+    )
+
+    output = run_advisor(
+        "performance",
+        str(profile),
+        profiling_data=profiling_data,
+        validation="off",
+    )
+
+    assert output["results"][0]["kind"] == "performance"
+    cli_arguments = captured.pop("cli_arguments")
+    assert isinstance(cli_arguments, list)
+    assert cli_arguments
+    output_dir = captured.pop("output_dir")
+    assert isinstance(output_dir, Path)
+    assert output_dir.name == "mlia-output"
+    assert captured == {
+        "target_profile": str(profile),
+        "profiling_data": [profiling_data],
+        "categories": {"performance"},
+        "model": None,
+    }
 
 
 @pytest.mark.parametrize("collapse_enabled", [False, True])

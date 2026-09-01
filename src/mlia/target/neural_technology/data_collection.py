@@ -20,6 +20,9 @@ from mlia.backend.ml_sdk_model_converter.conversion import (
     get_front_end_output_subdir,
     transform_front_end_model,
 )
+from mlia.backend.neural_technology_profiling_data.profiling import (
+    analyze_profiling_data,
+)
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceEstimator,
     NXPerformanceEstimatorPerformanceMetrics,
@@ -41,6 +44,13 @@ PERFORMANCE_ADVICE_MESSAGE = (
     "Please refer to the performance metrics shown in the report "
     "to find possible optimizations."
 )
+
+
+def _cli_arguments() -> list[str]:
+    """Return CLI arguments without exposing the executable's parent path."""
+    if not sys.argv:
+        return []
+    return [Path(sys.argv[0]).name, *sys.argv[1:]]
 
 
 def _add_performance_advice(output: dict[str, Any]) -> None:
@@ -111,6 +121,46 @@ class NXPerformanceResult:
     standardized_output: dict[str, Any] | None = None
 
 
+@dataclass
+class NXProfilingDataResult:
+    """Standardized output produced from measured profiling data."""
+
+    standardized_output: dict[str, object]
+
+
+class NeuralTechnologyProfilingData(ContextAwareDataCollector):
+    """Collect measured Neural Technology profiling data."""
+
+    def __init__(
+        self,
+        profiling_data: list[Path],
+        target_profile: str | Path,
+        model: Path | None,
+    ) -> None:
+        """Initialize the profiling data collector."""
+        self.profiling_data = profiling_data
+        self.target_profile = target_profile
+        self.model = model
+
+    def collect_data(self) -> NXProfilingDataResult:
+        """Analyze profiling data through the normal MLIA collection workflow."""
+        cli_args = _cli_arguments()
+        standardized_output = analyze_profiling_data(
+            target_profile=str(self.target_profile),
+            profiling_data=self.profiling_data,
+            categories={"performance"},
+            model=str(self.model) if self.model is not None else None,
+            cli_arguments=cli_args,
+            output_dir=self.context.output_dir,
+        )
+        return NXProfilingDataResult(standardized_output=standardized_output)
+
+    @classmethod
+    def name(cls) -> str:
+        """Return the collector name."""
+        return "neural_technology_profiling_data"
+
+
 class NeuralTechnologyPerformance(ContextAwareDataCollector):
     """Collect performance information."""
 
@@ -149,7 +199,7 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
         # Generate standardized output
         try:
             # Clean CLI arguments to use basename for executable
-            cli_args = [Path(sys.argv[0]).name] + sys.argv[1:] if sys.argv else []
+            cli_args = _cli_arguments()
 
             # Build target configuration
             target_config = {
@@ -226,7 +276,7 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
         # Generate standardized output
         try:
             # Clean CLI arguments to use basename for executable
-            cli_args = [Path(sys.argv[0]).name] + sys.argv[1:] if sys.argv else []
+            cli_args = _cli_arguments()
 
             # Build target configuration
             target_config = {

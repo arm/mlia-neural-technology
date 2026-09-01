@@ -10,7 +10,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "ai-ml-sdk-model-converter==0.9.0",
     "tosa-tools==2026.2.1",
-    "mlia==0.12.2.dev21+8ecf30f"
+    "mlia==0.12.2.dev23+f5d8312"
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
 authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
@@ -33,6 +33,7 @@ neural_technology = "mlia.target.neural_technology.plugin:NeuralTechnologyTarget
 
 [project.entry-points."mlia.plugin.backend"]
 nx_performance_estimator = "mlia.backend.nx_performance_estimator.plugin:NXPerformanceEstimatorPlugin"
+neural_technology_profiling_data = "mlia.backend.neural_technology_profiling_data.plugin:NeuralTechnologyProfilingDataPlugin"
 ml_sdk_model_converter = "mlia.backend.ml_sdk_model_converter.plugin:MLSDKModelConverterPlugin"
 tosa_flatbuffers = "mlia.backend.tosa_flatbuffers.plugin:TosaFlatBuffersPlugin"
 
@@ -111,6 +112,7 @@ markers = [
 addopts = [
     "--cov=mlia.backend.ml_sdk_model_converter",
     "--cov=mlia.backend.nx_performance_estimator",
+    "--cov=mlia.backend.neural_technology_profiling_data",
     "--cov=mlia.backend.tosa_flatbuffers",
     "--cov=mlia.nx_utils",
     "--cov=mlia.target.neural_technology",

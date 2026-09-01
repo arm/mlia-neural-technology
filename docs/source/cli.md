@@ -75,6 +75,66 @@ mlia check model.tosa \
   --json
 ```
 
+## Using measured profiling data
+
+The experimental `neural-technology-profiling-data` backend reads schema-version
+1 structured captures produced by `VK_LAYER_LGL_neural_statistics`:
+
+```text
+capture.json
+pipeline_<id>/pipeline.json
+pipeline_<id>/session_<id>/session.json
+pipeline_<id>/session_<id>/dispatch_<id>/dispatch.json
+```
+
+Metadata references, IDs, parent relationships, paths, artifact types, byte
+sizes, capture status, and the capture device are validated before analysis.
+The old flat profiling directory is not accepted. Pipeline inputs must declare
+`debug_database.bin`, either `neural_statistics_info.bin` or
+`neural_statistics_info.txt`, and one `shader_module_<id>.spv`; each selected
+dispatch must declare exactly one mode-matching statistics artifact.
+
+Analyze a dispatch without a source model, or use a capture root only when it
+contains exactly one dispatch:
+
+```bash
+mlia check \
+  --target-profile neural-technology \
+  --performance \
+  --profiling-data ./capture/pipeline_000000/session_000000/dispatch_000000
+```
+
+With a VGF model, MLIA matches graph segments to captured pipelines by exact
+SPIR-V bytes. A capture root can be selected automatically when every graph
+segment has one unique matching pipeline and that pipeline has exactly one
+dispatch. A single dispatch can instead act as an executed-index anchor for the
+other uniquely matched pipelines:
+
+```bash
+mlia check model.vgf \
+  --target-profile neural-technology \
+  --performance \
+  --profiling-data ./capture
+```
+
+For ambiguous or intentionally repeated captures, repeat `--profiling-data` with
+one dispatch directory per VGF graph segment, in graph-segment order. Compute
+segments are excluded consistently with estimator mode:
+
+```bash
+mlia check model.vgf \
+  --target-profile neural-technology \
+  --performance \
+  --profiling-data ./capture/pipeline_000000/session_000000/dispatch_000000 \
+  --profiling-data ./capture/pipeline_000001/session_000001/dispatch_000001
+```
+
+All explicit dispatches must belong to the same capture and match the
+corresponding graph segment. Profiling data uses the same per-segment
+correlation, aggregation, totals, warnings, entities, and standardized-output
+flow as the NX Performance Estimator. Measured profiling supports
+`--performance` only.
+
 ## Practical debugging sequence
 
 When a run is unclear, a useful sequence is:

@@ -17,7 +17,11 @@ from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.data_collection import (
     NeuralTechnologyCompatibility,
     NeuralTechnologyPerformance,
+    NeuralTechnologyProfilingData,
 )
+from mlia.utils.misc import summarize_list
+
+PROFILING_DATA_BACKEND = "neural-technology-profiling-data"
 
 
 class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
@@ -29,8 +33,12 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
         return "neural_technology_inference_advisor"
 
     def get_collectors(self, context: Context) -> list[DataCollector]:
-        """Return data collectors for model analysis."""
+        """Return data collectors for model or profiling-data analysis."""
         backend = self._get_backends(context)[0]
+        profiling_data = self._get_optional_paths(context, "profiling_data")
+        if profiling_data is not None:
+            return self._get_profiling_data_collectors(context, backend, profiling_data)
+
         model = self.get_model(context)
         target_cfg = self._get_target_cfg(context)
         collectors: list[DataCollector] = []
@@ -39,6 +47,47 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
         if context.category_enabled(AdviceCategory.COMPATIBILITY):
             collectors.append(NeuralTechnologyCompatibility(model, target_cfg))
         return collectors
+
+    def _get_profiling_data_collectors(
+        self, context: Context, backend: str, profiling_data: list[Path]
+    ) -> list[DataCollector]:
+        """Configure measured profiling data collection."""
+        if backend != PROFILING_DATA_BACKEND:
+            raise ConfigurationError(
+                f"Backend '{backend}' does not support Neural Technology profiling data."
+            )
+        if context.category_enabled(AdviceCategory.COMPATIBILITY):
+            raise ConfigurationError(
+                "Backend does not support --compatibility with --profiling-data. "
+                "Use --performance instead."
+            )
+        if not context.category_enabled(AdviceCategory.PERFORMANCE):
+            raise ConfigurationError(
+                "Neural Technology profiling data currently supports performance "
+                "analysis only."
+            )
+
+        model = self._get_optional_path(context, "model")
+        if model is not None and model.suffix.lower() != ".vgf":
+            raise ConfigurationError(
+                "Neural Technology profiling data can only be associated with a VGF model."
+            )
+
+        backend_options = self._get_backend_options(context).get(backend, {})
+        if backend_options:
+            options = summarize_list(sorted(backend_options))
+            raise ConfigurationError(
+                "Neural Technology profiling data does not support backend "
+                f"options: {options}."
+            )
+
+        return [
+            NeuralTechnologyProfilingData(
+                profiling_data=profiling_data,
+                target_profile=self.get_target_profile(context),
+                model=model,
+            )
+        ]
 
     def get_analyzers(self, context: Context) -> list[DataAnalyzer]:
         """Return list of data analyzers."""
@@ -81,11 +130,36 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
             or {},
         )
 
+    def _get_optional_path(self, context: Context, name: str) -> Path | None:
+        """Return an optional configured filesystem path."""
+        value = self.get_parameter(
+            self.name(), name, expected=False, expected_type=str, context=context
+        )
+        if value is None:
+            return None
+        path = Path(value)
+        if not path.exists():
+            raise FileNotFoundError(f"Path {path} does not exist.")
+        return path
+
+    def _get_optional_paths(self, context: Context, name: str) -> list[Path] | None:
+        """Return optional configured filesystem paths in caller order."""
+        values = self.get_parameter(
+            self.name(), name, expected=False, expected_type=list, context=context
+        )
+        if values is None:
+            return None
+        paths = [Path(value) for value in values]
+        for path in paths:
+            if not path.exists():
+                raise FileNotFoundError(f"Path {path} does not exist.")
+        return paths
+
 
 def configure_and_get_neural_technology_advisor(
     context: ExecutionContext,
     target_profile: str | Path,
-    model: str | Path,
+    model: str | Path | None,
     **extra_args: Any,
 ) -> InferenceAdvisor:
     """Create and configure Neural Technology advisor."""
@@ -93,18 +167,21 @@ def configure_and_get_neural_technology_advisor(
         context.config_parameters = _get_config_parameters(
             model, target_profile, **extra_args
         )
-
     return NeuralTechnologyInferenceAdvisor()
 
 
 def _get_config_parameters(
-    model: str | Path, target_profile: str | Path, **extra_args: Any
+    model: str | Path | None,
+    target_profile: str | Path,
+    **extra_args: Any,
 ) -> dict[str, Any]:
     """Get configuration parameters for the advisor."""
-    parameters: dict[str, Any] = {
-        "model": str(model),
-        "target_profile": target_profile,
-    }
+    parameters: dict[str, Any] = {"target_profile": target_profile}
+    if model is not None:
+        parameters["model"] = str(model)
+    if profiling_data := extra_args.get("profiling_data"):
+        parameters["profiling_data"] = [str(path) for path in profiling_data]
+
     backends: Sequence = extra_args.get("backends", [])
     if not backends:
         raise ConfigurationError("One backend is required but was not specified.")

@@ -13,7 +13,10 @@ from mlia.target.registry import TargetInfo, TargetRegistry
 def _create_target_info() -> TargetInfo:
     """Build the Neural Technology target metadata."""
     return TargetInfo(
-        supported_backends=["nx-performance-estimator"],
+        supported_backends=[
+            "nx-performance-estimator",
+            "neural-technology-profiling-data",
+        ],
         default_backends=["nx-performance-estimator"],
         advisor_factory_func=configure_and_get_neural_technology_advisor,
         target_profile_cls=NeuralTechnologyConfiguration,

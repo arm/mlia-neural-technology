@@ -134,7 +134,7 @@ jobs:
           if-no-files-found: ignore
 
   test_e2e:
-    name: End-to-End Smoke Tests (${{ matrix.suite }} Shard ${{ matrix.display_index }}/${{ matrix.total }})
+    name: End-to-End Smoke Tests (${{ matrix.suite }}, shard index ${{ matrix.index }})
     # End-to-end tests require secrets and therefore cannot run for fork PRs.
     if: >-
       ${{ (github.event_name != 'pull_request' ||
@@ -147,8 +147,33 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - {suite: tflite, index: 0, display_index: 1, total: 3, converter_package: mlia-converters-litert}
-          - {suite: pytorch, index: 0, display_index: 1, total: 1, converter_package: "mlia-converters-pytorch>=0.1.1.dev8,<0.2"}
+          - suite: tflite
+            index: 0
+            shard_count: 3
+            artifacts: ${{ vars.MLIA_E2E_TFLITE_ARTIFACTS }}
+            backends: ${{ vars.MLIA_E2E_TFLITE_BACKENDS }}
+            executions: ${{ vars.MLIA_E2E_TFLITE_EXECUTIONS }}
+            converter_package: mlia-converters-litert
+            archive_path: ""
+            extract_destination: ""
+          - suite: pytorch
+            index: 0
+            shard_count: 1
+            artifacts: ${{ vars.MLIA_E2E_PYTORCH_ARTIFACTS }}
+            backends: ${{ vars.MLIA_E2E_PYTORCH_BACKENDS }}
+            executions: ${{ vars.MLIA_E2E_PYTORCH_EXECUTIONS }}
+            converter_package: "mlia-converters-pytorch>=0.1.1.dev8,<0.2"
+            archive_path: ""
+            extract_destination: ""
+          - suite: profiling
+            index: 0
+            shard_count: 1
+            artifacts: ${{ vars.MLIA_E2E_PROFILING_ARTIFACTS }}
+            backends: ${{ vars.MLIA_E2E_PROFILING_BACKENDS }}
+            executions: ${{ vars.MLIA_E2E_PROFILING_EXECUTIONS }}
+            converter_package: ""
+            archive_path: e2e_config/profiling_archives/fpga-results-multi-chain-capture.zip
+            extract_destination: e2e_config/profiling
     steps:
       - name: Import secrets from Vault
         # Vault secrets must not be exposed to pull requests from forks.
@@ -179,7 +204,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git-lfs
       - name: Prepare artifacts
-        if: ${{ (matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_ARTIFACTS || vars.MLIA_E2E_TFLITE_ARTIFACTS) != '' }}
+        if: ${{ matrix.artifacts != '' }}
         uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@main
         env:
           ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
@@ -189,25 +214,38 @@ jobs:
           ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
           ARTIFACT_HTTP_SOURCE_TOKEN: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
         with:
-          artifacts: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_ARTIFACTS || vars.MLIA_E2E_TFLITE_ARTIFACTS }}
+          artifacts: ${{ matrix.artifacts }}
           destination: ${{ env.ARTIFACTS_PATH }}
+      - name: Extract ZIP artifact
+        if: ${{ matrix.artifacts != '' && matrix.archive_path != '' }}
+        env:
+          ARCHIVE_PATH: ${{ env.ARTIFACTS_PATH }}/${{ matrix.archive_path }}
+          EXTRACT_DESTINATION: ${{ env.ARTIFACTS_PATH }}/${{ matrix.extract_destination }}
+        run: |
+          rm -rf "$EXTRACT_DESTINATION"
+          python3 -m zipfile -e "$ARCHIVE_PATH" "$EXTRACT_DESTINATION"
       - run: uv sync --no-sources --no-install-project --only-group test
       # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
       - run: ${{ env.UV_PROJECT_ENVIRONMENT }}/bin/python -m ensurepip --upgrade
       - name: Run e2e pytest
         env:
+          CONVERTER_PACKAGE: ${{ matrix.converter_package }}
           MLIA_E2E_ARTIFACTS: ${{ env.ARTIFACTS_PATH }}
-          MLIA_E2E_BACKENDS: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_BACKENDS || vars.MLIA_E2E_TFLITE_BACKENDS }}
-          MLIA_E2E_EXECUTIONS: ${{ matrix.suite == 'pytorch' && vars.MLIA_E2E_PYTORCH_EXECUTIONS || vars.MLIA_E2E_TFLITE_EXECUTIONS }}
+          MLIA_E2E_BACKENDS: ${{ matrix.backends }}
+          MLIA_E2E_EXECUTIONS: ${{ matrix.executions }}
           MLIA_E2E_SHARD_INDEX: ${{ matrix.index }}
-          MLIA_E2E_SHARD_COUNT: ${{ matrix.total }}
+          MLIA_E2E_SHARD_COUNT: ${{ matrix.shard_count }}
         run: |
           mkdir -p report
           rm -f "report/report-${{ matrix.index }}.xml"
+          converter_args=()
+          if [[ -n "$CONVERTER_PACKAGE" ]]; then
+            converter_args=(--with "$CONVERTER_PACKAGE")
+          fi
           set -o pipefail
           uv run --no-sync \
             --with dist/*.whl \
-            --with "${{ matrix.converter_package }}" \
+            "${converter_args[@]}" \
             --with pip \
             -- pytest -v tests/test_e2e.py \
               -x \

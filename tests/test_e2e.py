@@ -17,6 +17,7 @@ NEURAL_TECHNOLOGY_COMPATIBILITY_PATTERNS = (
     r".*│.*NX placement.*│.*",
     r".*│.*NX compatibility.*│.*",
 )
+NEURAL_TECHNOLOGY_PROFILING_PATTERNS = (r".*[│|].*source_operator.*[│|].*NX.*[│|].*",)
 
 
 def assert_matches(pattern: str, output: str) -> None:
@@ -48,4 +49,7 @@ def test_e2e_performance(
     assert result.returncode == 0, f"{case}\n\n{output}"
     for pattern in (*COMMON_PATTERNS, *PERFORMANCE_PATTERNS):
         assert_matches(pattern, output)
+    if "--profiling-data" in case.args:
+        for pattern in NEURAL_TECHNOLOGY_PROFILING_PATTERNS:
+            assert_matches(pattern, output)
     mlia_e2e.emit_e2e_results(result)
