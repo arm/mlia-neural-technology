@@ -464,6 +464,7 @@ class NXPerformanceEstimatorPerformanceMetrics:
                 schema.Entity(
                     id=entity_id,
                     kind="chain",
+                    placement=schema.PlacementType.NX.value,
                     name=_subgraph_display_name(
                         segment_name_by_id.get(segment_entity_id, "")
                         if segment_entity_id
@@ -532,6 +533,7 @@ class NXPerformanceEstimatorPerformanceMetrics:
                 schema.Entity(
                     id=entity_id,
                     kind="cascade",
+                    placement=schema.PlacementType.NX.value,
                     name=_subgraph_display_name(
                         segment_name_by_id.get(segment_entity_id, "")
                         if segment_entity_id

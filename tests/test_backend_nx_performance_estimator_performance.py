@@ -685,6 +685,7 @@ def test_nx_performance_metrics_to_standardized_output(
                 "source_operator/test-0",
                 "source_operator/test-1",
             ],
+            "placement": "NX",
             "attributes": {"stripe_ids": ["0", "1"]},
         },
         {
@@ -695,6 +696,7 @@ def test_nx_performance_metrics_to_standardized_output(
                 "source_operator/test-3",
                 "source_operator/test-4",
             ],
+            "placement": "NX",
             "attributes": {"stripe_ids": ["3", "4"]},
         },
         {
@@ -702,6 +704,7 @@ def test_nx_performance_metrics_to_standardized_output(
             "kind": "cascade",
             "name": "Cascade 0",
             "child_ids": ["chain_0"],
+            "placement": "NX",
             "attributes": {"stripe_ids": ["0"]},
         },
         {
