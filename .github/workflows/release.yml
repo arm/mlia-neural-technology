@@ -134,7 +134,7 @@ jobs:
             artifacts: ${{ vars.MLIA_E2E_PYTORCH_ARTIFACTS }}
             backends: ${{ vars.MLIA_E2E_PYTORCH_BACKENDS }}
             executions: ${{ vars.MLIA_E2E_PYTORCH_EXECUTIONS }}
-            converter_package: mlia-converters-pytorch
+            converter_package: "mlia-converters-pytorch>=0.1.1.dev8,<0.2"
             archive_path: ""
             extract_destination: ""
             run_api_e2e: true
