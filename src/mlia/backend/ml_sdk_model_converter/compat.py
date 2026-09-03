@@ -43,6 +43,8 @@ from mlia.utils.filesystem import sha256
 
 logger = logging.getLogger(__name__)
 
+_CONVERTED_OPERATOR_ENTITY_KIND = "converted_operator"
+
 _SUPPORTED_TOSA_OPS = [
     # Tensor Operators
     "ARGMAX",
@@ -363,6 +365,8 @@ class NXModelCompatibilityInfo:
         cli_arguments: list[str] | None = None,
         target_config: dict[str, Any] | None = None,
         backend_config: dict[str, Any] | None = None,
+        source_operator_attribution_available: bool = True,
+        warnings: list[str] | None = None,
     ) -> dict[str, Any]:
         """Convert to standardized output format.
 
@@ -373,6 +377,9 @@ class NXModelCompatibilityInfo:
             cli_arguments: Optional CLI arguments used for the run
             target_config: Optional target configuration parameters
             backend_config: Optional backend configuration parameters
+            source_operator_attribution_available: Whether converted records can be
+                linked truthfully to source operator entities
+            warnings: Optional result warnings
 
         Returns:
             Standardized output dictionary
@@ -428,9 +435,12 @@ class NXModelCompatibilityInfo:
             cli_arguments=cli_arguments or [],
         )
 
-        # Create checks and shared provenance entities for each operator.
+        # Create checks and operator entities. Prefer canonical source operators when
+        # the frontend preserves their identity; otherwise retain converted-operation
+        # context in a result-local namespace without claiming source provenance.
         checks: list[schema.Check] = []
         provenance_builder = NXProvenanceEntityBuilder()
+        converted_operator_entities: list[schema.Entity] = []
         records = self.get_records()
 
         for idx, record in enumerate(records):
@@ -451,20 +461,38 @@ class NXModelCompatibilityInfo:
             if record.tosa_op:
                 entity_attrs["tosa_op"] = record.tosa_op
 
+            entity_name = (
+                record.name or record.type or record.tosa_op or record.display_label
+            )
             entity_id = None
-            if record.source_operator_id is not None:
-                entity_id = provenance_builder.add_source_operator(
-                    record.source_operator_id,
-                    name=(
-                        record.name
-                        or record.type
-                        or record.tosa_op
-                        or record.display_label
-                    ),
-                    placement=placement,
-                    attributes=entity_attrs,
-                    nn_module_stacks=record.nn_module_stacks or [],
-                    code_stacks=record.code_stacks or [],
+            if source_operator_attribution_available:
+                if record.source_operator_id is not None:
+                    entity_id = provenance_builder.add_source_operator(
+                        record.source_operator_id,
+                        name=entity_name,
+                        placement=placement,
+                        attributes=entity_attrs,
+                        nn_module_stacks=record.nn_module_stacks or [],
+                        code_stacks=record.code_stacks or [],
+                    )
+            else:
+                converted_id = (
+                    record.source_operator_id.removeprefix(
+                        f"{schema.ENTITY_KIND_SOURCE_OPERATOR}/"
+                    )
+                    if record.source_operator_id is not None
+                    else str(idx)
+                )
+                entity_attrs["converted_tosa_operator_id"] = converted_id
+                entity_id = f"{_CONVERTED_OPERATOR_ENTITY_KIND}/{converted_id}"
+                converted_operator_entities.append(
+                    schema.Entity(
+                        id=entity_id,
+                        kind=_CONVERTED_OPERATOR_ENTITY_KIND,
+                        name=entity_name,
+                        placement=placement,
+                        attributes=entity_attrs,
+                    )
                 )
 
             if supported:
@@ -485,16 +513,20 @@ class NXModelCompatibilityInfo:
                 )
             )
 
-        for source_operator_id in self._structural_source_operator_ids:
-            if provenance_builder.has_source_operator(source_operator_id):
-                continue
-            provenance_builder.add_source_operator(
-                source_operator_id,
-                name=source_operator_id,
-                placement=None,
-            )
+        if source_operator_attribution_available:
+            for source_operator_id in self._structural_source_operator_ids:
+                if provenance_builder.has_source_operator(source_operator_id):
+                    continue
+                provenance_builder.add_source_operator(
+                    source_operator_id,
+                    name=source_operator_id,
+                    placement=None,
+                )
 
-        entities = provenance_builder.entities()
+        entities = [*provenance_builder.entities(), *converted_operator_entities]
+        entity_kinds = provenance_builder.entity_kind_declarations()
+        if converted_operator_entities:
+            entity_kinds.append(schema.EntityKind(id=_CONVERTED_OPERATOR_ENTITY_KIND))
 
         # Determine overall result status
         if not records:
@@ -511,12 +543,12 @@ class NXModelCompatibilityInfo:
             kind=schema.ResultKind.COMPATIBILITY,
             status=result_status,
             producer=backend.id,
-            warnings=[],
+            warnings=list(warnings or []),
             errors=[],
             metrics=[self._build_accelerator_operator_percentage_metric(records)],
             checks=checks,
             entities=entities,
-            entity_kinds=provenance_builder.entity_kind_declarations(),
+            entity_kinds=entity_kinds,
         )
 
         return schema.StandardizedOutput(

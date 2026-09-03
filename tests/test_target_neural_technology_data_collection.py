@@ -10,8 +10,10 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import mlia.core.output_schema as schema
+from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
 from mlia.backend.ml_sdk_model_converter.conversion import get_front_end_output_subdir
-
+from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp, TosaOpType
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
@@ -27,12 +29,14 @@ from mlia.backend.nx_performance_estimator.statistics import (
 )
 from mlia.core.context import ExecutionContext
 from mlia.core.errors import ConfigurationError
+from mlia.core.output_validation import validate_standardized_output
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.data_collection import (
     NXCompatibilityResult,
     NXPerformanceResult,
     NeuralTechnologyCompatibility,
     NeuralTechnologyPerformance,
+    TFLITE_SOURCE_ATTRIBUTION_WARNING,
 )
 
 
@@ -373,3 +377,84 @@ def test_neural_technology_compatibility_collect_data_preserves_profile_metadata
         "nx-performance-estimator": {"system_config": ""}
     }
     assert captured["cli_arguments"] == ["mlia-api", "--quiet"]
+    assert captured["source_operator_attribution_available"] is True
+    assert captured["warnings"] is None
+
+
+def test_tflite_compatibility_uses_converted_operator_entities(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Converted TFLite checks retain context without claiming source identity."""
+    model = tmp_path / "model.tflite"
+    model.write_bytes(b"tflite")
+    converted_model = tmp_path / "converted.tosa"
+    converted_model.write_bytes(b"tosa")
+
+    compatibility = NXModelCompatibilityInfo()
+    compatibility.add_lowered_to_tosa(
+        TosaOp("ADD", "add_0", TosaOpType.INT),
+        source_operator_id=schema.tosa_source_operator_id(0),
+    )
+    compatibility.add_lowering_error(
+        "unsupported_1",
+        "unsupported operation",
+        source_operator_id=schema.tosa_source_operator_id(1),
+    )
+
+    monkeypatch.setattr(
+        "mlia.target.neural_technology.data_collection.transform_front_end_model",
+        MagicMock(return_value=converted_model),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat."
+        "NXCompatibilityChecker.check_compatibility",
+        MagicMock(return_value=compatibility),
+    )
+
+    collector = NeuralTechnologyCompatibility(model, _neural_technology_config())
+    collector.set_context(ExecutionContext(output_dir=tmp_path))
+
+    collected = collector.collect_data()
+
+    assert isinstance(collected, NXCompatibilityResult)
+    assert collected.standardized_output is not None
+    result = collected.standardized_output["results"][0]
+    assert result["warnings"] == [TFLITE_SOURCE_ATTRIBUTION_WARNING]
+    assert result["entity_kinds"] == [{"id": "converted_operator"}]
+    assert result["entities"] == [
+        {
+            "id": "converted_operator/0",
+            "kind": "converted_operator",
+            "name": "ADD",
+            "placement": "NX",
+            "attributes": {
+                "index": 0,
+                "compat_level": "TOSA",
+                "display_label": "add_0",
+                "tosa_op": "ADD",
+                "converted_tosa_operator_id": "0",
+            },
+        },
+        {
+            "id": "converted_operator/1",
+            "kind": "converted_operator",
+            "name": "unsupported_1",
+            "placement": "CPU",
+            "attributes": {
+                "index": 1,
+                "compat_level": "Non-NX",
+                "display_label": "unsupported_1",
+                "converted_tosa_operator_id": "1",
+            },
+        },
+    ]
+    assert [check["entity_id"] for check in result["checks"]] == [
+        "converted_operator/0",
+        "converted_operator/1",
+    ]
+    assert [check["status"] for check in result["checks"]] == ["pass", "fail"]
+    assert result["checks"][1]["details"] == {"error": "unsupported operation"}
+    metrics = {metric["name"]: metric for metric in result["metrics"]}
+    assert metrics[schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE]["value"] == 50.0
+    validate_standardized_output(collected.standardized_output)

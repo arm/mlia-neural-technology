@@ -44,6 +44,11 @@ PERFORMANCE_ADVICE_MESSAGE = (
     "Please refer to the performance metrics shown in the report "
     "to find possible optimizations."
 )
+TFLITE_SOURCE_ATTRIBUTION_WARNING = (
+    "Source operator attribution is unavailable for TFLite input converted to TOSA "
+    "because tosa-converter-for-tflite does not preserve the exact original TFLite "
+    "(subgraph_index, operator_index) provenance."
+)
 
 
 def _cli_arguments() -> list[str]:
@@ -252,10 +257,10 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
             )
 
         model: TOSAModel | VGFModel
+        is_tflite = _is_tflite_file(self.model)
         if is_vgf_file(self.model):
             model = VGFModel(self.model)
         else:
-            is_tflite = _is_tflite_file(self.model)
             converted_model_path = transform_front_end_model(
                 self.model,
                 _get_front_end_output_dir(self.context.output_dir, self.model),
@@ -285,11 +290,16 @@ class NeuralTechnologyCompatibility(ContextAwareDataCollector):
                 "profile_name": self.cfg.profile_name,
             }
 
+            # tosa-converter-for-tflite generates TOSA operator IDs but does not
+            # retain the original TFLite indices needed for truthful attribution.
+            # Preserve compatibility checks while deliberately withholding links.
             standardized = comp_info.to_standardized_output(
                 model_path=self.model,
                 target_config=target_config,
                 backend_config=self.cfg.backend_config,
                 cli_arguments=cli_args,
+                source_operator_attribution_available=not is_tflite,
+                warnings=[TFLITE_SOURCE_ATTRIBUTION_WARNING] if is_tflite else None,
             )
 
             return NXCompatibilityResult(
