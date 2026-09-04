@@ -8,9 +8,9 @@ SPDX-License-Identifier: Apache-2.0
 ## Overview
 
 This package provides the MLIA target plugin for Arm Neural Technology
-analysis. It adds target-specific configuration, reporting, and backend wiring
-for flows that rely on the NX Performance Estimator and related conversion
-backends.
+analysis. It adds target-specific configuration, standardized-result collection,
+and backend wiring for estimator and measured-profiling flows. Core MLIA owns
+output post-processing and rendering.
 
 Compared with Ethos-U, these targets are aimed at higher-throughput accelerator
 flows and support a broader set of model-ingest paths through automatic
@@ -83,6 +83,16 @@ LiteRT / TensorFlow Lite `.tflite` inputs can also flow through the Neural
 Technology path, but they depend on `mlia-converters-litert` to prepare the
 estimator input.
 
+## Measured profiling data
+
+Structured captures from `VK_LAYER_LGL_neural_statistics` can be analyzed without
+a model when one dispatch is selected. A VGF model can instead correlate one or
+more graph segments with captured pipelines. Profiling-data runs support
+performance analysis only and use the built-in
+`neural-technology-profiling-data` backend automatically.
+
+See [CLI](cli.md) for the accepted capture layout and dispatch-selection rules.
+
 ## Configuration concepts
 
 Neural Technology flows commonly depend on:
@@ -97,12 +107,13 @@ plumbing needed to keep that workflow together.
 
 ## Outputs
 
-The target and backend combination in this package contributes:
+The target and selected analysis mode contribute standardized results containing:
 
-- Model-level cycle estimates.
-- Per-operator statistics.
-- Memory-traffic reporting.
-- Generated intermediate artifacts used by downstream tools.
+- Model-level cycles, throughput, utilization, memory, and availability metrics.
+- Per-chain and per-cascade breakdowns with explicit aggregation policies.
+- Segment, source-operator, module, and source-code provenance entities.
+- Measured-mode metadata when structured profiling captures are analyzed.
+- Intermediate conversion or estimator artifacts used for diagnostics.
 
-The exact outputs depend on the chosen backend and any automatic conversion path
-that precedes it.
+Core MLIA validates, post-processes, and renders these results. See
+[Outputs and metrics](outputs_metrics.md) for the detailed structure.

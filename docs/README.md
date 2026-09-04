@@ -17,6 +17,8 @@ repository.
 - `source/cli.md`: practical CLI usage examples for common Neural Technology tasks
 - `source/troubleshooting.md`: backend-specific troubleshooting notes
 - `source/development.md`: local development, testing, and maintenance workflow
+- `source/neural_technology_api_walkthrough.ipynb`: Python API walkthrough for
+  `torch.nn.Module` inputs
 
 ## Build
 
@@ -38,8 +40,9 @@ The generated site will be written to `.mkdocs/site/`.
 
 ## Scope
 
-These docs focus on the Neural Technology target, estimator-oriented backends,
-and related workflow behaviour packaged by this split repo.
+These docs focus on the Neural Technology target, model estimation, measured
+profiling data, conversion support, and standardized outputs packaged by this
+split repo.
 
 ## Relationship to the core repo
 

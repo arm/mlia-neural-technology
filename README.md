@@ -12,9 +12,10 @@ TOSA-related assets in that environment.
 The package is distributed as `mlia-neural-technology` and contributes:
 
 - The `neural-technology` target plugin.
-- The `nx-performance-estimator` backend plugin.
-- The `ml-sdk-model-converter` backend plugin.
-- The `tosa-flatbuffers` backend plugin.
+- The `nx-performance-estimator` model-analysis backend.
+- The `neural-technology-profiling-data` measured-analysis backend.
+- The internal `ml-sdk-model-converter` conversion integration.
+- The internal `tosa-flatbuffers` serialization integration.
 - Bundled Neural Technology target profiles and backend configuration assets.
 
 ## Table of Contents
@@ -63,15 +64,17 @@ These profiles are shipped under `src/mlia/resources/target_profiles/`.
 Provides the performance-estimation flow for Neural Technology targets and uses
 bundled system and graph-compiler configuration assets.
 
-### ML SDK Model Converter
+### Measured profiling data
 
-Provides model-conversion support within the Neural Technology workflow and is
-packaged here as a separate MLIA backend plugin.
+The built-in `neural-technology-profiling-data` backend analyzes structured
+captures from `VK_LAYER_LGL_neural_statistics`. It is selected automatically
+when `--profiling-data` is supplied and supports performance analysis only.
 
-### TOSA FlatBuffers
+### Conversion support
 
-Provides the FlatBuffers-side integration used by TOSA-related parts of the
-Neural Technology stack.
+`ml-sdk-model-converter` prepares models for downstream Neural Technology tools,
+and `tosa-flatbuffers` supplies low-level TOSA serialization support. Both are
+internal, non-selectable dependency integrations rather than analysis backends.
 
 ## Installation
 
@@ -88,12 +91,22 @@ example:
 mlia check model.tosa --target-profile neural-technology
 ```
 
-Use `.tosa` as the clearest default example for this package on its own. Direct
-LiteRT / TensorFlow Lite `.tflite`, `.pt2`, and `.pte` flows depend on the
+Measured profiling data can be analyzed without a source model when one dispatch
+is selected:
+
+```bash
+mlia check --target-profile neural-technology --performance \
+  --profiling-data ./capture/pipeline_000000/session_000000/dispatch_000000
+```
+
+Use `.tosa` as the clearest default model example for this package on its own.
+Direct LiteRT / TensorFlow Lite `.tflite`, `.pt2`, and `.pte` flows depend on the
 matching converter plugins being installed.
 
-The package depends on `mlia` and is intended to be used as part
-of a wider MLIA installation rather than as a standalone CLI.
+The supported Python range and required core MLIA dependency are maintained in
+[`pyproject.toml`](pyproject.toml), which is the authoritative source for current
+installation requirements. This package is intended to be used as part of a
+wider MLIA installation rather than as a standalone CLI.
 
 ## Reporting bugs
 
@@ -147,22 +160,22 @@ Build the package:
 uv build
 ```
 
-## Documentation
-
-- `docs/source/neural_technology_api_walkthrough.ipynb`: walkthrough of the Neural Technology Python API flow for `torch.nn.Module` inputs.
-
 ## Project Layout
 
 - `src/mlia/target/neural_technology/`: Neural Technology target integration and advisor logic.
 - `src/mlia/backend/nx_performance_estimator/`: NX performance estimator backend.
-- `src/mlia/backend/ml_sdk_model_converter/`: model-converter backend.
-- `src/mlia/backend/tosa_flatbuffers/`: TOSA FlatBuffers backend.
+- `src/mlia/backend/neural_technology_profiling_data/`: measured capture parsing
+  and analysis.
+- `src/mlia/backend/ml_sdk_model_converter/`: internal model-conversion support.
+- `src/mlia/backend/tosa_flatbuffers/`: internal TOSA FlatBuffers support.
 - `src/mlia/resources/`: bundled target profiles and backend assets.
 - `tests/`: unit tests covering plugins, CLI integration, and target/backend behaviour.
 
 ## Documentation
 
-Additional package documentation lives in [docs/README.md](docs/README.md).
+Additional package documentation lives in [docs/README.md](docs/README.md). The
+API walkthrough at `docs/source/neural_technology_api_walkthrough.ipynb` covers
+`torch.nn.Module` inputs and structured Python results.
 
 ## Trademarks and copyrights
 

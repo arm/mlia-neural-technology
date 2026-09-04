@@ -3,43 +3,45 @@ SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 SPDX-License-Identifier: Apache-2.0
 --->
 
-# Backends and Conversion Flow
+# Backends and Analysis Modes
 
-This package provides the Neural Technology backends used by MLIA.
+This package provides one estimator backend, one measured-profiling backend, and
+two internal conversion support integrations.
 
-| Backend | Role | Why it matters |
-| --- | --- | --- |
-| `nx-performance-estimator` | Primary analysis and performance-estimation backend | Produces the numbers most people care about |
-| `ml-sdk-model-converter` | Conversion backend used in Neural Technology workflows | Prepares models for downstream Neural Technology tooling |
-| `tosa-flatbuffers` | Low-level TOSA handling support | Supports serialization and interchange used by other parts of the flow |
+| Backend | Role |
+| --- | --- |
+| `nx-performance-estimator` | Estimates compatibility and performance from a model |
+| `neural-technology-profiling-data` | Produces measured performance results from structured captures |
+| `ml-sdk-model-converter` | Converts supported model formats for Neural Technology tools |
+| `tosa-flatbuffers` | Provides TOSA FlatBuffers serialization support |
 
 ## NX Performance Estimator
 
-`nx-performance-estimator` is the main backend in this package. Focus on it when
-you care about performance, operator cost, memory movement, or utilisation.
+`nx-performance-estimator` is the primary model-analysis backend. Use it for:
 
-Use it when you want:
+- Model-level compatibility and performance results.
+- Per-chain and per-cascade cycle breakdowns.
+- Memory traffic and hardware-section utilisation metrics.
+- Canonical source-operator, module, and source-code provenance.
+- Control over the packaged system and compiler configuration.
 
-- Model-level performance estimates.
-- Per-operator cycle data.
-- Memory traffic and utilisation insight.
-- Control over system and compiler configuration used for estimation.
-
-The implementation lives under
-`src/mlia/backend/nx_performance_estimator/`.
-
-### Common CLI patterns
-
-A straightforward estimator-driven run looks like this:
+A straightforward estimator run uses an input that this package can process
+without an external framework converter:
 
 ```bash
-mlia check model.tflite --target-profile neural-technology --performance --backend nx-performance-estimator
+mlia check model.tosa \
+  --target-profile neural-technology \
+  --performance \
+  --backend nx-performance-estimator
 ```
 
-A more explicit run that overrides the packaged setup looks like this:
+LiteRT, PyTorch, and ExecuTorch inputs require their corresponding converter
+plugins. VGF inputs can be analyzed directly.
+
+### Configuration options
 
 ```bash
-mlia check model.tflite \
+mlia check model.tosa \
   --target-profile neural-technology \
   --performance \
   --backend nx-performance-estimator \
@@ -47,48 +49,48 @@ mlia check model.tflite \
   --nx-performance-estimator.compiler-config ./compiler.ini
 ```
 
-### Useful signals from the estimator
-
-The estimator is most useful when you want:
-
-- The top-level cost of a run.
-- Which operators dominate the result.
-- Where memory traffic is becoming expensive.
-- How a configuration change affects the estimate.
-
-### Option table
-
 | Option | Meaning |
 | --- | --- |
 | `--nx-performance-estimator.system-config` | Override the system configuration file |
-| `--nx-performance-estimator.compiler-config` | Override the compiler configuration file |
+| `--nx-performance-estimator.compiler-config` | Override the graph-compiler configuration file |
 
-## ML SDK Model Converter
+## Measured profiling data
 
-`ml-sdk-model-converter` is part of the path that prepares models for Neural
-Technology tooling. If this stage is wrong or incomplete, the estimator never
-gets a clean input.
+`neural-technology-profiling-data` analyzes schema-version 2 captures produced by
+`VK_LAYER_LGL_neural_statistics`. Supplying `--profiling-data` switches the run
+to measured mode and causes core MLIA to select this profiling-capable backend.
+The backend is built in and normally does not need to be named explicitly.
 
-## TOSA FlatBuffers
+Measured profiling supports performance analysis only. It accepts either:
 
-`tosa-flatbuffers` is the low-level support layer that helps other parts of the
-Neural Technology flow serialize or move TOSA-oriented data correctly.
+- one dispatch directory without a model;
+- a capture root or dispatch anchor associated with a VGF model; or
+- one explicitly ordered dispatch directory per VGF graph segment.
 
-## Conversion and estimation flow
+The measured path uses the same correlation, aggregation, entity provenance,
+and standardized-output construction as estimator mode. See [CLI](cli.md) for
+the capture layout and selection rules.
 
-A practical way to think about the Neural Technology workflow is:
+## Conversion support integrations
 
-1. MLIA receives a model in a supported input format.
-2. Framework-specific conversion happens when needed.
-3. The Neural Technology conversion path prepares artifacts for the packaged
-   estimator flow.
-4. `nx-performance-estimator` consumes the prepared input and produces the main
-   analysis outputs.
+`ml-sdk-model-converter` prepares supported inputs for the estimator, while
+`tosa-flatbuffers` supplies lower-level TOSA serialization support. They use the
+backend plugin mechanism for dependency integration, but they do not produce
+independently selectable analysis results.
+
+A useful model of the estimator path is:
+
+1. MLIA receives a model in a supported format.
+2. A framework converter runs when the original format requires one.
+3. For non-VGF inputs, the ML SDK conversion path produces an estimator-ready
+   VGF artifact. Existing VGF inputs proceed directly to segment preparation.
+4. The NX Performance Estimator produces standardized results.
+5. Core MLIA validates, post-processes, and renders those results.
 
 ## Cross-links
 
-- See [outputs_metrics.md](outputs_metrics.md) for how to interpret
-  estimator-oriented outputs and diagnostics
-- See [cli.md](cli.md) for example commands and option usage.
-- See [troubleshooting.md](troubleshooting.md) when the pipeline breaks between
-  conversion and estimation
+- See [Outputs and metrics](outputs_metrics.md) for result structure and entity
+  provenance.
+- See [CLI](cli.md) for estimator and measured-profiling examples.
+- See [Troubleshooting](troubleshooting.md) for conversion, estimator, and
+  capture-ingestion failures.

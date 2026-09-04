@@ -72,7 +72,7 @@ When the estimator does run but the result looks strange, start by checking
 whether the inconsistency is really in the final numbers or in how you are
 reading them.
 
-- Compare `totalCycles` with the operators that dominate `opCycles`.
+- Compare `total_cycles` with the breakdowns that dominate `op_cycles`.
 - Inspect memory-traffic metrics before assuming the estimator itself is wrong.
 - Check whether the result shape looks complete before drawing conclusions from
   a single field.
@@ -100,6 +100,26 @@ final backend.
 
 This is often the fastest way to separate "the estimator gave a bad answer"
 from "the estimator never received a clean input."
+
+## Profiling-data issues
+
+### Capture input is rejected
+
+The measured backend accepts schema-version 2 structured captures, not the old
+flat profiling directory. Check that metadata references resolve within one
+capture and that every selected dispatch declares exactly one statistics
+artifact matching the capture mode.
+
+Without a VGF model, provide one dispatch directory, or a capture root containing
+exactly one dispatch. With a VGF model, ensure captured pipeline SPIR-V matches
+each graph segment. When automatic matching is ambiguous, repeat
+`--profiling-data` once per graph segment in VGF order.
+
+### Profiling categories or options are rejected
+
+Measured profiling supports `--performance` only. It does not accept
+compatibility analysis or NX estimator backend options. All explicitly selected
+dispatches must belong to the same capture and logical device.
 
 ## When the run succeeds but the result still looks wrong
 
