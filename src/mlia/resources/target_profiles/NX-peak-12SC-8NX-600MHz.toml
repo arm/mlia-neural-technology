@@ -1,5 +1,5 @@
-# SPDX-FileCopyrightText: Copyright 2023-2025, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
+# SPDX-License-Identifier: Apache-2.0
 
 profile_name = "NX-peak-12SC-8NX-600MHz"
 target_type = "neural-technology"

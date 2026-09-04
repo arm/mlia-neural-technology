@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-License-Identifier: Apache-2.0
 """Helpers for source location metadata emitted by ML debug tooling."""
 
 from __future__ import annotations

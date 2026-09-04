@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-License-Identifier: Apache-2.0
 """Resolve NX Performance Estimator debug labels to source model locations."""
 
 from __future__ import annotations

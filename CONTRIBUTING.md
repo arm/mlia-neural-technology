@@ -6,8 +6,14 @@ SPDX-License-Identifier: Apache-2.0
 # Contribution Guidelines
 
 The ML Inference Advisor (MLIA) project is open for external contributors and
-welcomes contributions. MLIA is licensed under the [Apache-2.0 license](https://spdx.org/licenses/Apache-2.0.html)
-and all accepted contributions must have the same license.
+welcomes contributions. Source contributions to MLIA are licensed under the
+[Apache-2.0 license](https://spdx.org/licenses/Apache-2.0.html), and all
+accepted contributions must have the same license. The contents of these
+proprietary directories are not open for source contributions and are covered
+separately by `LICENSES/LicenseRef-LICENSE.txt`:
+
+- `src/mlia/_vendor/artifacts/nx-performance-estimator/`
+- `src/mlia/resources/nx-performance-estimator/`
 
 This document contains the rules for contributing code to MLIA. All contributed
 code must follow these rules before it can be accepted to the main branch of
@@ -121,8 +127,9 @@ In each source file, include the following copyright notice:
 # SPDX-License-Identifier: Apache-2.0
 ```
 
-Note: if an existing file does not conform, please update the license header
-as part of your contribution.
+If an open-source file does not conform, update its license header as part of
+your contribution. Do not change the licensing of a proprietary file without
+explicit authorization from Arm.
 
 ## Releases
 

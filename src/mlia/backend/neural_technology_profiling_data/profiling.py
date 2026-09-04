@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-License-Identifier: Apache-2.0
 """Integrate structured measured captures with shared NX performance processing."""
 
 from __future__ import annotations

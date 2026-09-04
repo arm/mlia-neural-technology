@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-License-Identifier: Apache-2.0
 """Tests for NX Performance Estimator debug location resolution."""
 
 from pathlib import Path

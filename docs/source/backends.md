@@ -17,6 +17,15 @@ two internal conversion support integrations.
 
 ## NX Performance Estimator
 
+The Python integration outside the proprietary directories is licensed under
+Apache-2.0. All contents of the following directories are provided under
+`LicenseRef-LICENSE`:
+
+- `src/mlia/_vendor/artifacts/nx-performance-estimator/`
+- `src/mlia/resources/nx-performance-estimator/`
+
+See `LICENSES/LicenseRef-LICENSE.txt` in the repository root.
+
 `nx-performance-estimator` is the primary model-analysis backend. Use it for:
 
 - Model-level compatibility and performance results.
@@ -24,6 +33,8 @@ two internal conversion support integrations.
 - Memory traffic and hardware-section utilisation metrics.
 - Canonical source-operator, module, and source-code provenance.
 - Control over the packaged system and compiler configuration.
+
+Use it when you want:
 
 A straightforward estimator run uses an input that this package can process
 without an external framework converter:

@@ -29,6 +29,7 @@ The package is distributed as `mlia-neural-technology` and contributes:
 - [Common Commands](#common-commands)
 - [Project Layout](#project-layout)
 - [Documentation](#documentation)
+- [License](#license)
 - [Trademarks and copyrights](#trademarks-and-copyrights)
 
 ## Overview
@@ -176,6 +177,21 @@ uv build
 Additional package documentation lives in [docs/README.md](docs/README.md). The
 API walkthrough at `docs/source/neural_technology_api_walkthrough.ipynb` covers
 `torch.nn.Module` inputs and structured Python results.
+
+## License
+
+The source code and configuration in this repository are licensed under the
+Apache License 2.0 unless a file states otherwise. See
+[`LICENSES/Apache-2.0.txt`](LICENSES/Apache-2.0.txt) for the full license text.
+
+All contents of these directories are proprietary and are provided under
+[`LicenseRef-LICENSE`](LICENSES/LicenseRef-LICENSE.txt):
+
+- `src/mlia/_vendor/artifacts/nx-performance-estimator/`
+- `src/mlia/resources/nx-performance-estimator/`
+
+This exception does not apply to the open-source Python integration outside
+those directories.
 
 ## Trademarks and copyrights
 

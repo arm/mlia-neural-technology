@@ -1,5 +1,5 @@
-# SPDX-FileCopyrightText: Copyright 2024-2025, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
+# SPDX-License-Identifier: Apache-2.0
 
 profile_name = "neural-technology"
 target_type = "neural-technology"

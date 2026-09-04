@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-License-Identifier: Apache-2.0
 """Module to track stripe-level statistics to TFLite granularity."""
 
 import copy

@@ -14,6 +14,10 @@ dependencies = [
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
 authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
+# This expression covers the open-source project code. Everything under the
+# following directories is provided separately under LicenseRef-LICENSE:
+# - src/mlia/_vendor/artifacts/nx-performance-estimator/
+# - src/mlia/resources/nx-performance-estimator/
 license = "Apache-2.0"
 license-files = ["LICENSES/*.txt"]
 classifiers = [

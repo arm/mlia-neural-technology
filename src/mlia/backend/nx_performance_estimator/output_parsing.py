@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2023-2026, Arm Limited and/or its affiliates.
-# SPDX-License-Identifier: LicenseRef-LICENSE
+# SPDX-License-Identifier: Apache-2.0
 """Backend module for parsing the Neural Accellerator Performance Estimator's output."""
 
 from __future__ import annotations
