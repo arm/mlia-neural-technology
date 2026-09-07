@@ -3,6 +3,7 @@
 
 site_name: MLIA Neural Technology
 site_description: Documentation for the MLIA Neural Technology target and backend plugin.
+site_url: https://arm.github.io/mlia-neural-technology/
 repo_url: https://github.com/arm/mlia-neural-technology
 repo_name: arm/mlia-neural-technology
 edit_uri: edit/main/docs/source/
