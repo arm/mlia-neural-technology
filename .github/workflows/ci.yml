@@ -52,7 +52,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-dev
-      - run: uv sync --no-sources --group dev --no-install-project
+      - run: uv sync --group dev --no-install-project
       - run: uv run pre-commit run --all-files
 
   build:
@@ -113,7 +113,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-dev
-      - run: uv sync --no-sources --group test
+      - run: uv sync --group test
       - run: |
           set -o pipefail
           uv run pytest --no-success-flaky-report -m "not slow" tests/ | tee coverage.txt
@@ -162,7 +162,8 @@ jobs:
             artifacts: ${{ vars.MLIA_E2E_PYTORCH_ARTIFACTS }}
             backends: ${{ vars.MLIA_E2E_PYTORCH_BACKENDS }}
             executions: ${{ vars.MLIA_E2E_PYTORCH_EXECUTIONS }}
-            converter_package: "mlia-converters-pytorch>=0.1.1.dev8,<0.2"
+            converter_package: ""
+            dependency_group: pytorch-e2e
             archive_path: ""
             extract_destination: ""
           - suite: profiling
@@ -224,7 +225,15 @@ jobs:
         run: |
           rm -rf "$EXTRACT_DESTINATION"
           python3 -m zipfile -e "$ARCHIVE_PATH" "$EXTRACT_DESTINATION"
-      - run: uv sync --no-sources --no-install-project --only-group test
+      - name: Sync test dependencies
+        env:
+          DEPENDENCY_GROUP: ${{ matrix.dependency_group }}
+        run: |
+          groups=(--only-group test)
+          if [[ -n "$DEPENDENCY_GROUP" ]]; then
+            groups+=(--only-group "$DEPENDENCY_GROUP")
+          fi
+          uv sync --no-install-project "${groups[@]}"
       # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
       - run: ${{ env.UV_PROJECT_ENVIRONMENT }}/bin/python -m ensurepip --upgrade
       - name: Run e2e pytest

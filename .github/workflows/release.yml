@@ -60,7 +60,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-dev
       - run: uv build --wheel
-      - run: uv sync --no-sources --no-install-project --group test
+      - run: uv sync --no-install-project --group test
       - run: |
           set -o pipefail
           uv run --no-sync \
@@ -134,7 +134,8 @@ jobs:
             artifacts: ${{ vars.MLIA_E2E_PYTORCH_ARTIFACTS }}
             backends: ${{ vars.MLIA_E2E_PYTORCH_BACKENDS }}
             executions: ${{ vars.MLIA_E2E_PYTORCH_EXECUTIONS }}
-            converter_package: "mlia-converters-pytorch>=0.1.1.dev8,<0.2"
+            converter_package: ""
+            dependency_group: pytorch-e2e
             archive_path: ""
             extract_destination: ""
             run_api_e2e: true
@@ -211,7 +212,15 @@ jobs:
         with:
           artifacts: ${{ vars.MLIA_API_E2E_ARTIFACTS }}
           destination: ${{ env.ARTIFACTS_PATH }}
-      - run: uv sync --no-sources --no-install-project --only-group test
+      - name: Sync test dependencies
+        env:
+          DEPENDENCY_GROUP: ${{ matrix.dependency_group }}
+        run: |
+          groups=(--only-group test)
+          if [[ -n "$DEPENDENCY_GROUP" ]]; then
+            groups+=(--only-group "$DEPENDENCY_GROUP")
+          fi
+          uv sync --no-install-project "${groups[@]}"
       # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
       - run: ${{ env.UV_PROJECT_ENVIRONMENT }}/bin/python -m ensurepip --upgrade
       - name: Run e2e pytest
