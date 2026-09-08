@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Generator, cast
+from unittest.mock import Mock
 
 import pytest
 
@@ -38,6 +39,8 @@ def hatch_build(monkeypatch: pytest.MonkeyPatch) -> Generator[ModuleType, None, 
         "hatchling.builders",
         "hatchling.builders.hooks",
         "hatchling.builders.hooks.plugin",
+        "hatchling.metadata",
+        "hatchling.metadata.plugin",
     ):
         monkeypatch.setitem(sys.modules, module_name, ModuleType(module_name))
 
@@ -47,6 +50,14 @@ def hatch_build(monkeypatch: pytest.MonkeyPatch) -> Generator[ModuleType, None, 
         sys.modules,
         "hatchling.builders.hooks.plugin.interface",
         interface_module,
+    )
+
+    metadata_interface_module = ModuleType("hatchling.metadata.plugin.interface")
+    setattr(metadata_interface_module, "MetadataHookInterface", object)
+    monkeypatch.setitem(
+        sys.modules,
+        "hatchling.metadata.plugin.interface",
+        metadata_interface_module,
     )
 
     sys.modules.pop("hatch_build", None)
@@ -65,6 +76,121 @@ def _read_expected_sha256(path: Path) -> tuple[str, str]:
     parts = content.split()
     assert len(parts) >= 2
     return parts[0], parts[1]
+
+
+def test_metadata_hook_update_uses_commit_hash(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """README metadata links should target the current commit."""
+    (tmp_path / "README.md").write_text(
+        "[Docs](docs.md)\n![Image](image.png)\n[Section](#section)",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs.md").touch()
+    (tmp_path / "image.png").touch()
+    monkeypatch.setattr(
+        hatch_build.subprocess,
+        "run",
+        Mock(
+            side_effect=[
+                Mock(stdout=f"{tmp_path}\n"),
+                Mock(stdout="0123456789abcdef\n"),
+            ]
+        ),
+    )
+    hook = hatch_build.MetadataHook()
+    hook.root = str(tmp_path)
+    metadata = {"version": "0.1.0"}
+
+    hook.update(metadata)
+
+    assert metadata["readme"] == {
+        "content-type": "text/markdown",
+        "text": "[Docs](https://github.com/arm/mlia-neural-technology/"
+        "blob/0123456789abcdef/docs.md)\n"
+        "![Image](https://raw.githubusercontent.com/arm/"
+        "mlia-neural-technology/0123456789abcdef/image.png)\n"
+        "[Section](https://github.com/arm/mlia-neural-technology/"
+        "blob/0123456789abcdef/README.md#section)",
+    }
+
+
+def test_metadata_hook_update_ignores_enclosing_worktree(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """README metadata should not use a revision from a parent worktree."""
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / "README.md").write_text("[Docs](docs.md)", encoding="utf-8")
+    (project_root / "docs.md").touch()
+    monkeypatch.setattr(
+        hatch_build.subprocess,
+        "run",
+        Mock(return_value=Mock(stdout=f"{tmp_path}\n")),
+    )
+    hook = hatch_build.MetadataHook()
+    hook.root = str(project_root)
+    metadata = {"version": "0.12.2"}
+
+    hook.update(metadata)
+
+    assert metadata["readme"] == {
+        "content-type": "text/markdown",
+        "text": "[Docs](https://github.com/arm/mlia-neural-technology/"
+        "blob/v0.12.2/docs.md)",
+    }
+
+
+@pytest.mark.parametrize(
+    ("version", "revision"),
+    [
+        ("0.12.2", "v0.12.2"),
+        ("0.1.1.dev25+20a0c98", "20a0c98"),
+    ],
+)
+def test_metadata_hook_update_falls_back_to_version_or_hash(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    version: str,
+    revision: str,
+) -> None:
+    """README links should use the version or its hash without Git metadata."""
+    (tmp_path / "README.md").write_text("[Docs](docs.md)", encoding="utf-8")
+    (tmp_path / "docs.md").touch()
+    monkeypatch.setattr(
+        hatch_build.subprocess,
+        "run",
+        Mock(side_effect=hatch_build.subprocess.CalledProcessError(1, "git")),
+    )
+    hook = hatch_build.MetadataHook()
+    hook.root = str(tmp_path)
+    metadata = {"version": version}
+
+    hook.update(metadata)
+
+    assert metadata["readme"] == {
+        "content-type": "text/markdown",
+        "text": f"[Docs](https://github.com/arm/mlia-neural-technology/"
+        f"blob/{revision}/docs.md)",
+    }
+
+
+def test_pyproject_registers_readme_metadata_hook() -> None:
+    """Building the package should rewrite links in packaged README metadata."""
+    pyproject = tomllib.loads(
+        (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )
+
+    assert pyproject["tool"]["hatch"]["metadata"]["hooks"]["custom"] == {
+        "path": "hatch_build.py"
+    }
+    assert "readme" in pyproject["project"]["dynamic"]
+    assert "readme" not in pyproject["project"]
 
 
 def test_wheel_includes_nx_estimator_archive_and_excludes_public_artifacts() -> None:

@@ -3,9 +3,8 @@
 
 [project]
 name = "mlia-neural-technology"
-dynamic = ["version"]
+dynamic = ["version", "readme"]
 description = "ML Inference Advisor NX Plugin"
-readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "ai-ml-sdk-model-converter==0.9.0",
@@ -52,6 +51,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
+
+[tool.hatch.metadata.hooks.custom]
+path = "hatch_build.py"
 
 [tool.hatch.build.targets.wheel]
 # Include implicit namespace packages under src/.
