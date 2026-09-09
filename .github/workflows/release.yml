@@ -392,7 +392,7 @@ jobs:
   sync_to_public_repo:
     needs: test_e2e
     if: ${{ github.event.repository.private }}
-    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/sync-to-public-repo.yml@b69441d7e9425883a91619464e8207123ec81d25
+    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/sync-to-public-repo.yml@d700621dafc25dea2b4c5d8531171af5ec8e00ee
     with:
       public_repo: arm/mlia-neural-technology
     secrets: inherit
