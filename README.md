@@ -24,6 +24,7 @@ The package is distributed as `mlia-neural-technology` and contributes:
 - [Supported targets](#supported-targets)
 - [Backends in this package](#backends-in-this-package)
 - [Installation](#installation)
+- [Releases](#releases)
 - [Reporting bugs](#reporting-bugs)
 - [Development Setup](#development-setup)
 - [Common Commands](#common-commands)
@@ -89,7 +90,7 @@ A typical MLIA workflow then references one of the bundled profiles, for
 example:
 
 ```bash
-mlia check model.tosa --target-profile neural-technology
+mlia check my_model.tosa --target-profile neural-technology
 ```
 
 Measured profiling data can be analyzed without a source model when one dispatch
@@ -108,6 +109,11 @@ The supported Python range and required core MLIA dependency are maintained in
 [`pyproject.toml`](pyproject.toml), which is the authoritative source for current
 installation requirements. This package is intended to be used as part of a
 wider MLIA installation rather than as a standalone CLI.
+
+## Releases
+
+Latest changes and release history can be found in
+[MLIA Neural Technology releases](https://github.com/arm/mlia-neural-technology/releases).
 
 ## Reporting bugs
 
@@ -175,8 +181,8 @@ uv build
 ## Documentation
 
 Additional package documentation lives in [docs/README.md](docs/README.md). The
-API walkthrough at `docs/source/neural_technology_api_walkthrough.ipynb` covers
-`torch.nn.Module` inputs and structured Python results.
+[Python API walkthrough](docs/source/neural_technology_api_walkthrough.ipynb)
+covers `torch.nn.Module` inputs and structured Python results.
 
 ## License
 

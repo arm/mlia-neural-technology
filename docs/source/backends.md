@@ -34,13 +34,11 @@ See `LICENSES/LicenseRef-LICENSE.txt` in the repository root.
 - Canonical source-operator, module, and source-code provenance.
 - Control over the packaged system and compiler configuration.
 
-Use it when you want:
-
 A straightforward estimator run uses an input that this package can process
 without an external framework converter:
 
 ```bash
-mlia check model.tosa \
+mlia check my_model.tosa \
   --target-profile neural-technology \
   --performance \
   --backend nx-performance-estimator
@@ -52,7 +50,7 @@ plugins. VGF inputs can be analyzed directly.
 ### Configuration options
 
 ```bash
-mlia check model.tosa \
+mlia check my_model.tosa \
   --target-profile neural-technology \
   --performance \
   --backend nx-performance-estimator \

@@ -27,25 +27,25 @@ repository root:
 
 ```bash
 uv sync --no-install-project --only-group docs
-uv run mkdocs build --strict
+uv run --no-sync mkdocs build --strict
 ```
 
 For local preview:
 
 ```bash
-uv run mkdocs serve
+uv run --no-sync mkdocs serve
 ```
 
 The generated site will be written to `.mkdocs/site/`.
 
 ## Scope
 
-These docs focus on the Neural Technology target, model estimation, measured
-profiling data, conversion support, and standardized outputs packaged by this
-split repo.
+These docs cover the Neural Technology target, model estimation, measured
+profiling data, conversion support, and standardized outputs provided by this
+plugin package.
 
 ## Relationship to the core repo
 
-Use the main `mlia` repo for shared CLI and architecture concepts. Use this
-docs tree for Neural Technology-specific target, backend, metric, and
-troubleshooting detail.
+Use the core `mlia` documentation for shared CLI, Python API, and architecture
+guidance. Use these docs for Neural Technology-specific targets, backends,
+metrics, and troubleshooting.

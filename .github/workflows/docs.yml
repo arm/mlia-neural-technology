@@ -69,7 +69,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-dev
       - run: uv sync --no-install-project --only-group docs
-      - run: uv run mkdocs build --strict --no-directory-urls
+      - run: uv run --no-sync mkdocs build --strict --no-directory-urls
       - name: Upload docs artifact
         uses: actions/upload-artifact@v6
         with:

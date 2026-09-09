@@ -12,10 +12,6 @@ analysis. It adds target-specific configuration, standardized-result collection,
 and backend wiring for estimator and measured-profiling flows. Core MLIA owns
 output post-processing and rendering.
 
-Compared with Ethos-U, these targets are aimed at higher-throughput accelerator
-flows and support a broader set of model-ingest paths through automatic
-conversion.
-
 ## Bundled profiles
 
 The package ships built-in profiles under
@@ -39,8 +35,8 @@ This package participates in workflows for several model formats:
 - ExecuTorch PTE (`.pte`).
 
 Not every format is consumed directly by the NX Performance Estimator. Some are
-handled through automatic conversion backends that are packaged in this package or
-installed alongside it.
+handled through conversion integrations in this package or through installed
+converter plugins.
 
 ## Compatible converter plugins
 
@@ -60,19 +56,21 @@ assuming those extra converter packages are installed.
 Compatibility check:
 
 ```bash
-mlia check model.tosa --target-profile neural-technology --compatibility --backend nx-performance-estimator
+mlia check my_model.tosa --target-profile neural-technology \
+  --compatibility --backend nx-performance-estimator
 ```
 
 Performance analysis:
 
 ```bash
-mlia check model.tosa --target-profile neural-technology --performance --backend nx-performance-estimator
+mlia check my_model.tosa --target-profile neural-technology \
+  --performance --backend nx-performance-estimator
 ```
 
 PyTorch export flow:
 
 ```bash
-mlia check model.pt2 --target-profile neural-technology --performance
+mlia check my_model.pt2 --target-profile neural-technology --performance
 ```
 
 In the PyTorch case, MLIA can automatically invoke the PyTorch-to-TOSA

@@ -7,7 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Purpose
 
-`mlia-neural-technology` packages the Neural Technology plugins used by MLIA.
+`mlia-neural-technology` registers Neural Technology target and backend
+capabilities with MLIA. These docs cover target profiles, model estimation,
+measured profiling data, output interpretation, and troubleshooting.
 
 ## Supported plugins
 
@@ -21,5 +23,6 @@ Compatible converter plugins for upstream model formats include
 - [Backends and conversion flow](backends.md)
 - [Outputs and metrics](outputs_metrics.md)
 - [CLI examples](cli.md)
+- [Download the Python API walkthrough notebook](neural_technology_api_walkthrough.ipynb)
 - [Troubleshooting](troubleshooting.md)
 - [Development](development.md)

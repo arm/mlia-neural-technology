@@ -9,10 +9,10 @@ help:
 	@echo "Run '$(UV) sync --no-install-project --only-group docs' first to install the docs dependencies."
 
 build:
-	@$(UV) run mkdocs build --strict -f $(CONFIG)
+	@$(UV) run --no-sync mkdocs build --strict -f $(CONFIG)
 
 serve:
-	@$(UV) run mkdocs serve -f $(CONFIG)
+	@$(UV) run --no-sync mkdocs serve -f $(CONFIG)
 
 clean:
 	rm -rf ../.mkdocs/site

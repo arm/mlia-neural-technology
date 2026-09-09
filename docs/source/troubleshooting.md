@@ -105,10 +105,9 @@ from "the estimator never received a clean input."
 
 ### Capture input is rejected
 
-The measured backend accepts schema-version 2 structured captures, not the old
-flat profiling directory. Check that metadata references resolve within one
-capture and that every selected dispatch declares exactly one statistics
-artifact matching the capture mode.
+The measured backend requires schema-version 2 structured captures. Check that
+metadata references resolve within one capture and that every selected dispatch
+declares exactly one statistics artifact matching the capture mode.
 
 Without a VGF model, provide one dispatch directory, or a capture root containing
 exactly one dispatch. With a VGF model, ensure captured pipeline SPIR-V matches

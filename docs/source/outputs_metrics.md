@@ -130,10 +130,10 @@ graph. Existing breakdowns remain authoritative.
 
 ## Estimator versus measured mode
 
-Estimator results contain performance estimates and currently omit the optional
-`mode` field. Measured profiling results set `mode` to `measured` and record capture-device,
-statistics-file, debug-database, and selected-dispatch information in backend and
-runtime metadata.
+Estimator results contain performance estimates and omit the optional `mode`
+field. Measured profiling results set `mode` to `measured` and record capture
+device, statistics files, debug databases, and selected dispatches in backend
+and runtime metadata.
 
 Both modes share per-segment correlation, totals, warnings, entity provenance,
 and breakdown aggregation. Compute-only VGF segments that are excluded from NX

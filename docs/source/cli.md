@@ -15,7 +15,7 @@ Most Neural Technology-specific examples should start with a `.tosa` model and
 the straightforward estimator path:
 
 ```bash
-mlia check model.tosa \
+mlia check my_model.tosa \
   --target-profile neural-technology \
   --performance \
   --backend nx-performance-estimator
@@ -23,12 +23,11 @@ mlia check model.tosa \
 
 ## A compatibility-oriented first pass
 
-If you are unsure whether the model can pass through the expected Neural
-Technology path cleanly, start with compatibility before leaning on performance
-numbers.
+Use a compatibility check to confirm that a model is supported by the Neural
+Technology workflow.
 
 ```bash
-mlia check model.tosa \
+mlia check my_model.tosa \
   --target-profile neural-technology \
   --compatibility \
   --backend nx-performance-estimator
@@ -40,7 +39,7 @@ Use backend-specific overrides when you want to validate different hardware or
 compiler assumptions.
 
 ```bash
-mlia check model.tosa \
+mlia check my_model.tosa \
   --target-profile neural-technology \
   --performance \
   --backend nx-performance-estimator \
@@ -54,21 +53,21 @@ If the required converter plugins are installed, MLIA can also analyze a
 PyTorch-originating model through the wider pipeline:
 
 ```bash
-mlia check model.pt2 --target-profile neural-technology --performance
+mlia check my_model.pt2 --target-profile neural-technology --performance
 ```
 
 If the run fails early, the problem may belong to the conversion stages before
 the estimator ever runs.
 
-The same idea applies to LiteRT / TensorFlow Lite `.tflite` input. Use `.tosa` for the plain
-plugin-only path, then install `mlia-converters-litert` or
+The same idea applies to LiteRT / TensorFlow Lite `.tflite` input. Use `.tosa`
+for the plugin-only path, then install `mlia-converters-litert` or
 `mlia-converters-pytorch` when you want MLIA to accept `.tflite`, `.pt2`, or
 `.pte` directly.
 
 ## Using JSON output
 
 ```bash
-mlia check model.tosa \
+mlia check my_model.tosa \
   --target-profile neural-technology \
   --performance \
   --backend nx-performance-estimator \
@@ -77,8 +76,8 @@ mlia check model.tosa \
 
 ## Using measured profiling data
 
-The experimental `neural-technology-profiling-data` backend reads schema-version
-1 structured captures produced by `VK_LAYER_LGL_neural_statistics`:
+The `neural-technology-profiling-data` backend reads schema-version 2 structured
+captures produced by `VK_LAYER_LGL_neural_statistics`:
 
 ```text
 capture.json
@@ -89,7 +88,7 @@ pipeline_<id>/session_<id>/dispatch_<id>/dispatch.json
 
 Metadata references, IDs, parent relationships, paths, artifact types, byte
 sizes, capture status, and the capture device are validated before analysis.
-The old flat profiling directory is not accepted. Pipeline inputs must declare
+Profiling input must use this structured hierarchy. Pipeline inputs must declare
 `debug_database.bin`, either `neural_statistics_info.bin` or
 `neural_statistics_info.txt`, and one `shader_module_<id>.spv`; each selected
 dispatch must declare exactly one mode-matching statistics artifact.
@@ -111,7 +110,7 @@ dispatch. A single dispatch can instead act as an executed-index anchor for the
 other uniquely matched pipelines:
 
 ```bash
-mlia check model.vgf \
+mlia check my_model.vgf \
   --target-profile neural-technology \
   --performance \
   --profiling-data ./capture
@@ -122,7 +121,7 @@ one dispatch directory per VGF graph segment, in graph-segment order. Compute
 segments are excluded consistently with estimator mode:
 
 ```bash
-mlia check model.vgf \
+mlia check my_model.vgf \
   --target-profile neural-technology \
   --performance \
   --profiling-data ./capture/pipeline_000000/session_000000/dispatch_000000 \
@@ -141,7 +140,7 @@ When a run is unclear, a useful sequence is:
 
 1. Confirm the intended command with `mlia check --help`.
 2. Run once with the standard estimator path.
-3. Only then add config overrides or alternate input paths.
+3. Add config overrides or alternate input paths as needed.
 4. Inspect whether the failure belongs to conversion or estimation.
 
 ## When to use which path
