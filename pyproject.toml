@@ -12,7 +12,7 @@ dependencies = [
     "mlia==0.12.2.dev23+f5d8312"
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
-authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
+authors = [{ name = "Arm Ltd", email = "mlia@arm.com" }]
 # This expression covers the open-source project code. Everything under the
 # following directories is provided separately under LicenseRef-LICENSE:
 # - src/mlia/_vendor/artifacts/nx-performance-estimator/
@@ -93,12 +93,12 @@ fallback-version = "0.0.0.dev0"
 # inputs must invalidate uv's cached package build rather than only exposing
 # live Python source through the editable installation.
 cache-keys = [
-    {file = "pyproject.toml"},
-    {file = "CMakeLists.txt"},
-    {file = "hatch_build.py"},
-    {file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.linux"},
-    {file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.windows"},
-    {git = {commit = true}}
+    { file = "pyproject.toml" },
+    { file = "CMakeLists.txt" },
+    { file = "hatch_build.py" },
+    { file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.linux" },
+    { file = "src/mlia/_vendor/artifacts/nx-performance-estimator/.sha256.windows" },
+    { git = { commit = true } }
 ]
 
 [[tool.uv.index]]
@@ -107,7 +107,7 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-torch = {index = "pytorch-cpu"}
+torch = { index = "pytorch-cpu" }
 
 [tool.mypy]
 # Suppress errors for optional dependencies and cross-repo imports.
@@ -152,7 +152,7 @@ test = [
     "tf-keras"
 ]
 dev = [
-    {include-group = "test"},
+    { include-group = "test" },
     "mypy==1.5.1",
     "pre-commit==4.5.1"
 ]

@@ -156,6 +156,15 @@ jobs:
             converter_package: mlia-converters-litert
             archive_path: ""
             extract_destination: ""
+          - suite: tosa
+            index: 0
+            shard_count: 1
+            artifacts: ${{ vars.MLIA_E2E_TOSA_ARTIFACTS }}
+            backends: ${{ vars.MLIA_E2E_TOSA_BACKENDS }}
+            executions: ${{ vars.MLIA_E2E_TOSA_EXECUTIONS }}
+            converter_package: ""
+            archive_path: ""
+            extract_destination: ""
           - suite: pytorch
             index: 0
             shard_count: 1

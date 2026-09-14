@@ -128,6 +128,16 @@ jobs:
             archive_path: ""
             extract_destination: ""
             run_api_e2e: true
+          - suite: tosa
+            index: 0
+            shard_count: 1
+            artifacts: ${{ vars.MLIA_E2E_TOSA_ARTIFACTS }}
+            backends: ${{ vars.MLIA_E2E_TOSA_BACKENDS }}
+            executions: ${{ vars.MLIA_E2E_TOSA_EXECUTIONS }}
+            converter_package: ""
+            archive_path: ""
+            extract_destination: ""
+            run_api_e2e: false
           - suite: pytorch
             index: 0
             shard_count: 1
