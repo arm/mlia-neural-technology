@@ -25,34 +25,8 @@ env:
 
 jobs:
   lint:
-    name: Lint
-    runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
-    steps:
-      - name: Import secrets from Vault
-        # Vault secrets must not be exposed to pull requests from forks.
-        if: >-
-          ${{ github.event_name != 'pull_request' ||
-          github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: hashicorp/vault-action@v4
-        with:
-          url: ${{ secrets.VAULT_URL }}
-          method: approle
-          roleId: ${{ secrets.VAULT_ROLE_ID }}
-          secretId: ${{ secrets.VAULT_SECRET_ID }}
-          namespace: iac-expkits/prod
-          secrets: *vault-common-ci-secrets
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install Python development headers
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-dev
-      - run: uv sync --group dev --no-install-project
-      - run: uv run pre-commit run --all-files
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
 
   build:
     name: Build

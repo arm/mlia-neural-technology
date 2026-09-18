@@ -31,6 +31,32 @@ env:
     kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} VENDORED_ARTIFACTS_URLS | VENDORED_ARTIFACTS_URLS
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
+
+  blackduck_scan:
+    name: Black Duck Scan
+    if: >-
+      ${{ github.event.repository.private &&
+      (github.ref == 'refs/heads/main' || github.ref_type == 'tag') }}
+    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/blackduck-full-scan.yml@f043921e498ad33aca180f2d2e41c7ae10fbb1cf
+    with:
+      project-version: ${{ github.ref_name }}
+      source-ref: ${{ github.sha }}
+      uv-dependencies: true
+      python-version: "3.12"
+      vault-namespace: iac-expkits/prod
+      vault-secrets: |
+        kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} UV_DEFAULT_INDEX | UV_DEFAULT_INDEX ;
+        kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
+        kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD
+    secrets:
+      BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
+      VAULT_URL: ${{ secrets.VAULT_URL }}
+      VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
+      VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
+
   build_and_test_wheel:
     name: Build And Test Wheel
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
@@ -258,14 +284,19 @@ jobs:
     name: Publish Release
     if: >-
       ${{
-        always() &&
+        !cancelled() &&
+        needs.lint.result == 'success' &&
         needs.build_and_test_wheel.result == 'success' &&
+        (!github.event.repository.private || github.ref_type != 'tag' ||
+          needs.blackduck_scan.result == 'success') &&
         (github.repository_owner != 'arm' || github.ref_type == 'tag') &&
         (github.repository_owner == 'arm' ||
           (needs.test_e2e.result == 'success' && needs.test_e2e_profiling.result == 'success'))
       }}
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     needs:
+      - lint
+      - blackduck_scan
       - build_and_test_wheel
       - test_e2e
       - test_e2e_profiling
@@ -298,7 +329,7 @@ jobs:
 
   publish_docs:
     name: Publish Documentation
-    if: ${{ github.ref_type == 'tag' }}
+    if: ${{ github.event.repository.private && github.ref_type == 'tag' }}
     needs: publish_release
     uses: ./.github/workflows/docs.yml
     with:
@@ -306,10 +337,77 @@ jobs:
       wheel-artifact: built-wheel
     secrets: inherit
 
+  create_github_release:
+    name: Prepare Release Notes
+    if: ${{ github.event.repository.private && github.ref_type == 'tag' }}
+    needs: publish_docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create release or preserve existing notes
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        with:
+          script: |
+            const repo = context.repo;
+            const tag = process.env.RELEASE_TAG;
+            const prerelease = !/^v[0-9]+\.[0-9]+\.[0-9]+$/.test(tag);
+            let release;
+            try {
+              ({ data: release } = await github.rest.repos.getReleaseByTag({
+                ...repo, tag
+              }));
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.repos.createRelease({
+                ...repo,
+                tag_name: tag,
+                target_commitish: context.sha,
+                name: tag,
+                generate_release_notes: true,
+                prerelease
+              });
+              return;
+            }
+            const updates = {};
+            if (!release.body?.trim()) {
+              const { data: notes } = await github.rest.repos.generateReleaseNotes({
+                ...repo, tag_name: tag, target_commitish: context.sha
+              });
+              updates.body = notes.body;
+            }
+            if (release.draft) {
+              updates.prerelease = prerelease;
+              updates.draft = false;
+            }
+            if (Object.keys(updates).length) {
+              await github.rest.repos.updateRelease({
+                ...repo, release_id: release.id, ...updates
+              });
+            }
+
   sync_to_public_repo:
-    needs: [test_e2e, test_e2e_profiling]
-    if: ${{ github.event.repository.private }}
-    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/sync-to-public-repo.yml@d700621dafc25dea2b4c5d8531171af5ec8e00ee
+    needs: [publish_release, blackduck_scan]
+    if: >-
+      ${{ !cancelled() && needs.publish_release.result == 'success' &&
+      needs.blackduck_scan.result == 'success' &&
+      github.event.repository.private && github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' }}
+    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/sync-to-public-repo.yml@c57b3276d78f9a98175551802d7f6e87c9c94816
+    with:
+      public_repo: arm/mlia-neural-technology
+    secrets: inherit
+
+  sync_release_to_public_repo:
+    needs: [create_github_release, blackduck_scan]
+    if: >-
+      ${{ !cancelled() && needs.create_github_release.result == 'success' &&
+      needs.blackduck_scan.result == 'success' &&
+      github.event.repository.private && github.event_name == 'push' &&
+      github.ref_type == 'tag' }}
+    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/sync-to-public-repo.yml@c57b3276d78f9a98175551802d7f6e87c9c94816
     with:
       public_repo: arm/mlia-neural-technology
     secrets: inherit
