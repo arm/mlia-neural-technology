@@ -16,7 +16,6 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.12"
-  ARTIFACTS_PATH: downloaded_artifacts
 
   # Separate uv installations from each other on self-hosten runners
   # in case they share the working directory
@@ -89,82 +88,29 @@ jobs:
           if-no-files-found: error
 
   test_e2e:
-    name: End-to-End Tests (${{ matrix.suite }}, shard index ${{ matrix.index }})
-    if: ${{ github.repository_owner != 'arm' }}
+    name: End-to-End Tests (${{ matrix.name }})
+    needs: build_and_test_wheel
+    # Checkout and artifact downloads require secrets unavailable to fork PRs.
+    if: >-
+      ${{ (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.repository_owner != 'arm' }}
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
-    needs:
-      - build_and_test_wheel
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - suite: tflite
-            index: 0
-            shard_count: 3
-            artifacts: ${{ vars.MLIA_E2E_TFLITE_ARTIFACTS }}
-            backends: ${{ vars.MLIA_E2E_TFLITE_BACKENDS }}
-            executions: ${{ vars.MLIA_E2E_TFLITE_EXECUTIONS }}
-            converter_package: mlia-converters-litert
-            archive_path: ""
-            extract_destination: ""
-            run_api_e2e: true
-          - suite: tflite
-            index: 1
-            shard_count: 3
-            artifacts: ${{ vars.MLIA_E2E_TFLITE_ARTIFACTS }}
-            backends: ${{ vars.MLIA_E2E_TFLITE_BACKENDS }}
-            executions: ${{ vars.MLIA_E2E_TFLITE_EXECUTIONS }}
-            converter_package: mlia-converters-litert
-            archive_path: ""
-            extract_destination: ""
-            run_api_e2e: true
-          - suite: tflite
-            index: 2
-            shard_count: 3
-            artifacts: ${{ vars.MLIA_E2E_TFLITE_ARTIFACTS }}
-            backends: ${{ vars.MLIA_E2E_TFLITE_BACKENDS }}
-            executions: ${{ vars.MLIA_E2E_TFLITE_EXECUTIONS }}
-            converter_package: mlia-converters-litert
-            archive_path: ""
-            extract_destination: ""
-            run_api_e2e: true
-          - suite: tosa
-            index: 0
-            shard_count: 1
-            artifacts: ${{ vars.MLIA_E2E_TOSA_ARTIFACTS }}
-            backends: ${{ vars.MLIA_E2E_TOSA_BACKENDS }}
-            executions: ${{ vars.MLIA_E2E_TOSA_EXECUTIONS }}
-            converter_package: ""
-            archive_path: ""
-            extract_destination: ""
-            run_api_e2e: false
-          - suite: pytorch
-            index: 0
-            shard_count: 1
-            artifacts: ${{ vars.MLIA_E2E_PYTORCH_ARTIFACTS }}
-            backends: ${{ vars.MLIA_E2E_PYTORCH_BACKENDS }}
-            executions: ${{ vars.MLIA_E2E_PYTORCH_EXECUTIONS }}
-            converter_package: ""
-            dependency_group: pytorch-e2e
-            archive_path: ""
-            extract_destination: ""
-            run_api_e2e: true
-          - suite: profiling
-            index: 0
-            shard_count: 1
-            artifacts: ${{ vars.MLIA_E2E_PROFILING_ARTIFACTS }}
-            backends: ${{ vars.MLIA_E2E_PROFILING_BACKENDS }}
-            executions: ${{ vars.MLIA_E2E_PROFILING_EXECUTIONS }}
-            converter_package: ""
-            archive_path: e2e_config/profiling_archives/fpga-results-multi-chain-capture.zip
-            extract_destination: e2e_config/profiling
-            run_api_e2e: false
+        include: ${{ fromJSON(vars.MLIA_E2E_TEST_CASES) }}
     steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download plugin wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: built-wheel
+          path: dist
       - name: Import secrets from Vault
-        # Vault secrets must not be exposed to pull requests from forks.
-        if: >-
-          ${{ github.event_name != 'pull_request' ||
-          github.event.pull_request.head.repo.full_name == github.repository }}
         uses: hashicorp/vault-action@v4
         with:
           url: ${{ secrets.VAULT_URL }}
@@ -176,148 +122,59 @@ jobs:
             ${{ env.VAULT_COMMON_CI_SECRETS }} ;
             kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
             kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - name: Install e2e system dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs jq python3-dev
+      - name: Run MLIA e2e tests
+        id: e2e
+        uses: Arm-Debug/mlia-test-runner/.github/actions/mlia-e2e@7af93d699aa240d2b529c849ad06b8f06af86768
+        with:
+          wheelPath: dist/*.whl
+          testCase: ${{ toJSON(matrix) }}
+          pythonVersion: ${{ env.PYTHON_VERSION }}
+          gitSourceHost: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
+          gitSourceUsername: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
+          gitSourcePassword: ${{ env.ARTIFACT_GIT_SOURCE_PASSWORD }}
+          httpSourceHost: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
+          httpSourceAuth: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
+          httpSourceToken: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
+          packageIndexUrl: ${{ env.UV_DEFAULT_INDEX }}
+          packageIndexUsername: ${{ env.UV_INDEX_INTERNAL_USERNAME }}
+          packageIndexPassword: ${{ env.UV_INDEX_INTERNAL_PASSWORD }}
+      - name: Upload e2e output
+        if: ${{ always() && steps.e2e.outputs.logsPath != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output-${{ matrix.name }}
+          path: ${{ steps.e2e.outputs.logsPath }}
+          if-no-files-found: warn
+
+  test_e2e_profiling:
+    name: Profiling End-to-End Tests (${{ matrix.name }})
+    needs: build_and_test_wheel
+    # Profiling artifact downloads require secrets unavailable to fork PRs.
+    if: >-
+      ${{ (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.repository_owner != 'arm' }}
+    runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(vars.MLIA_E2E_PROFILING_TEST_CASES) }}
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download plugin wheel
+        uses: actions/download-artifact@v4
         with:
           name: built-wheel
           path: dist
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install git-lfs
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs
-      - name: Prepare artifacts
-        if: ${{ matrix.artifacts != '' }}
-        uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@main
-        env:
-          ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
-          ARTIFACT_GIT_SOURCE_USERNAME: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
-          ARTIFACT_GIT_SOURCE_PASSWORD: ${{ env.ARTIFACT_GIT_SOURCE_PASSWORD }}
-          ARTIFACT_HTTP_SOURCE_HOST: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
-          ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
-          ARTIFACT_HTTP_SOURCE_TOKEN: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
-        with:
-          artifacts: ${{ matrix.artifacts }}
-          destination: ${{ env.ARTIFACTS_PATH }}
-      - name: Extract ZIP artifact
-        if: ${{ matrix.artifacts != '' && matrix.archive_path != '' }}
-        env:
-          ARCHIVE_PATH: ${{ env.ARTIFACTS_PATH }}/${{ matrix.archive_path }}
-          EXTRACT_DESTINATION: ${{ env.ARTIFACTS_PATH }}/${{ matrix.extract_destination }}
-        run: |
-          rm -rf "$EXTRACT_DESTINATION"
-          python3 -m zipfile -e "$ARCHIVE_PATH" "$EXTRACT_DESTINATION"
-      - name: Prepare API e2e artifacts
-        if: ${{ matrix.run_api_e2e && matrix.index == 0 && vars.MLIA_API_E2E_ARTIFACTS != '' }}
-        uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@main
-        env:
-          ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
-          ARTIFACT_GIT_SOURCE_USERNAME: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
-          ARTIFACT_GIT_SOURCE_PASSWORD: ${{ env.ARTIFACT_GIT_SOURCE_PASSWORD }}
-          ARTIFACT_HTTP_SOURCE_HOST: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
-          ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
-          ARTIFACT_HTTP_SOURCE_TOKEN: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
-        with:
-          artifacts: ${{ vars.MLIA_API_E2E_ARTIFACTS }}
-          destination: ${{ env.ARTIFACTS_PATH }}
-      - name: Sync test dependencies
-        env:
-          DEPENDENCY_GROUP: ${{ matrix.dependency_group }}
-        run: |
-          groups=(--only-group test)
-          if [[ -n "$DEPENDENCY_GROUP" ]]; then
-            groups+=(--only-group "$DEPENDENCY_GROUP")
-          fi
-          uv sync --no-install-project "${groups[@]}"
-      # Ensure pip is available because mlia-backend install shells out to python -m pip for backend dependencies.
-      - run: ${{ env.UV_PROJECT_ENVIRONMENT }}/bin/python -m ensurepip --upgrade
-      - name: Run e2e pytest
-        env:
-          CONVERTER_PACKAGE: ${{ matrix.converter_package }}
-          MLIA_E2E_ARTIFACTS: ${{ env.ARTIFACTS_PATH }}
-          MLIA_E2E_BACKENDS: ${{ matrix.backends }}
-          MLIA_E2E_EXECUTIONS: ${{ matrix.executions }}
-          MLIA_E2E_SHARD_INDEX: ${{ matrix.index }}
-          MLIA_E2E_SHARD_COUNT: ${{ matrix.shard_count }}
-        run: |
-          mkdir -p report
-          rm -f "report/report-${{ matrix.index }}.xml"
-          rm -f "report/api-report-${{ matrix.index }}.xml"
-          rm -rf "report/pdf-${{ matrix.index }}"
-          converter_args=()
-          if [[ -n "$CONVERTER_PACKAGE" ]]; then
-            converter_args=(--with "$CONVERTER_PACKAGE")
-          fi
-          set -o pipefail
-          uv run --no-sync \
-            --with dist/*.whl \
-            "${converter_args[@]}" \
-            --with pip \
-            -- pytest -v tests/test_e2e.py \
-              -x \
-              -s \
-              --capture=tee-sys \
-              -o junit_logging=out-err \
-              -o junit_log_passing_tests=true \
-              --no-cov \
-              --junitxml="report/report-${{ matrix.index }}.xml"
-      - name: Run API e2e pytest
-        if: ${{ matrix.run_api_e2e && matrix.index == 0 }}
-        env:
-          CONVERTER_PACKAGE: ${{ matrix.converter_package }}
-          MLIA_E2E_ARTIFACTS: ${{ env.ARTIFACTS_PATH }}
-          MLIA_E2E_BACKENDS: ${{ matrix.backends }}
-          MLIA_API_E2E_SUITE: ${{ matrix.suite }}
-          MLIA_API_E2E_TOSA_MODEL: ${{ vars.MLIA_API_E2E_TOSA_MODEL }}
-          MLIA_API_E2E_VGF_MODEL: ${{ vars.MLIA_API_E2E_VGF_MODEL }}
-          MLIA_API_E2E_TFLITE_MODEL: ${{ vars.MLIA_API_E2E_TFLITE_MODEL }}
-          MLIA_API_E2E_PYTORCH_MODEL: ${{ vars.MLIA_API_E2E_PYTORCH_MODEL }}
-        run: |
-          converter_args=()
-          if [[ -n "$CONVERTER_PACKAGE" ]]; then
-            converter_args=(--with "$CONVERTER_PACKAGE")
-          fi
-          set -o pipefail
-          uv run --no-sync \
-            --with dist/*.whl \
-            "${converter_args[@]}" \
-            --with pip \
-            -- pytest -v tests/test_e2e_api.py \
-              -x \
-              -s \
-              --capture=tee-sys \
-              -o junit_logging=out-err \
-              -o junit_log_passing_tests=true \
-              --no-cov \
-              --junitxml="report/api-report-${{ matrix.index }}.xml"
-      - name: Upload e2e junit
-        if: >-
-          ${{
-            always() &&
-            (
-              hashFiles(format('report/report-{0}.xml', matrix.index)) != '' ||
-              hashFiles(format('report/api-report-{0}.xml', matrix.index)) != ''
-            )
-          }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-junit-shard-${{ matrix.suite }}-${{ matrix.index }}
-          path: report/*.xml
-
-  combine_e2e_pdf:
-    name: Combine E2E PDF Reports
-    if: ${{ always() && github.repository_owner != 'arm' }}
-    runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
-    needs:
-      - test_e2e
-    steps:
       - name: Import secrets from Vault
-        # Vault secrets must not be exposed to pull requests from forks.
-        if: >-
-          ${{ github.event_name != 'pull_request' ||
-          github.event.pull_request.head.repo.full_name == github.repository }}
         uses: hashicorp/vault-action@v4
         with:
           url: ${{ secrets.VAULT_URL }}
@@ -325,29 +182,77 @@ jobs:
           roleId: ${{ secrets.VAULT_ROLE_ID }}
           secretId: ${{ secrets.VAULT_SECRET_ID }}
           namespace: iac-expkits/prod
-          secrets: *vault-common-ci-secrets
-      - uses: actions/checkout@v4
+          secrets: |
+            ${{ env.VAULT_COMMON_CI_SECRETS }} ;
+            kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} ARTIFACT_GIT_SOURCE_PASSWORD | ARTIFACT_GIT_SOURCE_PASSWORD ;
+            kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} ARTIFACT_HTTP_SOURCE_TOKEN | ARTIFACT_HTTP_SOURCE_TOKEN
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Download shard junit artifacts
-        uses: actions/download-artifact@v4
+      - name: Install profiling test dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs jq python3-dev
+      - name: Prepare profiling workspace
+        id: profiling
+        shell: bash
+        run: |
+          work=$(mktemp -d "$RUNNER_TEMP/mlia-profiling.XXXXXX")
+          echo "workDirectory=$work" >> "$GITHUB_OUTPUT"
+      - name: Download profiling artifacts
+        uses: Arm-Debug/github-workflow-wizardry/.github/actions/prepare-artifacts@d700621dafc25dea2b4c5d8531171af5ec8e00ee
+        env:
+          ARTIFACT_GIT_SOURCE_HOST: ${{ vars.ARTIFACT_GIT_SOURCE_HOST }}
+          ARTIFACT_GIT_SOURCE_USERNAME: ${{ vars.ARTIFACT_GIT_SOURCE_USERNAME }}
+          ARTIFACT_GIT_SOURCE_PASSWORD: ${{ env.ARTIFACT_GIT_SOURCE_PASSWORD }}
+          ARTIFACT_HTTP_SOURCE_HOST: ${{ vars.ARTIFACT_HTTP_SOURCE_HOST }}
+          ARTIFACT_HTTP_SOURCE_AUTH: ${{ vars.ARTIFACT_HTTP_SOURCE_AUTH }}
+          ARTIFACT_HTTP_SOURCE_TOKEN: ${{ env.ARTIFACT_HTTP_SOURCE_TOKEN }}
         with:
-          pattern: e2e-junit-shard-*
-          path: report/junit
-          merge-multiple: true
-      - name: Convert combined JUnit to PDF
-        if: ${{ hashFiles('report/junit/*.xml') != '' }}
-        uses: Arm-Debug/github-workflow-wizardry/.github/actions/junit-to-pdf@main
-        with:
-          report-path: report/junit
-          output-dir: report/pdf-combined
-      - name: Upload combined e2e pdf
-        if: ${{ hashFiles('report/pdf-combined/*.pdf') != '' }}
+          artifacts: ${{ toJSON(matrix.artifacts) }}
+          destination: ${{ steps.profiling.outputs.workDirectory }}/downloaded_artifacts
+      - name: Run profiling performance check
+        shell: bash
+        env:
+          TEST_CASE: ${{ toJSON(matrix) }}
+          WORK_DIRECTORY: ${{ steps.profiling.outputs.workDirectory }}
+        run: |
+          set -euo pipefail
+          wheels=("$GITHUB_WORKSPACE"/dist/*.whl)
+          if [[ ${#wheels[@]} -ne 1 || ! -f "${wheels[0]}" ]]; then
+            echo "Expected exactly one plugin wheel" >&2
+            exit 1
+          fi
+          # Test the built wheel without syncing the source project or dev dependencies.
+          uv venv --python "$PYTHON_VERSION" "$WORK_DIRECTORY/.venv"
+          uv pip install --python "$WORK_DIRECTORY/.venv/bin/python" "${wheels[0]}"
+          export VIRTUAL_ENV="$WORK_DIRECTORY/.venv"
+          unset UV_PROJECT_ENVIRONMENT
+          cd "$WORK_DIRECTORY"
+
+          archive=$(jq -er '.archive_path' <<< "$TEST_CASE")
+          uv run --no-project python -m zipfile -e \
+            "$WORK_DIRECTORY/downloaded_artifacts/$archive" "$WORK_DIRECTORY/data"
+          profiling_data=$(jq -er '.profiling_data' <<< "$TEST_CASE")
+          test -d "$WORK_DIRECTORY/data/$profiling_data"
+          target=$(jq -er '.target' <<< "$TEST_CASE")
+          model_args=()
+          model=$(jq -r '.model // empty' <<< "$TEST_CASE")
+          if [[ -n "$model" ]]; then
+            test -f "$WORK_DIRECTORY/data/$model"
+            model_args=(-- "$WORK_DIRECTORY/data/$model")
+          fi
+          uv run --no-project mlia check -t "$target" -b neural-technology-profiling-data \
+            --performance --profiling-data "$WORK_DIRECTORY/data/$profiling_data" \
+            "${model_args[@]}" 2>&1 | tee "$WORK_DIRECTORY/run.log"
+      - name: Upload profiling output
+        if: ${{ always() && steps.profiling.outputs.workDirectory != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-pdf
-          path: report/pdf-combined
+          name: e2e-profiling-${{ matrix.name }}
+          path: ${{ steps.profiling.outputs.workDirectory }}/run.log
+          if-no-files-found: warn
 
   publish_release:
     name: Publish Release
@@ -356,12 +261,14 @@ jobs:
         always() &&
         needs.build_and_test_wheel.result == 'success' &&
         (github.repository_owner != 'arm' || github.ref_type == 'tag') &&
-        (github.repository_owner == 'arm' || needs.test_e2e.result == 'success')
+        (github.repository_owner == 'arm' ||
+          (needs.test_e2e.result == 'success' && needs.test_e2e_profiling.result == 'success'))
       }}
     runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
     needs:
       - build_and_test_wheel
       - test_e2e
+      - test_e2e_profiling
     steps:
       - name: Import secrets from Vault
         # Vault secrets must not be exposed to pull requests from forks.
@@ -400,7 +307,7 @@ jobs:
     secrets: inherit
 
   sync_to_public_repo:
-    needs: test_e2e
+    needs: [test_e2e, test_e2e_profiling]
     if: ${{ github.event.repository.private }}
     uses: Arm-Debug/github-workflow-wizardry/.github/workflows/sync-to-public-repo.yml@d700621dafc25dea2b4c5d8531171af5ec8e00ee
     with:
