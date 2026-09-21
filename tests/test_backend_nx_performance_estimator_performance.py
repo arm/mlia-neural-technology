@@ -87,6 +87,10 @@ def test_nx_performance_estimator_performance_estimator(
         pco_mock,
     )
     monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.runner.validate_gcpe_compatible_vgf",
+        lambda _: None,
+    )
+    monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance."
         "prepare_gcpe_compatible_vgfs",
         MagicMock(
@@ -315,6 +319,10 @@ def test_nx_performance_estimator_uses_platform_executable_name(
     monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.runner.process_command_output",
         record_command,
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.runner.validate_gcpe_compatible_vgf",
+        lambda _: None,
     )
 
     estimator._run_nx_performance_estimator(tmp_path / "model.vgf", "model")

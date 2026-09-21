@@ -190,11 +190,59 @@ def _validate_gcpe_compatible_vgf(path: Path, vgfpy_module: Any) -> None:
     for segment_index in range(segment_count):
         segment_type = decoded.sequence.getSegmentType(segment_index)
         if segment_type == vgfpy_module.ModuleType.Graph:
-            continue
+            _validate_graph_resource_shapes(decoded, path, segment_index)
         elif segment_type == vgfpy_module.ModuleType.Compute:
             continue
         else:
             raise _unsupported_segment_type(path, segment_index, segment_type)
+
+
+def _validate_graph_resource_shapes(
+    decoded: _DecodedVGF, path: Path, segment_index: int
+) -> None:
+    """Check resources consumed by GCPE without rejecting skipped compute data."""
+    sequence = decoded.sequence
+    resources: dict[int, str] = {}
+    handles = [
+        ("input", sequence.getSegmentInputBindingSlotsHandle(segment_index)),
+        ("output", sequence.getSegmentOutputBindingSlotsHandle(segment_index)),
+    ]
+    handles.extend(
+        (
+            f"descriptor set {index}",
+            sequence.getDescriptorBindingSlotsHandle(segment_index, index),
+        )
+        for index in range(sequence.getSegmentDescriptorSetInfosSize(segment_index))
+    )
+    for label, handle in handles:
+        for slot in range(sequence.getBindingsSize(handle)):
+            resource = sequence.getBindingSlotMrtIndex(handle, slot)
+            binding = sequence.getBindingSlotBinding(handle, slot)
+            resources.setdefault(resource, f"{label} binding {binding}")
+    for index in _view_to_list(sequence.getSegmentConstantIndexes(segment_index)):
+        resource = decoded.constants.getConstantMrtIndex(index)
+        resources.setdefault(resource, f"constant {index}")
+
+    unshaped = []
+    for resource, label in resources.items():
+        shape = _view_to_list(decoded.resources.getTensorShape(resource))
+        # Published models also use INT64_MIN, not just -1, for unknown dimensions.
+        if any(dimension < 0 for dimension in shape):
+            dimensions = ", ".join(
+                "?" if dimension < 0 else str(dimension) for dimension in shape
+            )
+            unshaped.append(f"{label}, resource {resource}, shape [{dimensions}]")
+
+    if unshaped:
+        raise ValueError(
+            f"Cannot estimate unshaped VGF '{path}': segment {segment_index} "
+            f"('{sequence.getSegmentName(segment_index)}') has unresolved tensor "
+            f"dimensions: {summarize_list(unshaped)}. "
+            "GCPE requires concrete tensor dimensions. Choose the input dimensions "
+            "for your workload and shape-specialize both the SPIR-V graph and VGF "
+            "resource table before retrying, or use an already shaped VGF. "
+            "MLIA does not automatically shape-specialize VGF models."
+        )
 
 
 def _unsupported_segment_type(

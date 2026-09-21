@@ -5,14 +5,18 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 import sys
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
+from mlia.backend.nx_performance_estimator.vgf import validate_gcpe_compatible_vgf
 from mlia.backend.repo import get_backend_repository
+from mlia.core.errors import ConfigurationError, InternalError
 from mlia.utils.filesystem import get_mlia_resource_dirs, get_mlia_resources
 from mlia.utils.proc import Command, OutputLogger, process_command_output
 
@@ -91,6 +95,10 @@ def run_nx_performance_estimator(
     output_name: str,
 ) -> NXPerformanceEstimatorOutputFiles:
     """Run the NX performance estimator and return its output files."""
+    try:
+        validate_gcpe_compatible_vgf(vgf_file)
+    except ValueError as exc:
+        raise ConfigurationError(str(exc)) from exc
     backend_repo = get_backend_repository()
     gc_path, _ = backend_repo.get_backend_settings("nx-performance-estimator")
     output_dir = output_root / "nx-performance-estimator"
@@ -134,7 +142,20 @@ def run_nx_performance_estimator(
         cwd=output_dir,
     )
 
-    process_command_output(cmd, [OutputLogger(logger, logging.INFO)])
+    diagnostics: deque[str] = deque(maxlen=20)
+    try:
+        process_command_output(
+            cmd, [OutputLogger(logger, logging.INFO), diagnostics.append]
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = "".join(diagnostics).strip() or "No backend diagnostic was emitted."
+        raise InternalError(
+            f"Graph Compiler Performance Estimator failed for '{vgf_file}' "
+            f"(return code {exc.returncode}). Review the backend diagnostic below. "
+            "If the model is supported and fully shape-specialized, report this "
+            "failure with the model, GCPE version, and backend configuration.\n"
+            f"{detail}"
+        ) from exc
 
     output_files = NXPerformanceEstimatorOutputFiles.from_output_dir(
         output_dir, output_name

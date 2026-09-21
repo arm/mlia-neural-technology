@@ -52,6 +52,11 @@ def _fake_header() -> SimpleNamespace:
 
 
 def _fake_vgfpy(decoder: SimpleNamespace) -> SimpleNamespace:
+    decoder.getSegmentDescriptorSetInfosSize = MagicMock(return_value=0)
+    decoder.getSegmentInputBindingSlotsHandle = MagicMock(return_value=_Handle([]))
+    decoder.getSegmentOutputBindingSlotsHandle = MagicMock(return_value=_Handle([]))
+    decoder.getBindingsSize = MagicMock(side_effect=lambda handle: len(handle.bindings))
+    decoder.getSegmentConstantIndexes = MagicMock(return_value=[])
     return SimpleNamespace(
         HeaderSize=MagicMock(return_value=0),
         CreateHeaderDecoder=MagicMock(return_value=_fake_header()),
@@ -388,6 +393,103 @@ class _FakeVGFModule:
         encoder = _Encoder()
         self.encoders.append(encoder)
         return encoder
+
+
+@pytest.mark.parametrize("dimension", [-1, -(2**63)])
+@pytest.mark.parametrize("resource_index", [0, 2, 3, 4, 5])
+def test_validate_gcpe_vgf_rejects_unshaped_graph_resources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    dimension: int,
+    resource_index: int,
+) -> None:
+    """Constants and graph I/O must be shaped, including NSS sentinel values."""
+    model = tmp_path / "unshaped.vgf"
+    model.write_bytes(b"fake vgf")
+    resources = _Resources()
+    monkeypatch.setattr(
+        resources,
+        "getTensorShape",
+        lambda index: [1, dimension, 960, 12] if index == resource_index else [1],
+    )
+    module = _FakeVGFModule()
+    monkeypatch.setattr(module, "CreateModelResourceTableDecoder", lambda _: resources)
+
+    with pytest.raises(ValueError) as error:
+        _validate_gcpe_compatible_vgf(model, module)
+
+    message = str(error.value)
+    assert str(model) in message
+    assert f"resource {resource_index}" in message
+    assert "[1, ?, 960, 12]" in message
+    assert "segment" in message
+    assert "shape-specialize" in message
+    assert "input dimensions" in message
+
+
+def test_validate_gcpe_vgf_ignores_unshaped_skipped_compute_resources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Shape checks apply to estimated graphs, not skipped compute segments."""
+    model = tmp_path / "mixed.vgf"
+    model.write_bytes(b"fake vgf")
+    resources = _Resources()
+    monkeypatch.setattr(
+        resources, "getTensorShape", lambda index: [-1] if index == 4 else [1]
+    )
+    module = _FakeVGFModule([_FakeModuleType.Graph, _FakeModuleType.Compute])
+    monkeypatch.setattr(module, "CreateModelResourceTableDecoder", lambda _: resources)
+
+    _validate_gcpe_compatible_vgf(model, module)
+
+
+def test_validate_gcpe_vgf_checks_descriptor_only_resources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Descriptor resources must be checked even when absent from segment I/O."""
+    model = tmp_path / "unshaped.vgf"
+    model.write_bytes(b"fake vgf")
+    sequence = _Sequence()
+    sequence.inputs[0] = _Handle([])
+    resources = _Resources()
+    monkeypatch.setattr(
+        resources, "getTensorShape", lambda index: [-1] if index == 2 else [1]
+    )
+    module = _FakeVGFModule()
+    monkeypatch.setattr(module, "CreateModelSequenceTableDecoder", lambda _: sequence)
+    monkeypatch.setattr(module, "CreateModelResourceTableDecoder", lambda _: resources)
+
+    with pytest.raises(ValueError, match="descriptor set 0 binding 0, resource 2"):
+        _validate_gcpe_compatible_vgf(model, module)
+
+
+@pytest.mark.parametrize("dimension", [-1, -(2**63), 544])
+def test_validate_real_vgf_shape_dimensions(tmp_path: Path, dimension: int) -> None:
+    """Real encoder/decoder shapes follow the same rules as the published NSS VGF."""
+    import vgfpy
+
+    from mlia.backend.nx_performance_estimator.vgf import validate_gcpe_compatible_vgf
+
+    source = tmp_path / "shape.vgf"
+    encoder = vgfpy.CreateEncoder(123)
+    module = encoder.AddModule(
+        vgfpy.ModuleType.Graph, "graph", "main", [0x07230203, 0x00010600, 0, 1, 0]
+    )
+    resource = encoder.AddInputResource(1, 2, [1, dimension, 960, 12], [])
+    binding = encoder.AddBindingSlot(0, resource)
+    descriptor = encoder.AddDescriptorSetInfo([binding])
+    encoder.AddSegmentInfo(
+        module, "graph", [descriptor], [binding], [], [], [0, 0, 0], []
+    )
+    encoder.Finish()
+    with source.open("wb") as output:
+        assert encoder.WriteTo(output)
+
+    if dimension < 0:
+        with pytest.raises(ValueError, match="shape-specialize"):
+            validate_gcpe_compatible_vgf(source)
+    else:
+        validate_gcpe_compatible_vgf(source)
 
 
 def test_prepare_gcpe_compatible_vgfs_splits_multi_segment_vgf(

@@ -45,6 +45,20 @@ conversion stages rather than in the final backend.
 
 ## NX Performance Estimator issues
 
+### Unshaped VGF models
+
+Some VGF models leave tensor dimensions unspecified so they can support different
+input sizes. This does not mean the model is invalid, but GCPE needs fixed
+dimensions to estimate performance. MLIA rejects these models before running
+GCPE and shows the unknown dimensions as `?` in the error message.
+
+Use a model prepared for your intended input size, or use the model's tooling to
+shape-specialize both the graph and its resource shapes. MLIA does not do this
+automatically, and changing only the resource shapes is not enough.
+
+If a model with fixed dimensions still fails, include the error message, model,
+GCPE version, and backend configuration when reporting the issue.
+
 ### Backend missing
 
 If MLIA cannot find the estimator backend, confirm that the environment exposes
