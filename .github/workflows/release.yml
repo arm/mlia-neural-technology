@@ -40,7 +40,7 @@ jobs:
     if: >-
       ${{ github.event.repository.private &&
       (github.ref == 'refs/heads/main' || github.ref_type == 'tag') }}
-    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/blackduck-full-scan.yml@f043921e498ad33aca180f2d2e41c7ae10fbb1cf
+    uses: Arm-Debug/github-workflow-wizardry/.github/workflows/blackduck-full-scan.yml@0ab5cc5e732cffa672c6a85e6ffed96a8c1af013
     with:
       project-version: ${{ github.ref_name }}
       source-ref: ${{ github.sha }}
@@ -48,11 +48,11 @@ jobs:
       python-version: "3.12"
       vault-namespace: iac-expkits/prod
       vault-secrets: |
+        kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} BLACKDUCK_API_TOKEN | BLACKDUCK_API_TOKEN ;
         kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} UV_DEFAULT_INDEX | UV_DEFAULT_INDEX ;
         kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} INTERNAL_PYPI_USERNAME | UV_INDEX_INTERNAL_USERNAME ;
         kv/data/MLIA/CI?version=${{ vars.VAULT_CI_SECRET_VERSION || '0' }} INTERNAL_PYPI_PASSWORD | UV_INDEX_INTERNAL_PASSWORD
     secrets:
-      BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
       VAULT_URL: ${{ secrets.VAULT_URL }}
       VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
       VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
