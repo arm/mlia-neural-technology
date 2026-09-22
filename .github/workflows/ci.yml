@@ -6,9 +6,15 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      TEST_CONFIG_REF:
+        description: Branch, tag, or commit of Arm-Debug/mlia-test-config (leave blank for the main branch)
+        type: string
+        required: false
 
 env:
   PYTHON_VERSION: "3.12"
+  DEFAULT_TEST_CONFIG_REF: "main"
 
   # Separate uv installations from each other on self-hosten runners
   # in case they share the working directory
@@ -106,9 +112,49 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
+  prepare_e2e:
+    name: Load End-to-End Test Cases
+    # The private configuration repository requires secrets unavailable to fork PRs.
+    if: >-
+      ${{ (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.repository_owner != 'arm' }}
+    runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
+    outputs:
+      test_cases: ${{ steps.cases.outputs.MLIA_E2E_TEST_CASES }}
+      profiling_test_cases: ${{ steps.cases.outputs.MLIA_E2E_PROFILING_TEST_CASES }}
+    steps:
+      - name: Checkout e2e configuration
+        uses: actions/checkout@v4
+        with:
+          repository: Arm-Debug/mlia-test-config
+          ref: ${{ inputs.TEST_CONFIG_REF || env.DEFAULT_TEST_CONFIG_REF }}
+          token: ${{ secrets.GH_ADMIN_TOKEN }}
+          path: mlia-test-config
+          persist-credentials: false
+      - name: Install JSON parser
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+      - name: Read test cases
+        id: cases
+        shell: bash
+        working-directory: mlia-test-config/mlia-neural-technology
+        run: |
+          set -euo pipefail
+
+          # Read MLIA_E2E_TEST_CASES.json and MLIA_E2E_PROFILING_TEST_CASES.json
+          for variable in MLIA_E2E_TEST_CASES MLIA_E2E_PROFILING_TEST_CASES; do
+            cases=$(jq -ce '
+              if type == "array" and length > 0 and all(.[]; type == "object")
+              then . else error("Expected a non-empty array of test cases") end
+            ' "$variable.json")
+            printf '%s=%s\n' "$variable" "$cases" >> "$GITHUB_OUTPUT"
+          done
+
   test_e2e:
     name: End-to-End Tests (${{ matrix.name }})
-    needs: build
+    needs: [build, prepare_e2e]
     # Checkout and artifact downloads require secrets unavailable to fork PRs.
     if: >-
       ${{ (github.event_name != 'pull_request' ||
@@ -118,7 +164,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(vars.MLIA_E2E_TEST_CASES) }}
+        include: ${{ fromJSON(needs.prepare_e2e.outputs.test_cases) }}
     steps:
       - name: Checkout plugin
         uses: actions/checkout@v4
@@ -172,7 +218,7 @@ jobs:
 
   test_e2e_profiling:
     name: Profiling End-to-End Tests (${{ matrix.name }})
-    needs: build
+    needs: [build, prepare_e2e]
     # Profiling artifact downloads require secrets unavailable to fork PRs.
     if: >-
       ${{ (github.event_name != 'pull_request' ||
@@ -182,7 +228,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(vars.MLIA_E2E_PROFILING_TEST_CASES) }}
+        include: ${{ fromJSON(needs.prepare_e2e.outputs.profiling_test_cases) }}
     steps:
       - name: Checkout plugin
         uses: actions/checkout@v4
