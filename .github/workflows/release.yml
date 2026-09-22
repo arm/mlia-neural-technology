@@ -155,7 +155,7 @@ jobs:
           sudo apt-get install -y git-lfs jq python3-dev
       - name: Run MLIA e2e tests
         id: e2e
-        uses: Arm-Debug/mlia-test-runner/.github/actions/mlia-e2e@7af93d699aa240d2b529c849ad06b8f06af86768
+        uses: Arm-Debug/mlia-test-runner/.github/actions/mlia-e2e@5dc9c9d000d90aa024ee563213c3b3c9f9e588f7
         with:
           wheelPath: dist/*.whl
           testCase: ${{ toJSON(matrix) }}
