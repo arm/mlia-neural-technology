@@ -129,7 +129,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Arm-Debug/mlia-test-config
-          ref: 39dcdc3db03a8377d6a1e8fd257dda514f08881a
+          ref: main
           token: ${{ secrets.GH_ADMIN_TOKEN }}
           path: mlia-test-config
           persist-credentials: false
