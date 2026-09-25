@@ -20,6 +20,7 @@ from typing import Literal, TypedDict
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from hatchling.metadata.plugin.interface import MetadataHookInterface
+from packaging import tags
 
 ENV_URLS = "VENDORED_ARTIFACTS_URLS"
 ENV_USER = "UV_INDEX_INTERNAL_USERNAME"
@@ -120,6 +121,25 @@ ARTIFACTS: dict[str, ArtifactSpec] = {
 }
 
 VGF_BUILD_DIR = Path(".native/build")
+MINIMUM_GLIBC = (2, 39)  # Ubuntu 24.04
+
+
+def _linux_wheel_tag() -> str:
+    """Preserve the native Python ABI and enforce the minimum Linux baseline."""
+    for tag in tags.sys_tags():
+        match = re.fullmatch(r"manylinux_(\d+)_(\d+)_(.+)", tag.platform)
+        if match:
+            # A newer build host may introduce newer glibc requirements.
+            # Never advertise a baseline older than that host supports.
+            major, minor = max(MINIMUM_GLIBC, (int(match[1]), int(match[2])))
+            return str(
+                tags.Tag(
+                    tag.interpreter,
+                    tag.abi,
+                    f"manylinux_{major}_{minor}_{match[3]}",
+                )
+            )
+    raise RuntimeError("Linux wheels must be built on a glibc-based system.")
 
 
 def _find_built_vgfpy(build_root: Path) -> Path:
@@ -260,6 +280,8 @@ class CustomBuildHook(BuildHookInterface):
 
         root = Path(self.root)
         if getattr(self, "target_name", "wheel") == "wheel":
+            if platform.system() == "Linux":
+                build_data["tag"] = _linux_wheel_tag()
             vgfpy = _build_vgfpy(root)
             force_include[str(vgfpy.relative_to(root))] = vgfpy.name
             build_data["pure_python"] = False

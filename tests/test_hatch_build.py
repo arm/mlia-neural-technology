@@ -14,6 +14,7 @@ from typing import Generator, cast
 from unittest.mock import Mock
 
 import pytest
+from packaging import tags
 
 try:
     import tomllib
@@ -221,6 +222,69 @@ def test_wheel_includes_nx_estimator_archive_and_excludes_public_artifacts() -> 
     assert "src/mlia/_vendor/artifacts/ml-sdk-model-converter/**" in excluded_paths
     assert "src/mlia/_vendor/artifacts/tosa-flatbuffers/**" in excluded_paths
     assert all("nx-performance-estimator" not in path for path in excluded_paths)
+
+
+@pytest.mark.parametrize(
+    ("host_platform", "wheel_platform"),
+    [
+        ("manylinux_2_38_x86_64", "manylinux_2_39_x86_64"),
+        ("manylinux_2_39_x86_64", "manylinux_2_39_x86_64"),
+        ("manylinux_2_40_x86_64", "manylinux_2_40_x86_64"),
+    ],
+)
+def test_linux_wheel_enforces_glibc_baseline(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    host_platform: str,
+    wheel_platform: str,
+) -> None:
+    """Linux wheels require Ubuntu 24.04's glibc or the newer build baseline."""
+    monkeypatch.setattr(hatch_build.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        tags,
+        "sys_tags",
+        lambda: iter(
+            [
+                tags.Tag("cp312", "cp312", "linux_x86_64"),
+                tags.Tag("cp312", "cp312", host_platform),
+            ]
+        ),
+    )
+    monkeypatch.setattr(hatch_build, "ARTIFACTS", {})
+    monkeypatch.setattr(
+        hatch_build, "_build_vgfpy", lambda _root: tmp_path / "vgfpy.so"
+    )
+    hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
+    hook.root = str(tmp_path)
+    build_data: dict[str, object] = {}
+
+    hook.initialize("0.0.0", build_data)
+
+    assert build_data["tag"] == f"cp312-cp312-{wheel_platform}"
+
+
+def test_linux_wheel_rejects_non_glibc_builds(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A musl build cannot be advertised as compatible with glibc."""
+    monkeypatch.setattr(hatch_build.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        tags,
+        "sys_tags",
+        lambda: iter([tags.Tag("cp312", "cp312", "musllinux_1_2_x86_64")]),
+    )
+    build_native = Mock()
+    monkeypatch.setattr(hatch_build, "_build_vgfpy", build_native)
+    hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
+    hook.root = str(tmp_path)
+
+    with pytest.raises(RuntimeError, match="glibc"):
+        hook.initialize("0.0.0", {})
+
+    build_native.assert_not_called()
 
 
 def test_build_vgfpy_configures_and_builds_pinned_source(

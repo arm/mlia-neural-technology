@@ -80,6 +80,12 @@ internal, non-selectable dependency integrations rather than analysis backends.
 
 ## Installation
 
+The wheel requires CPython 3.12 (`>=3.12,<3.13`). On x86-64 Linux, it requires
+Ubuntu 24.04 or newer, or another distribution with glibc 2.39 or newer.
+Linux wheels use a `manylinux_2_39` platform tag so installers reject older
+glibc versions. Builds on newer glibc versions retain that higher minimum.
+The bundled native `vgfpy` extension also requires a matching CPython ABI.
+
 Install into an environment that already contains `mlia`:
 
 ```bash
