@@ -18,6 +18,10 @@ from mlia.backend.nx_performance_estimator.provenance import (
     source_provenance_from_api_label,
 )
 import mlia.core.output_schema as schema
+from mlia.nx_utils.boundaries.filesystem import (
+    ensure_user_output_directory,
+    write_user_output_binary,
+)
 from mlia.utils.misc import summarize_list
 
 logger = logging.getLogger(__name__)
@@ -116,7 +120,7 @@ def _prepare_gcpe_compatible_vgfs(
         else:
             raise _unsupported_segment_type(path, 0, segment_type)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ensure_user_output_directory(output_dir, parents=True)
     segments = []
     skipped_compute_segments = []
     for segment_index in range(segment_count):
@@ -473,9 +477,8 @@ def _write_single_segment_vgf(
     encoder.AddModelSequenceInputsOutputs()
     encoder.Finish()
 
-    with output_path.open("wb") as output:
-        if not encoder.WriteTo(output):
-            raise RuntimeError(f"Failed to write single-segment VGF: {output_path}")
+    if not write_user_output_binary(output_path, encoder.WriteTo):
+        raise RuntimeError(f"Failed to write single-segment VGF: {output_path}")
 
 
 def _copy_constants_preserving_indexes(

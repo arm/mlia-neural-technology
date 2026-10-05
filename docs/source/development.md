@@ -73,6 +73,26 @@ Before you consider a change complete, ask:
 - Do estimator and measured-data results retain compatible entities,
   aggregations, totals, and warnings?
 
+## Runtime boundary actions
+
+Application code must not directly launch external processes, invoke registered
+model transformers, perform runtime network access, install packages, or mutate
+the filesystem. Neural Technology-specific actions must go through a gateway in
+`mlia.nx_utils.boundaries`, using Core `mlia.utils.boundaries` gateways where
+appropriate.
+
+Notice-worthy actions such as model transformation and converter or estimator
+execution must call `log_boundary_action()` immediately before the action.
+Documented user-requested output, temporary resources, and derived output beneath
+an already-announced operation still use a boundary gateway but do not need a
+separate notice.
+
+To add a runtime boundary operation, add an intention-revealing gateway and tests
+for its behavior. Reviewers must manually verify, with LLM assistance where
+useful, that runtime effects remain inside the boundary package and required
+notices execute before their actions on every path. Build hooks, CI workflows,
+pre-commit tooling, and tests are outside this runtime policy.
+
 ## Documentation expectations
 
 When profiles, input formats, backend options, capture schemas, or provenance

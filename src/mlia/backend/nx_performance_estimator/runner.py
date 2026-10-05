@@ -17,8 +17,15 @@ from mlia.backend.nx_performance_estimator.config import (
 from mlia.backend.nx_performance_estimator.vgf import validate_gcpe_compatible_vgf
 from mlia.backend.repo import get_backend_repository
 from mlia.core.errors import ConfigurationError, InternalError
+from mlia.nx_utils.boundaries.filesystem import (
+    ensure_user_output_directory,
+    write_user_output_bytes,
+)
+from mlia.nx_utils.boundaries.process import (
+    process_performance_estimator_output_with_notice,
+)
 from mlia.utils.filesystem import get_mlia_resource_dirs, get_mlia_resources
-from mlia.utils.proc import Command, OutputLogger, process_command_output
+from mlia.utils.proc import Command, OutputLogger
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +57,7 @@ def _prepare_nx_performance_estimator_config(
 
     destination = output_dir / source.name
     content = source.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-    destination.write_bytes(content)
+    write_user_output_bytes(destination, content)
     return destination
 
 
@@ -102,13 +109,13 @@ def run_nx_performance_estimator(
     backend_repo = get_backend_repository()
     gc_path, _ = backend_repo.get_backend_settings("nx-performance-estimator")
     output_dir = output_root / "nx-performance-estimator"
-    output_dir.mkdir(exist_ok=True)
+    ensure_user_output_directory(output_dir)
     output_name = output_name.replace(".", "_")
     output = output_dir / output_name
     system_config = backend_config.system_config
     compiler_config = backend_config.compiler_config
 
-    output.mkdir(exist_ok=True)
+    ensure_user_output_directory(output)
     resource_dir = get_nx_resource_dir()
     system_config = _prepare_nx_performance_estimator_config(
         system_config, output_dir, resource_dir
@@ -144,8 +151,11 @@ def run_nx_performance_estimator(
 
     diagnostics: deque[str] = deque(maxlen=20)
     try:
-        process_command_output(
-            cmd, [OutputLogger(logger, logging.INFO), diagnostics.append]
+        process_performance_estimator_output_with_notice(
+            logger,
+            output_dir,
+            cmd,
+            [OutputLogger(logger, logging.INFO), diagnostics.append],
         )
     except subprocess.CalledProcessError as exc:
         detail = "".join(diagnostics).strip() or "No backend diagnostic was emitted."

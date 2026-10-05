@@ -4,10 +4,8 @@
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Any
 
 from mlia.backend.neural_technology_profiling_data.parser import (
@@ -39,6 +37,10 @@ from mlia.backend.nx_performance_estimator.vgf import (
 )
 from mlia.core.errors import ConfigurationError
 from mlia.core.output_schema import ModeType
+from mlia.nx_utils.boundaries.filesystem import (
+    materialize_user_output_file,
+    temporary_directory,
+)
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.utils.misc import summarize_list
 
@@ -145,34 +147,8 @@ def analyze_profiling_data(
 
 def _materialize_effective_model(source_path: Path, output_dir: Path) -> Path:
     """Atomically copy the capture-only effective model into the output root."""
-    output_dir.mkdir(parents=True, exist_ok=True)
     destination = output_dir / source_path.name
-    if destination.exists():
-        if (
-            not destination.is_file()
-            or destination.read_bytes() != source_path.read_bytes()
-        ):
-            raise ConfigurationError(
-                f"Cannot materialize effective model '{destination}': an existing "
-                "entry has different contents."
-            )
-        return destination
-
-    temporary_path: Path | None = None
-    try:
-        with NamedTemporaryFile(
-            dir=output_dir,
-            prefix=f".{source_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as temporary:
-            temporary_path = Path(temporary.name)
-        shutil.copyfile(source_path, temporary_path)
-        temporary_path.replace(destination)
-    finally:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
-    return destination
+    return materialize_user_output_file(source_path, destination)
 
 
 def _require_same_capture(inputs: list[CaptureInput]) -> StructuredCapture:
@@ -231,8 +207,8 @@ def _select_with_vgf(
     capture: StructuredCapture,
     model_path: Path,
 ) -> tuple[list[_SelectedSegment], list[int]]:
-    with TemporaryDirectory(prefix="mlia-vgf-segments-") as temp_dir:
-        vgf_segments = prepare_gcpe_compatible_vgfs(model_path, Path(temp_dir))
+    with temporary_directory(prefix="mlia-vgf-segments-") as temp_dir:
+        vgf_segments = prepare_gcpe_compatible_vgfs(model_path, temp_dir)
         segments = list(vgf_segments)
         skipped = list(getattr(vgf_segments, "skipped_compute_segments", []))
     if not segments:

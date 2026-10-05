@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from mlia.core.errors import ConfigurationError
+from mlia.nx_utils.boundaries.process import (
+    process_model_converter_output_with_notice,
+    transform_model_with_notice,
+)
 from mlia.nx_utils.filesystem import (
     is_pte_file,
     is_pytorch_file,
@@ -17,13 +21,12 @@ from mlia.nx_utils.filesystem import (
     is_vgf_file,
 )
 from mlia.transformers.error import TransformerNotFoundError
-from mlia.transformers.registry import TransformRequest, transform_model
+from mlia.transformers.registry import TransformRequest
 from mlia.utils.logging import log_action
 from mlia.utils.proc import (
     Command,
     OutputConsumer,
     OutputLogger,
-    process_command_output,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,7 +116,7 @@ def transform_front_end_model(
         emit_debug_info=emit_debug_info,
     )
     try:
-        return transform_model(request)
+        return transform_model_with_notice(logger, request)
     except TransformerNotFoundError as err:
         raise _converter_unavailable_error(model_file) from err
 
@@ -228,7 +231,9 @@ class MLSDKModelConverterBase:
         """Run the backend and return the SPIR-V output archive."""
         vgf_file = output_dir / f"{tosa_file.stem}.vgf"
         cmd = self._create_back_end_command(tosa_file, vgf_file)
-        process_command_output(cmd, self.output_consumers)
+        process_model_converter_output_with_notice(
+            logger, output_dir, cmd, self.output_consumers
+        )
 
         return vgf_file
 

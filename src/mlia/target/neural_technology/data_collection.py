@@ -29,6 +29,7 @@ from mlia.backend.nx_performance_estimator.performance import (
 )
 from mlia.core.data_collection import ContextAwareDataCollector
 from mlia.core.errors import ConfigurationError
+from mlia.nx_utils.boundaries.filesystem import ensure_user_output_directory
 from mlia.nx_utils.filesystem import (
     is_pte_file,
     is_pytorch_file,
@@ -95,7 +96,7 @@ def _get_front_end_output_dir(base_output_dir: Path, model: Path) -> Path:
         return base_output_dir
 
     output_dir = base_output_dir / output_subdir
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ensure_user_output_directory(output_dir, parents=True)
     return output_dir
 
 

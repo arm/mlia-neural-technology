@@ -83,7 +83,8 @@ def test_nx_performance_estimator_performance_estimator(
         MagicMock(return_value=MagicMock(return_value=tmp_path / "vgf_file")),
     )
     monkeypatch.setattr(
-        "mlia.backend.nx_performance_estimator.runner.process_command_output",
+        "mlia.backend.nx_performance_estimator.runner."
+        "process_performance_estimator_output_with_notice",
         pco_mock,
     )
     monkeypatch.setattr(
@@ -311,13 +312,14 @@ def test_nx_performance_estimator_uses_platform_executable_name(
         tmp_path / "nx-performance-estimator", "model"
     )
 
-    def record_command(command, _consumers):
+    def record_command(_logger, _output_dir, command, _consumers):
         commands.append(command)
         for file in vars(expected_output).values():
             file.touch()
 
     monkeypatch.setattr(
-        "mlia.backend.nx_performance_estimator.runner.process_command_output",
+        "mlia.backend.nx_performance_estimator.runner."
+        "process_performance_estimator_output_with_notice",
         record_command,
     )
     monkeypatch.setattr(

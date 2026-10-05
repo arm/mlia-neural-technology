@@ -30,7 +30,12 @@ def test_run_nx_performance_estimator_reuses_existing_output_directory(
     monkeypatch.setattr(runner, "get_nx_resource_dir", lambda: tmp_path / "resources")
     monkeypatch.setattr(runner, "validate_gcpe_compatible_vgf", lambda _: None)
 
-    def run_estimator(_command: object, _consumers: object) -> None:
+    def run_estimator(
+        _logger: object,
+        _output_dir: Path,
+        _command: object,
+        _consumers: object,
+    ) -> None:
         for suffix in (
             "_debug_database.dat",
             "_performance_database.dat",
@@ -38,7 +43,9 @@ def test_run_nx_performance_estimator_reuses_existing_output_directory(
         ):
             (output_dir / f"model{suffix}").write_text("output", encoding="utf-8")
 
-    monkeypatch.setattr(runner, "process_command_output", run_estimator)
+    monkeypatch.setattr(
+        runner, "process_performance_estimator_output_with_notice", run_estimator
+    )
 
     result = runner.run_nx_performance_estimator(
         tmp_path,
@@ -63,7 +70,9 @@ def test_run_nx_performance_estimator_rejects_unshaped_input_before_launch(
     process = MagicMock()
     monkeypatch.setattr(runner, "validate_gcpe_compatible_vgf", validate)
     monkeypatch.setattr(runner, "get_backend_repository", backend)
-    monkeypatch.setattr(runner, "process_command_output", process)
+    monkeypatch.setattr(
+        runner, "process_performance_estimator_output_with_notice", process
+    )
     model = tmp_path / "unshaped.vgf"
 
     with pytest.raises(ConfigurationError, match="shape-specialize"):
@@ -93,13 +102,15 @@ def test_run_nx_performance_estimator_reports_backend_failure(
     monkeypatch.setattr(runner, "get_nx_resource_dir", lambda: tmp_path)
     cause = subprocess.CalledProcessError(returncode, ["gcpe"])
 
-    def fail(_command, consumers):
+    def fail(_logger, _output_dir, _command, consumers):
         if has_diagnostic:
             for consumer in consumers:
                 consumer("Backend diagnostic: could not compile graph\n")
         raise cause
 
-    monkeypatch.setattr(runner, "process_command_output", fail)
+    monkeypatch.setattr(
+        runner, "process_performance_estimator_output_with_notice", fail
+    )
     model = tmp_path / "shaped.vgf"
     with pytest.raises(InternalError) as error:
         runner.run_nx_performance_estimator(

@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -46,6 +45,10 @@ from mlia.backend.nx_performance_estimator.vgf import (
     COMPUTE_SEGMENTS_SKIPPED_WARNING,
     GCPEVGFSegment,
     prepare_gcpe_compatible_vgfs,
+)
+from mlia.nx_utils.boundaries.filesystem import (
+    ensure_user_output_directory,
+    write_user_output_json,
 )
 from mlia.backend.repo import get_backend_repository
 from mlia.core.performance import PerformanceEstimator
@@ -860,7 +863,7 @@ class NXPerformanceEstimatorPerformanceEstimator(
             backend_repo = get_backend_repository()
             vmc_path, _ = backend_repo.get_backend_settings("ml-sdk-model-converter")
         output_dir = self.output_dir / "ml-sdk-model-converter"
-        output_dir.mkdir(exist_ok=True)
+        ensure_user_output_directory(output_dir)
 
         model_converter = MLSDKModelConverter(
             vmc_path, enable_quantization=self.enable_quantization
@@ -884,5 +887,4 @@ class NXPerformanceEstimatorPerformanceEstimator(
         json_serializable_stats = {
             key: obj.to_dict() for key, obj in stats_per_chain.items()
         }
-        with output_file_path.open("w") as json_file:
-            json.dump(json_serializable_stats, json_file, indent=4)
+        write_user_output_json(output_file_path, json_serializable_stats)

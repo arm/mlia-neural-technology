@@ -92,7 +92,7 @@ def test_run_front_end_raises_when_tflite_converter_missing(
     input_model.touch()
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         MagicMock(side_effect=TransformerNotFoundError("missing")),
     )
 
@@ -108,7 +108,7 @@ def test_run_front_end_raises_when_pt2_converter_missing(
     input_model.touch()
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         MagicMock(side_effect=TransformerNotFoundError("missing")),
     )
 
@@ -124,7 +124,7 @@ def test_run_front_end_raises_when_pte_converter_missing(
     input_model.touch()
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         MagicMock(side_effect=TransformerNotFoundError("missing")),
     )
 
@@ -155,21 +155,22 @@ def test_converter_converts_pte_to_vgf(
         delegate_output.touch()
         return delegate_output
 
-    def fake_transform_model(request: TransformRequest) -> Path:
+    def fake_transform_model(_logger: object, request: TransformRequest) -> Path:
         captured["request"] = request
         return fake_pte_converter(request.model, request.output_dir)
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         fake_transform_model,
     )
 
-    def fake_process_command(command, _consumers) -> None:
+    def fake_process_command(_logger, _output_dir, command, _consumers) -> None:
         output = Path(command.cmd[command.cmd.index("-o") + 1])
         output.touch()
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.process_command_output",
+        "mlia.backend.ml_sdk_model_converter.conversion."
+        "process_model_converter_output_with_notice",
         fake_process_command,
     )
 
@@ -258,12 +259,12 @@ def test_transform_front_end_model_dispatches_transform_request(
     expected_path = tmp_path / "converted.tosa"
     captured: dict[str, Any] = {}
 
-    def fake_transform_model(request: TransformRequest) -> Path:
+    def fake_transform_model(_logger: object, request: TransformRequest) -> Path:
         captured["request"] = request
         return expected_path
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         fake_transform_model,
     )
 
@@ -286,7 +287,7 @@ def test_transform_front_end_model_rejects_missing_pt2_transformer_for_no_ptq(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         MagicMock(side_effect=TransformerNotFoundError("missing")),
     )
 
@@ -304,12 +305,12 @@ def test_transform_front_end_model_ignores_unsupported_flag_for_non_pt2_transfor
     expected_path = tmp_path / "legacy.tosa"
     captured: dict[str, Any] = {}
 
-    def fake_transform_model(request: TransformRequest) -> Path:
+    def fake_transform_model(_logger: object, request: TransformRequest) -> Path:
         captured["request"] = request
         return expected_path
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         fake_transform_model,
     )
 
@@ -338,7 +339,7 @@ def test_tflite_front_end_requests_mlir_bytecode_and_debug_text(
     captured: list[TransformRequest] = []
     converter = MLSDKModelConverterBase(tmp_path)
 
-    def fake_transform_model(request: TransformRequest) -> Path:
+    def fake_transform_model(_logger: object, request: TransformRequest) -> Path:
         captured.append(request)
         output_path = (
             bytecode_path
@@ -349,7 +350,7 @@ def test_tflite_front_end_requests_mlir_bytecode_and_debug_text(
         return output_path
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.conversion.transform_model",
+        "mlia.backend.ml_sdk_model_converter.conversion.transform_model_with_notice",
         fake_transform_model,
     )
 
