@@ -34,7 +34,7 @@ _STACK_TRACE_SENTINELS = {"No stack trace available"}
 class NXSourceProvenance:
     """Canonical identity and presentation metadata from one debug label."""
 
-    source_operator_id: str | None
+    source_operator_ids: list[str]
     display_label: str
     name: str | None = None
     nn_module_stacks: list[list[dict[str, str]]] = field(default_factory=list)
@@ -48,7 +48,7 @@ def source_provenance_from_api_label(
 ) -> NXSourceProvenance:
     """Decode one GCPE API label into canonical source provenance."""
     decoded = _json_api_label(api_label)
-    source_operator_id = source_operator_id_from_api_label(
+    source_operator_ids = source_operator_ids_from_api_label(
         api_label, segment_index, debug_names
     )
     display_label = api_label
@@ -65,21 +65,25 @@ def source_provenance_from_api_label(
         module_stack = _nn_module_stack_from_decoded_label(decoded)
         code_stack = _stack_trace_from_decoded_label(decoded)
         return NXSourceProvenance(
-            source_operator_id=source_operator_id,
+            source_operator_ids=source_operator_ids,
             display_label=display_label,
             name=name,
             nn_module_stacks=[module_stack] if module_stack else [],
             code_stacks=[code_stack] if code_stack else [],
         )
-    return NXSourceProvenance(source_operator_id, display_label)
+    return NXSourceProvenance(source_operator_ids, display_label)
 
 
-def source_operator_id_from_api_label(
+def source_operator_ids_from_api_label(
     api_label: str,
     segment_index: int = 0,
     debug_names: SpirvDebugNameMap | None = None,
-) -> str | None:
-    """Resolve a debug label to a canonical VGF source-operator ID."""
+) -> list[str]:
+    """Resolve a label to every matching canonical VGF source-operator ID.
+
+    Several lowered operations may retain the same source location. Preserve
+    that shared provenance instead of selecting one operation or dropping it.
+    """
     match = _SPIRV_API_LABEL_RE.search(api_label)
     if match:
         spirv_id = match.group(1)
@@ -88,15 +92,17 @@ def source_operator_id_from_api_label(
                 f"Debug label {api_label!r} references SPIR-V result ID {spirv_id}, "
                 f"which is not present in supplied VGF segment {segment_index}."
             )
-        return schema.vgf_source_operator_id(segment_index, int(spirv_id))
+        return [schema.vgf_source_operator_id(segment_index, int(spirv_id))]
 
-    if debug_names is not None and debug_names.debug_name_to_spirv_ids:
+    if debug_names is not None:
         matching_spirv_ids = debug_names.debug_name_to_spirv_ids.get(api_label, [])
-        if len(matching_spirv_ids) == 1:
-            return schema.vgf_source_operator_id(
-                segment_index, int(matching_spirv_ids[0])
+        return list(
+            dict.fromkeys(
+                schema.vgf_source_operator_id(segment_index, int(spirv_id))
+                for spirv_id in matching_spirv_ids
             )
-    return None
+        )
+    return []
 
 
 def nn_module_stacks_from_api_labels(

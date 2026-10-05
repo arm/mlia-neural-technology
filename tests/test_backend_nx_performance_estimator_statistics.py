@@ -771,7 +771,7 @@ def test_track_op(test_resources_path: Path) -> None:
     )
 
     assert chain_op_id == "962"
-    assert api_labels == [[None], [None]]
+    assert api_labels == [[], []]
     assert operator_types == [
         ["Sub"],
         ["Rescale"],
@@ -781,7 +781,7 @@ def test_track_op(test_resources_path: Path) -> None:
         performance_stats.track_op("22")
     )
     assert chain_op_id == "678"
-    assert api_labels == [[None], [None], [None]]
+    assert api_labels == [[], [], []]
     assert operator_types == [
         ["AvgPool"],
         ["Rescale"],
@@ -1453,18 +1453,20 @@ def test_track_op_omits_unmatched_debug_label_location() -> None:
 
     _, api_labels, _, module_stacks, stack_traces = performance_stats.track_op("0")
 
-    assert api_labels == [[None]]
+    assert api_labels == [[]]
     assert module_stacks == [[]]
     assert stack_traces == [[]]
 
 
-def test_track_op_omits_ambiguous_debug_label_location() -> None:
-    """Ambiguous debug labels cannot safely recover a SPIR-V result id."""
+def test_track_op_preserves_all_shared_debug_label_locations() -> None:
+    """Shared provenance retains every matching source ID without duplicates."""
     debug_db = {
         "stripe_op_id_to_op_id": {"0": ["72"]},
         "chain_op_id_to_fused_op_ids": {"72": ["52"]},
         "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
-        "tosa_op_id_to_api_labels": {"45": ["bob"]},
+        "tosa_op_id_to_api_labels": {
+            "45": ["bob", "bob", "TOSACONV2D_spirv_id_60", "unmatched"]
+        },
         "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
     }
     debug_names = SpirvDebugNameMap(
@@ -1479,7 +1481,12 @@ def test_track_op_omits_ambiguous_debug_label_location() -> None:
 
     _, api_labels, _, module_stacks, stack_traces = performance_stats.track_op("0")
 
-    assert api_labels == [[None]]
+    assert api_labels == [
+        [
+            "source_operator/segment_0/spirv-60",
+            "source_operator/segment_0/spirv-61",
+        ]
+    ]
     assert module_stacks == [[]]
     assert stack_traces == [[]]
 
@@ -1749,7 +1756,7 @@ def test_process_stats_per_stripe_filters_unresolved_locations() -> None:
         "stripe_op_id_to_op_id": {"0": ["72"]},
         "chain_op_id_to_fused_op_ids": {"72": ["52"]},
         "fused_op_id_to_tosa_op_ids": {"52": ["45"]},
-        "tosa_op_id_to_api_labels": {"45": ["ambiguous"]},
+        "tosa_op_id_to_api_labels": {"45": ["not_in_debug_names"]},
         "tosa_op_id_to_tosa_op": {"45": ["Conv2D"]},
     }
     performance_db = [

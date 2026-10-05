@@ -23,7 +23,7 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
 from mlia.backend.nx_performance_estimator.provenance import (
     code_stacks_from_api_labels,
     nn_module_stacks_from_api_labels,
-    source_operator_id_from_api_label,
+    source_operator_ids_from_api_label,
 )
 
 _SPIRV_ID_LABEL_RE = re.compile(r"^TOSA[A-Z0-9_]*_spirv_id_(\d+)$")
@@ -326,11 +326,7 @@ class NXPerformanceStats:
                 stack_traces,
             ):
                 operator = {
-                    "source_operator_ids": [
-                        source_operator_id
-                        for source_operator_id in source_operator_ids
-                        if source_operator_id is not None
-                    ],
+                    "source_operator_ids": source_operator_ids,
                     "operator_types": operator_str,
                 }
                 if nn_module_stack:
@@ -374,12 +370,15 @@ class NXPerformanceStats:
         for tosa_op_id in tosa_op_ids:
             raw_api_labels = self.debug_db["tosa_op_id_to_api_labels"][tosa_op_id]
             source_operator_ids.append(
-                [
-                    source_operator_id_from_api_label(
-                        api_label, self.segment_index, self.debug_names
+                list(
+                    dict.fromkeys(
+                        source_operator_id
+                        for api_label in raw_api_labels
+                        for source_operator_id in source_operator_ids_from_api_label(
+                            api_label, self.segment_index, self.debug_names
+                        )
                     )
-                    for api_label in raw_api_labels
-                ]
+                )
             )
             module_stacks.append(nn_module_stacks_from_api_labels(raw_api_labels))
             stack_traces.append(code_stacks_from_api_labels(raw_api_labels))

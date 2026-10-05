@@ -1015,17 +1015,22 @@ def test_estimation_and_profiling_recover_identical_api_labels(
 
 @pytest.mark.parametrize("with_vgf", [False, True])
 @pytest.mark.parametrize("label", ["export.wrapper;", "module.relu;;module.conv;1"])
+@pytest.mark.parametrize("spirv_ids", [["504"], ["504", "505"]])
 def test_profiling_passes_selected_spirv_names_to_label_recovery(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, with_vgf: bool, label: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    with_vgf: bool,
+    label: str,
+    spirv_ids: list[str],
 ) -> None:
     """Captured and supplied SPIR-V both supply names before parsing labels."""
     root = _write_capture(
         tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)], api_label=label)]
     )
     names = SpirvDebugNameMap(
-        spirv_id_to_debug_name={"504": label},
-        debug_name_to_spirv_ids={label: ["504"]},
-        op_ext_inst_spirv_ids=["504"],
+        spirv_id_to_debug_name={spirv_id: label for spirv_id in spirv_ids},
+        debug_name_to_spirv_ids={label: spirv_ids},
+        op_ext_inst_spirv_ids=spirv_ids,
     )
     model = None
     if with_vgf:
@@ -1050,16 +1055,33 @@ def test_profiling_passes_selected_spirv_names_to_label_recovery(
     )
     validate_standardized_output(output)
     result = output["results"][0]
-    source = next(
-        item
-        for item in result["entities"]
-        if item["id"] == "source_operator/segment_0/spirv-504"
-    )
-    assert source["parent_ids"] == ["chain/segment_0/30"]
-    chain = next(
-        item for item in result["entities"] if item["id"] == "chain/segment_0/30"
-    )
-    assert source["id"] in chain["child_ids"]
+    entities = {item["id"]: item for item in result["entities"]}
+    source_ids = [f"source_operator/segment_0/spirv-{value}" for value in spirv_ids]
+    chain = entities["chain/segment_0/30"]
+    if len(source_ids) == 1:
+        parent = chain
+    else:
+        groups = [
+            item for item in entities.values() if item["kind"] == "performance_group"
+        ]
+        assert len(groups) == 1
+        parent = groups[0]
+        assert parent["parent_ids"] == [chain["id"]]
+        assert parent["id"] in chain["child_ids"]
+    assert parent["child_ids"] == source_ids
+    for source_id in source_ids:
+        assert entities[source_id]["parent_ids"] == [parent["id"]]
+        if len(source_ids) == 1:
+            assert entities[source_id]["placement"] == "NX"
+            assert entities[source_id]["attributes"]["operator_types"] == ["Conv2D"]
+        else:
+            assert "placement" not in entities[source_id]
+            assert "operator_types" not in entities[source_id].get("attributes", {})
+            assert parent["attributes"]["operator_types"] == ["Conv2D"]
+    assert chain["placement"] == "NX"
+    metrics = {item["name"]: item for item in result["metrics"]}
+    assert metrics["total_cycles"]["value"] == 60
+    assert metrics["compute_cycles"]["value"] == 60
     chain_metrics = next(
         item for item in result["breakdowns"] if item["entity_id"] == chain["id"]
     )

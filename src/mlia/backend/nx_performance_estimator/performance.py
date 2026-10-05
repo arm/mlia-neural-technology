@@ -96,8 +96,40 @@ def _append_unique_items(target: list[str], items: list[str]) -> None:
             target.append(item)
 
 
+def _group_source_operator_associations(
+    operators: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Coalesce identical source sets within a chain without merging metrics.
+
+    Multiple lowered operations can retain the same source label. Represent
+    their shared provenance once, preserving all operation types and stacks.
+    Overlapping but unequal source sets remain separate associations.
+    """
+    groups: dict[frozenset[str], dict[str, Any]] = {}
+    for operator in operators:
+        source_ids = list(
+            dict.fromkeys(value for value in operator["source_operator_ids"] if value)
+        )
+        if not source_ids:
+            continue
+        group = groups.setdefault(
+            frozenset(source_ids),
+            {
+                "source_operator_ids": source_ids,
+                "operator_types": [],
+                "nn_module_stacks": [],
+                "code_stacks": [],
+            },
+        )
+        for field_name in ("operator_types", "nn_module_stacks", "code_stacks"):
+            for value in operator.get(field_name, []):
+                if value not in group[field_name]:
+                    group[field_name].append(value)
+    return list(groups.values())
+
+
 def _performance_group_entity_id(chain_id: str, operator_index: int) -> str:
-    """Return an ID for one aggregate or unassociated performance record."""
+    """Return an ID for one shared-source performance association."""
     kind, segment_id, local_id = chain_id.split("/", maxsplit=2)
     if kind != "chain":
         raise ValueError(f"Expected a chain entity ID, got: {chain_id}")
@@ -410,6 +442,11 @@ class NXPerformanceEstimatorPerformanceMetrics:
         segment_child_ids: dict[str, list[str]] = {
             segment.entity_id: [] for segment in segment_entities
         }
+        source_operator_names = {
+            source_id: name
+            for segment in segment_entities
+            for source_id, name in segment.structural_source_operator_names.items()
+        }
         provenance_builder = NXProvenanceEntityBuilder()
         performance_group_entities: dict[str, schema.Entity] = {}
         chain_entity_indexes: dict[str, int] = {}
@@ -419,16 +456,10 @@ class NXPerformanceEstimatorPerformanceMetrics:
             segment_entity_id = chain_segment_by_id.get(entity_id)
             breakdown_metrics = self._build_breakdown_metrics(stats)
             child_ids = []
-            for operator_index, operator in enumerate(stats.operators):
-                source_operator_ids = list(
-                    dict.fromkeys(
-                        source_operator_id
-                        for source_operator_id in operator["source_operator_ids"]
-                        if source_operator_id
-                    )
-                )
-                if not source_operator_ids:
-                    continue
+            for operator_index, operator in enumerate(
+                _group_source_operator_associations(stats.operators)
+            ):
+                source_operator_ids = operator["source_operator_ids"]
                 if len(source_operator_ids) == 1:
                     association_entity_id = source_operator_ids[0]
                     child_ids.append(association_entity_id)
@@ -453,11 +484,21 @@ class NXPerformanceEstimatorPerformanceMetrics:
                 for source_operator_id in source_operator_ids:
                     provenance_builder.add_source_operator(
                         source_operator_id,
-                        name="/".join(operator["operator_types"]),
-                        placement=schema.PlacementType.NX.value,
-                        attributes={
-                            "operator_types": list(operator["operator_types"]),
-                        },
+                        name=source_operator_names.get(
+                            source_operator_id, "/".join(operator["operator_types"])
+                        ),
+                        # Group membership alone does not establish each
+                        # candidate source operator's individual placement.
+                        placement=(
+                            schema.PlacementType.NX.value
+                            if len(source_operator_ids) == 1
+                            else None
+                        ),
+                        attributes=(
+                            {"operator_types": list(operator["operator_types"])}
+                            if len(source_operator_ids) == 1
+                            else None
+                        ),
                         parent_ids=association_parent_ids,
                         nn_module_stacks=operator.get("nn_module_stacks", []),
                         code_stacks=operator.get("code_stacks", []),

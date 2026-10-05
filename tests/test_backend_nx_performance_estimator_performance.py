@@ -1791,7 +1791,15 @@ def test_nx_performance_metrics_projects_breakdowns_across_entity_views(
                     "source_operator/multi-b",
                 ],
                 "operator_types": ["Fused"],
-            }
+            },
+            {
+                "source_operator_ids": [
+                    "source_operator/multi-b",
+                    "source_operator/multi-a",
+                    "source_operator/multi-a",
+                ],
+                "operator_types": ["Rescale"],
+            },
         ],
     )
     model_performance = NXModelPerformanceStats(
@@ -1830,6 +1838,11 @@ def test_nx_performance_metrics_projects_breakdowns_across_entity_views(
                 ],
                 cascade_ids=[],
                 structural_source_operator_ids=["source_operator/structural"],
+                structural_source_operator_names={
+                    "source_operator/single": "original.transpose",
+                    "source_operator/multi-a": "original.conv;relu",
+                    "source_operator/multi-b": "original.conv;relu",
+                },
             )
         ],
     )
@@ -1874,6 +1887,25 @@ def test_nx_performance_metrics_projects_breakdowns_across_entity_views(
         metrics_by_name(frame_id) == single_chain_metrics for frame_id in frame_ids
     )
     assert metrics_by_name(performance_group_id) == multi_chain_metrics
+    groups = [
+        entity for entity in entities.values() if entity["kind"] == "performance_group"
+    ]
+    assert len(groups) == 1
+    assert groups[0]["child_ids"] == [
+        "source_operator/multi-a",
+        "source_operator/multi-b",
+    ]
+    assert groups[0]["attributes"]["operator_types"] == ["Fused", "Rescale"]
+    assert groups[0]["name"] == "Fused/Rescale"
+    for source_id in groups[0]["child_ids"]:
+        assert "operator_types" not in entities[source_id].get("attributes", {})
+    assert entities["source_operator/single"]["attributes"]["operator_types"] == [
+        "Single"
+    ]
+    assert entities[multi_chain_id]["child_ids"] == [performance_group_id]
+    assert entities["source_operator/single"]["name"] == "original.transpose"
+    assert entities["source_operator/multi-a"]["name"] == "original.conv;relu"
+    assert entities["source_operator/multi-b"]["name"] == "original.conv;relu"
     assert "segment/0" not in breakdowns
     assert "parent_ids" not in entities[single_chain_id]
     assert "parent_ids" not in entities[multi_chain_id]
@@ -1888,3 +1920,88 @@ def test_nx_performance_metrics_projects_breakdowns_across_entity_views(
     assert "source_operator/multi-b" not in breakdowns
     assert breakdown_entity_ids.count("source_operator/single") == 1
     validate_standardized_output(output)
+
+
+@pytest.mark.parametrize(
+    ("second_ids", "group_count"),
+    [(["b", "a"], 1), (["b", "c"], 2), (["c", "d"], 2)],
+)
+def test_source_associations_preserve_scopes_and_provenance(
+    tmp_path: Path, second_ids: list[str], group_count: int
+) -> None:
+    """Only identical scopes coalesce; metadata and measurement totals survive."""
+    source_sets = [
+        ["source_operator/a", "source_operator/b"],
+        [f"source_operator/{value}" for value in second_ids],
+    ]
+    stats = NXOperatorPerformanceStats(
+        op_id=["0"],
+        op_cycles=50,
+        total_cycles=60,
+        memory={},
+        utilization=[],
+        operators=[
+            {
+                "source_operator_ids": source_ids,
+                "operator_types": [operator_type],
+                "nn_module_stacks": [[{"tracer_key": module, "name": module}]],
+                "code_stacks": [[{"file": "/tmp/model.py", "line": line}]],
+            }
+            for source_ids, operator_type, module, line in zip(
+                source_sets, ["Conv2D", "Rescale"], ["conv", "relu"], ["10", "20"]
+            )
+        ],
+    )
+    metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig("default", "default"),
+        performance_db_parser=None,
+        chain_performance_metrics={"chain/segment_0/1": stats},
+        cascade_performance_metrics={},
+        model_performance_stats=NXModelPerformanceStats(
+            compiled_size=0,
+            cache_cycles=0,
+            cache_read_bytes=0,
+            cache_write_bytes=0,
+            compute_cycles=50,
+            dram_cycles=0,
+            dram_read_bytes=0,
+            dram_write_bytes=0,
+            dram_footprint=0,
+            inference_time=0,
+            infs_per_sec=0,
+            total_cycles=60,
+        ),
+    )
+    model_path = tmp_path / "model.vgf"
+    model_path.write_bytes(b"model")
+    output = postprocess_standardized_output(
+        metrics.to_standardized_output(model_path),
+        ApplicationSettings(filtering=FilteringSettings(collapse=())),
+    )
+    validate_standardized_output(output)
+    result = output["results"][0]
+    entities = {item["id"]: item for item in result["entities"]}
+    groups = [item for item in entities.values() if item["kind"] == "performance_group"]
+    assert len(groups) == group_count
+    assert {frozenset(group["child_ids"]) for group in groups} == {
+        frozenset(source_ids) for source_ids in source_sets
+    }
+    assert set(entities["chain/segment_0/1"]["child_ids"]) == {
+        group["id"] for group in groups
+    }
+    for module, source_ids in zip(["conv", "relu"], source_sets):
+        assert set(entities[f"nn_module/{module}"]["child_ids"]) == set(source_ids)
+    for line, source_ids in zip([10, 20], source_sets):
+        frame = next(
+            item
+            for item in entities.values()
+            if item["kind"] == "code_stack" and item["attributes"]["line"] == line
+        )
+        assert set(frame["child_ids"]) == set(source_ids)
+    total = next(item for item in result["metrics"] if item["name"] == "total_cycles")
+    assert total["value"] == 60
+    for breakdown in result["breakdowns"]:
+        total = next(
+            item for item in breakdown["metrics"] if item["name"] == "total_cycles"
+        )
+        assert total["value"] == 60

@@ -703,12 +703,20 @@ class NXCompatibilityChecker:
                     segment_index=segment.segment_index,
                     debug_names=segment.debug_names,
                 )
+                # Shared provenance supports performance grouping, but does not
+                # establish each candidate's individual placement or type.
+                # Keep one placement record per label without multiplying evidence.
+                source_id = (
+                    provenance.source_operator_ids[0]
+                    if len(provenance.source_operator_ids) == 1
+                    else None
+                )
                 comp_info.add_estimator_placement(
                     f"segment_{segment.segment_index}_op_id_{op_id}_{idx}",
                     provenance.display_label,
                     placement,
                     op_type=db_op_type,
-                    source_operator_id=provenance.source_operator_id,
+                    source_operator_id=source_id,
                     name=provenance.name,
                     nn_module_stacks=provenance.nn_module_stacks,
                     code_stacks=provenance.code_stacks,

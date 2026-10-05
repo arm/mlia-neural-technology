@@ -349,8 +349,9 @@ def test_vgf_compatibility_uses_estimator_debug_database(
     ]
 
 
+@pytest.mark.parametrize("spirv_ids", [["60"], ["60", "62"]])
 def test_vgf_compatibility_emits_shared_provenance_entities(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, spirv_ids: list[str]
 ) -> None:
     """Compatibility should retain source, module, and code-stack provenance."""
     vgf_path = tmp_path / "model.vgf"
@@ -375,9 +376,10 @@ def test_vgf_compatibility_emits_shared_provenance_entities(
             },
         }
     )
+    source_ids = [f"source_operator/segment_7/spirv-{value}" for value in spirv_ids]
     debug_names = SpirvDebugNameMap(
-        spirv_id_to_debug_name={"60": debug_label},
-        debug_name_to_spirv_ids={debug_label: ["60"]},
+        spirv_id_to_debug_name={value: debug_label for value in spirv_ids},
+        debug_name_to_spirv_ids={debug_label: spirv_ids},
     )
     monkeypatch.setattr(
         "mlia.backend.ml_sdk_model_converter.compat.prepare_gcpe_compatible_vgfs",
@@ -389,7 +391,7 @@ def test_vgf_compatibility_emits_shared_provenance_entities(
                     path=vgf_path,
                     debug_names=debug_names,
                     structural_source_operator_ids=[
-                        "source_operator/segment_7/spirv-60",
+                        *source_ids,
                         "source_operator/segment_7/spirv-61",
                     ],
                 )
@@ -436,7 +438,21 @@ def test_vgf_compatibility_emits_shared_provenance_entities(
     )
     _, performance_locations, _, _, _ = performance_stats.track_op("0")
 
-    assert source_id == performance_locations[0][0]
+    assert source_ids == performance_locations[0]
+    if len(source_ids) > 1:
+        # A shared source label supports performance grouping, not a claim
+        # about each candidate's individual placement or operation type.
+        assert len(result["checks"]) == 1
+        assert "entity_id" not in result["checks"][0]
+        for resolved_id in source_ids:
+            assert "placement" not in entities[resolved_id]
+            assert "attributes" not in entities[resolved_id]
+        validate_standardized_output(output)
+        return
+    assert {check.get("entity_id") for check in result["checks"]} == set(source_ids)
+    for resolved_id in source_ids:
+        assert entities[resolved_id]["name"] == "aten.convolution.default"
+        assert entities[resolved_id]["placement"] == "NX"
     assert result["entity_kinds"] == [
         {
             "id": "nn_module",
@@ -452,13 +468,13 @@ def test_vgf_compatibility_emits_shared_provenance_entities(
     ]
     assert entities["nn_module/<root>"]["child_ids"] == [model_module_id]
     assert entities[model_module_id]["child_ids"] == [layer_module_id]
-    assert entities[layer_module_id]["child_ids"] == [source_id]
+    assert entities[layer_module_id]["child_ids"] == source_ids
     assert [entity["name"] for entity in frame_entities] == [
         "model.py:214",
         "layer.py:156",
     ]
     assert frame_entities[0]["child_ids"] == [frame_entities[1]["id"]]
-    assert frame_entities[1]["child_ids"] == [source_id]
+    assert frame_entities[1]["child_ids"] == source_ids
     assert result["checks"][0]["entity_id"] == source_id
     assert entities[unreported_source_id] == {
         "id": unreported_source_id,
@@ -469,6 +485,73 @@ def test_vgf_compatibility_emits_shared_provenance_entities(
         check.get("entity_id") for check in result["checks"]
     }
     validate_standardized_output(output)
+
+
+@pytest.mark.parametrize("shader_label", ["shared", "shader"])
+def test_shared_provenance_does_not_multiply_placement_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shader_label: str
+) -> None:
+    """Shared labels must not skew percentages or assign conflicting placements."""
+    model_path = tmp_path / "model.vgf"
+    model_path.write_bytes(b"model")
+    (tmp_path / "debug.dat").touch()
+    names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"60": "shared", "61": "shared", "62": "shader"},
+        debug_name_to_spirv_ids={"shared": ["60", "61"], "shader": ["62"]},
+    )
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat.prepare_gcpe_compatible_vgfs",
+        lambda *_args: GCPEVGFSegments(
+            [
+                GCPEVGFSegment(
+                    segment_index=0,
+                    segment_name="main",
+                    path=model_path,
+                    debug_names=names,
+                    structural_source_operator_ids=[
+                        f"source_operator/segment_0/spirv-{value}"
+                        for value in ["60", "61", "62"]
+                    ],
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat.run_nx_performance_estimator",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            debug_database=tmp_path / "debug.dat"
+        ),
+    )
+    monkeypatch.setattr(
+        "mlia.backend.ml_sdk_model_converter.compat.NXDebugDatabaseParser.parse_debug_database",
+        lambda _self: {
+            "tosa_op_id_to_api_labels": {"1": ["shared"], "2": ["shared"]},
+            "tosa_op_id_to_tosa_op": {"1": ["Conv2D"], "2": ["Rescale"]},
+            "shader_op_id_to_api_labels": {"3": [shader_label]},
+        },
+    )
+    compatibility = NXCompatibilityChecker(tmp_path).check_compatibility(
+        VGFModel(model_path)
+    )
+    assert len(compatibility.get_records()) == 3
+    output = compatibility.to_standardized_output(model_path)
+    validate_standardized_output(output)
+    result = output["results"][0]
+    metric = next(
+        item
+        for item in result["metrics"]
+        if item["name"] == "accelerator_operator_percentage"
+    )
+    assert metric["value"] == pytest.approx(100 * 2 / 3)
+    assert len(result["checks"]) == 3
+    for entity in result["entities"]:
+        if entity["id"] in [
+            "source_operator/segment_0/spirv-60",
+            "source_operator/segment_0/spirv-61",
+        ]:
+            assert "placement" not in entity
+            assert "attributes" not in entity
+    assert all("entity_id" not in check for check in result["checks"][:2])
 
 
 def test_vgf_compatibility_preserves_segment_scoped_source_ids(
