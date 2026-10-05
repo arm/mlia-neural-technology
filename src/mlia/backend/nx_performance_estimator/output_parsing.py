@@ -12,6 +12,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
+from mlia.nx_utils.api_labels import ApiLabelParser
 from mlia.nx_utils.misc import list_to_dict
 
 PerformanceDatabaseContentsType = List[Dict[str, Any]]
@@ -255,15 +256,7 @@ class NXDebugDatabaseParser(NXOutputParser):
         """Initialise the debug database parser."""
         super().__init__(db_path)
         self.debug_db: dict = {}
-        self.known_api_labels = (
-            sorted(
-                {label for label in known_api_labels if label},
-                key=len,
-                reverse=True,
-            )
-            if known_api_labels is not None
-            else None
-        )
+        self.api_label_parser = ApiLabelParser(known_api_labels)
 
     def parse_debug_database(self) -> DebugDatabaseContentsType:
         """Parse the contents of the debug DB.
@@ -337,54 +330,10 @@ class NXDebugDatabaseParser(NXOutputParser):
             if len(headers) == MAX_NUM_DEBUG_DB_HEADERS:
                 raw_value = ",".join(row[2:]).strip()
                 values = (
-                    self._parse_api_labels(raw_value)
+                    self.api_label_parser.parse(raw_value)
                     if headers[1].endswith("_to_api_labels")
                     else [
                         value.strip() for value in raw_value.split(";") if value.strip()
                     ]
                 )
                 self.debug_db[headers[1]][row[0]] = values
-
-    def _parse_api_labels(self, value: str) -> list[str]:
-        """Recover known complete labels and semicolon-delimited fallback labels.
-
-        GCPE concatenates labels with semicolons without escaping semicolons
-        inside the labels themselves. Prefer complete labels read from SPIR-V;
-        when none matches, preserve the next semicolon-delimited fallback label.
-        See MLCE-1937.
-        """
-        if self.known_api_labels is None:
-            return [label.strip() for label in value.split(";") if label.strip()]
-
-        labels: list[str] = []
-        cursor = 0
-        while cursor < len(value):
-            while cursor < len(value) and value[cursor] == ";":
-                cursor += 1
-            if cursor >= len(value):
-                break
-
-            matched = next(
-                (
-                    label
-                    for label in self.known_api_labels
-                    if value.startswith(label, cursor)
-                    and (
-                        cursor + len(label) == len(value)
-                        or value[cursor + len(label)] == ";"
-                    )
-                ),
-                None,
-            )
-            if matched is not None:
-                labels.append(matched)
-                cursor += len(matched)
-                continue
-
-            next_delimiter = value.find(";", cursor)
-            segment_end = len(value) if next_delimiter < 0 else next_delimiter
-            fallback_label = value[cursor:segment_end].strip()
-            if fallback_label:
-                labels.append(fallback_label)
-            cursor = segment_end + 1 if next_delimiter >= 0 else len(value)
-        return labels

@@ -18,6 +18,7 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     PerformanceDatabaseContentsType,
 )
 from mlia.core.errors import ConfigurationError
+from mlia.nx_utils.api_labels import ApiLabelParser
 from mlia.utils.misc import summarize_list
 
 ProfilingMode = Literal[0, 1]
@@ -434,6 +435,8 @@ def parse_profiling_data(
     capture: StructuredCapture,
     pipeline: CapturePipeline,
     dispatch: CaptureDispatch,
+    *,
+    known_api_labels: Iterable[str] | None = None,
 ) -> ParsedProfilingData:
     """Parse one selected dispatch into shared estimator database shapes."""
     if pipeline not in capture.pipelines or dispatch not in pipeline.dispatches:
@@ -474,7 +477,9 @@ def parse_profiling_data(
         )
     performance_database = [rows_by_id[stripe_id] for stripe_id in stripe_ids]
     debug_database = _complete_debug_database(
-        parse_debug_database(files.debug_database_path),
+        parse_debug_database(
+            files.debug_database_path, known_api_labels=known_api_labels
+        ),
         [str(row["id"]) for row in performance_database],
     )
     return ParsedProfilingData(files, debug_database, performance_database)
@@ -1106,15 +1111,17 @@ def _validate_specialization_entries(value: object, label: str) -> None:
         seen.add(identity)
 
 
-def parse_debug_database(path: Path) -> DebugDatabaseContentsType:
-    """Parse a binary debug database into the legacy MLIA relationship maps."""
+def parse_debug_database(
+    path: Path, *, known_api_labels: Iterable[str] | None = None
+) -> DebugDatabaseContentsType:
+    """Decode captured tables using shared API-label recovery."""
     payload_bytes = _extract_versioned_payload(
         path.read_bytes(),
         expected_magic=_DEBUG_DATABASE_MAGIC,
         description="Debug database",
     )
     payload = payload_bytes.rstrip(b"\0").decode("utf-8", errors="strict")
-    sections = _parse_debug_sections(payload)
+    sections = _parse_debug_sections(payload, ApiLabelParser(known_api_labels))
     tosa_ops = _rows_by_id(sections["tosa_ops"])
     fused_ops = _rows_by_id(sections["fused_ops"])
     chain_ops = _rows_by_id(sections["cascade_ops"])
@@ -1397,6 +1404,7 @@ def _validate_statistics_words(
 
 def _parse_debug_sections(
     payload: str,
+    api_label_parser: ApiLabelParser,
 ) -> dict[str, list[dict[str, list[str]]]]:
     lines = [line.rstrip("\r\0") for line in payload.splitlines()]
     if "----" not in lines:
@@ -1418,68 +1426,33 @@ def _parse_debug_sections(
             "Debug database does not contain all expected profiling sections."
         )
     return {
-        name: _parse_debug_section(lines)
+        name: _parse_debug_section(lines, api_label_parser)
         for name, lines in zip(_SECTION_NAMES, raw_sections)
     }
 
 
-def _parse_debug_section(lines: list[str]) -> list[dict[str, list[str]]]:
+def _parse_debug_section(
+    lines: list[str], api_label_parser: ApiLabelParser
+) -> list[dict[str, list[str]]]:
     if not lines:
         return []
     columns = lines[0].split("\t") if "\t" in lines[0] else lines[0].split()
     rows = []
     for line in lines[1:]:
         values = line.split("\t")
-        rows.append(
-            {
-                column: _parse_debug_cell(values[index] if index < len(values) else "")
-                for index, column in enumerate(columns)
-            }
-        )
+        row = {}
+        for index, column in enumerate(columns):
+            value = (values[index] if index < len(values) else "").rstrip("\0\r")
+            if column == "api_labels":
+                row[column] = api_label_parser.parse(value)
+            elif column == "api_label":
+                row[column] = [value] if value else []
+            else:
+                row[column] = [
+                    item.strip() for item in value.split(";") if item.strip()
+                ]
+        rows.append(row)
     return rows
-
-
-def _parse_debug_cell(value: str) -> list[str]:
-    value = value.rstrip("\0\r")
-    if not value:
-        return []
-    if value.endswith(";"):
-        return _split_semicolon_list(value)
-    return [value]
-
-
-def _split_semicolon_list(value: str) -> list[str]:
-    """Split top-level semicolons while preserving JSON label contents."""
-    items: list[str] = []
-    start = 0
-    depth = 0
-    quoted = False
-    escaped = False
-    for index, character in enumerate(value):
-        if escaped:
-            escaped = False
-            continue
-        if quoted and character == "\\":
-            escaped = True
-            continue
-        if character == '"':
-            quoted = not quoted
-            continue
-        if quoted:
-            continue
-        if character in "[{":
-            depth += 1
-        elif character in "]}":
-            depth = max(depth - 1, 0)
-        elif character == ";" and depth == 0:
-            item = value[start:index].strip()
-            if item:
-                items.append(item)
-            start = index + 1
-    final = value[start:].strip()
-    if final:
-        items.append(final)
-    return items
 
 
 def _rows_by_id(

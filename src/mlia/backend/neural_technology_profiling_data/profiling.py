@@ -100,7 +100,13 @@ def analyze_profiling_data(
 
     capture_device = _selected_device(capture, selected)
     parsed_segments = [
-        parse_profiling_data(capture, item.pipeline, item.dispatch) for item in selected
+        parse_profiling_data(
+            capture,
+            item.pipeline,
+            item.dispatch,
+            known_api_labels=item.debug_names.debug_name_to_spirv_ids,
+        )
+        for item in selected
     ]
     segment_databases = [
         NXSegmentPerformanceDatabase(

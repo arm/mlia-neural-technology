@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import struct
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -26,6 +27,7 @@ from mlia.backend.neural_technology_profiling_data.profiling import (
     analyze_profiling_data,
 )
 from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
+from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabaseParser
 from mlia.backend.nx_performance_estimator.vgf import GCPEVGFSegment, GCPEVGFSegments
 from mlia.backend.registry import BackendRegistry
 from mlia.core.common import AdviceCategory
@@ -975,6 +977,96 @@ def test_analyze_rejects_multiple_captures(tmp_path: Path) -> None:
             categories={"performance"},
             model=str(model),
         )
+
+
+@pytest.mark.parametrize(
+    ("labels", "known_labels"),
+    [
+        (["module.relu;;module.conv;1"], ["module.relu;;module.conv;1"]),
+        (["export.wrapper;"], ["export.wrapper;"]),
+        (["shared;continued", "shared"], ["shared", "shared;continued"]),
+        (
+            ["TOSACONV2D_spirv_id_504", "first;second", "fallback"],
+            ["first;second"],
+        ),
+        (['{"source": "first(); second()"}'], ['{"source": "first(); second()"}']),
+        (['{"source": "first(); second()"}', "fallback"], []),
+    ],
+)
+def test_estimation_and_profiling_recover_identical_api_labels(
+    tmp_path: Path, labels: list[str], known_labels: list[str]
+) -> None:
+    """Both wire formats must preserve the same complete API label values."""
+    raw_labels = ";".join(labels)
+    path = tmp_path / "debug_database.bin"
+    path.write_bytes(_debug_database_blob(_debug_database_payload(raw_labels)))
+    captured = parse_debug_database(path, known_api_labels=known_labels)
+
+    estimated = NXDebugDatabaseParser(known_api_labels=known_labels)
+    estimated.raw_xmlish = (
+        '<debug><table name="tosa_op_id"><![CDATA[\n'
+        '"id", "tosa_op", "api_labels"\n'
+        f"10, Conv2D, {raw_labels};\n"
+        "]]></table></debug>"
+    )
+    assert captured["tosa_op_id_to_api_labels"]["10"] == labels
+    assert estimated.parse_debug_database()["tosa_op_id_to_api_labels"]["10"] == labels
+
+
+@pytest.mark.parametrize("with_vgf", [False, True])
+@pytest.mark.parametrize("label", ["export.wrapper;", "module.relu;;module.conv;1"])
+def test_profiling_passes_selected_spirv_names_to_label_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, with_vgf: bool, label: str
+) -> None:
+    """Captured and supplied SPIR-V both supply names before parsing labels."""
+    root = _write_capture(
+        tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)], api_label=label)]
+    )
+    names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"504": label},
+        debug_name_to_spirv_ids={label: ["504"]},
+        op_ext_inst_spirv_ids=["504"],
+    )
+    model = None
+    if with_vgf:
+        model_path = tmp_path / "model.vgf"
+        model_path.write_bytes(b"vgf")
+        model = str(model_path)
+        _mock_vgf(
+            monkeypatch, [replace(_vgf_segment(0, "A", b"spirv-a"), debug_names=names)]
+        )
+    else:
+        monkeypatch.setattr(
+            "mlia.backend.neural_technology_profiling_data.profiling."
+            "read_spirv_debug_names_from_bytes",
+            lambda _data: names,
+        )
+
+    output = analyze_profiling_data(
+        target_profile=str(_write_profile(tmp_path)),
+        profiling_data=[root],
+        categories={"performance"},
+        model=model,
+    )
+    validate_standardized_output(output)
+    result = output["results"][0]
+    source = next(
+        item
+        for item in result["entities"]
+        if item["id"] == "source_operator/segment_0/spirv-504"
+    )
+    assert source["parent_ids"] == ["chain/segment_0/30"]
+    chain = next(
+        item for item in result["entities"] if item["id"] == "chain/segment_0/30"
+    )
+    assert source["id"] in chain["child_ids"]
+    chain_metrics = next(
+        item for item in result["breakdowns"] if item["entity_id"] == chain["id"]
+    )
+    assert any(
+        item["name"] == "op_cycles" and item["value"] == 60
+        for item in chain_metrics["metrics"]
+    )
 
 
 def test_plugin_advertises_profiling_data_support() -> None:
