@@ -5,6 +5,17 @@ SPDX-License-Identifier: LicenseRef-LICENSE
 
 # NX Performance Estimator Vendor Artifacts
 
+Each platform archive contains its estimator executable at the archive root:
+
+```text
+graph-compiler-performance-estimator       # Linux
+graph-compiler-performance-estimator.exe   # Windows
+```
+
+The applicable licence is packaged separately in
+[`license_terms/license_agreement.txt`](license_terms/license_agreement.txt)
+and is presented by the Python installer before it installs the executable.
+
 By accessing or using the software, documentation, or any other material made
 available to you by Arm on this GitHub directory, including checksum manifests
 and downloaded NX performance estimator artifacts (“Arm Deliverables”), you agree

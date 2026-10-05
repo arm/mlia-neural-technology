@@ -7,7 +7,9 @@ from __future__ import annotations
 import hashlib
 import importlib
 import platform
+import stat
 import sys
+import tarfile
 from pathlib import Path
 from types import ModuleType
 from typing import Generator, cast
@@ -77,6 +79,24 @@ def _read_expected_sha256(path: Path) -> tuple[str, str]:
     parts = content.split()
     assert len(parts) >= 2
     return parts[0], parts[1]
+
+
+def _create_estimator_archive(path: Path, system: str) -> None:
+    """Create a platform-specific estimator archive with an extra member."""
+    source = path.parent / "archive-source"
+    source.mkdir(parents=True, exist_ok=True)
+    executable = (
+        "graph-compiler-performance-estimator.exe"
+        if system == "Windows"
+        else "graph-compiler-performance-estimator"
+    )
+    executable_path = source / executable
+    executable_path.write_text("estimator", encoding="utf-8")
+    executable_path.chmod(executable_path.stat().st_mode | stat.S_IXUSR)
+    (source / "metadata.txt").write_text("metadata", encoding="utf-8")
+    with tarfile.open(path, "w:gz") as archive:
+        archive.add(executable_path, arcname=executable)
+        archive.add(source / "metadata.txt", arcname="metadata.txt")
 
 
 def test_metadata_hook_update_uses_commit_hash(
@@ -216,6 +236,7 @@ def test_wheel_includes_nx_estimator_archive_and_excludes_public_artifacts() -> 
         vendor_dir / PLATFORM_SHA256_FILES[current_platform]
     )
     assert (vendor_dir / selected_name).is_file()
+    assert (vendor_dir / "license_terms/license_agreement.txt").is_file()
     assert "src/mlia" in wheel_target["only-include"]
 
     excluded_paths = set(wheel_target["exclude"])
@@ -381,7 +402,7 @@ def test_build_hook_selects_platform_checksum_metadata(
     vendor_dir = tmp_path / "src/mlia/_vendor/artifacts/nx-performance-estimator"
     vendor_dir.mkdir(parents=True)
     archive = vendor_dir / archive_name
-    archive.write_bytes(f"{system} estimator".encode())
+    _create_estimator_archive(archive, system)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     (vendor_dir / sha256_filename).write_text(
         f"{digest}  {archive_name}\n", encoding="utf-8"
@@ -401,6 +422,94 @@ def test_build_hook_selects_platform_checksum_metadata(
     assert force_include[str(archive.relative_to(tmp_path))] == (
         f"mlia/_vendor/artifacts/nx-performance-estimator/{archive_name}"
     )
+
+
+def test_build_hook_rejects_estimator_archive_without_root_executable(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Fail a build whose estimator executable is not at the archive root."""
+    vendor_dir = tmp_path / "src/mlia/_vendor/artifacts/nx-performance-estimator"
+    vendor_dir.mkdir(parents=True)
+    archive = vendor_dir / "estimator-linux.tar.gz"
+    payload = tmp_path / "graph-compiler-performance-estimator"
+    payload.write_text("estimator", encoding="utf-8")
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(payload, arcname="payload/graph-compiler-performance-estimator")
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    (vendor_dir / ".sha256.linux").write_text(
+        f"{digest}  {archive.name}\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        hatch_build, "_build_vgfpy", lambda _root: tmp_path / "vgfpy.so"
+    )
+    monkeypatch.setattr(hatch_build.platform, "system", lambda: "Linux")
+    hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
+    hook.root = str(tmp_path)
+
+    with pytest.raises(RuntimeError, match="graph-compiler-performance-estimator"):
+        hook.initialize("0.0.0", {})
+
+
+def test_build_hook_rejects_empty_estimator_executable(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Fail a build whose root-level estimator executable is empty."""
+    vendor_dir = tmp_path / "src/mlia/_vendor/artifacts/nx-performance-estimator"
+    vendor_dir.mkdir(parents=True)
+    archive = vendor_dir / "estimator-linux.tar.gz"
+    executable = tmp_path / "graph-compiler-performance-estimator"
+    executable.touch()
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(executable, arcname=executable.name)
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    (vendor_dir / ".sha256.linux").write_text(
+        f"{digest}  {archive.name}\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        hatch_build, "_build_vgfpy", lambda _root: tmp_path / "vgfpy.so"
+    )
+    monkeypatch.setattr(hatch_build.platform, "system", lambda: "Linux")
+    hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
+    hook.root = str(tmp_path)
+
+    with pytest.raises(RuntimeError, match="graph-compiler-performance-estimator"):
+        hook.initialize("0.0.0", {})
+
+
+def test_build_hook_rejects_non_executable_estimator(
+    hatch_build: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Fail a Linux build whose estimator has no execute permission bits."""
+    vendor_dir = tmp_path / "src/mlia/_vendor/artifacts/nx-performance-estimator"
+    vendor_dir.mkdir(parents=True)
+    archive = vendor_dir / "estimator-linux.tar.gz"
+    executable = tmp_path / "graph-compiler-performance-estimator"
+    executable.write_text("estimator", encoding="utf-8")
+    executable.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(executable, arcname=executable.name)
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    (vendor_dir / ".sha256.linux").write_text(
+        f"{digest}  {archive.name}\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        hatch_build, "_build_vgfpy", lambda _root: tmp_path / "vgfpy.so"
+    )
+    monkeypatch.setattr(hatch_build.platform, "system", lambda: "Linux")
+    hook = hatch_build.CustomBuildHook.__new__(hatch_build.CustomBuildHook)
+    hook.root = str(tmp_path)
+
+    with pytest.raises(RuntimeError, match="not executable"):
+        hook.initialize("0.0.0", {})
 
 
 def test_build_hook_rejects_unsupported_platform(

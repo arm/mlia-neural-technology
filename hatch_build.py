@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import sysconfig
+import tarfile
 import urllib.request
 from pathlib import Path
 from string import Template
@@ -107,6 +108,7 @@ class ArtifactSpec(TypedDict):
     vendor_dir: Path
     type: Literal["tar", "whl"]
     sha256_by_platform: dict[str, str]
+    executable_by_platform: dict[str, str]
 
 
 ARTIFACTS: dict[str, ArtifactSpec] = {
@@ -116,6 +118,10 @@ ARTIFACTS: dict[str, ArtifactSpec] = {
         "sha256_by_platform": {
             "Linux": ".sha256.linux",
             "Windows": ".sha256.windows",
+        },
+        "executable_by_platform": {
+            "Linux": "graph-compiler-performance-estimator",
+            "Windows": "graph-compiler-performance-estimator.exe",
         },
     }
 }
@@ -213,6 +219,36 @@ def _platform_sha256_filename(spec: ArtifactSpec) -> str:
         raise RuntimeError(
             f"Unsupported platform '{current_platform}'. Supported platforms: {supported}."
         ) from exc
+
+
+def _validate_estimator_archive(path: Path, spec: ArtifactSpec) -> None:
+    """Validate the platform-specific NX estimator archive layout."""
+    current_platform = platform.system()
+    try:
+        executable = spec["executable_by_platform"][current_platform]
+    except KeyError as exc:
+        supported = ", ".join(sorted(spec["executable_by_platform"]))
+        raise RuntimeError(
+            f"Unsupported platform '{current_platform}'. Supported platforms: {supported}."
+        ) from exc
+
+    try:
+        with tarfile.open(path, "r:gz") as archive:
+            members = {
+                member.name.removeprefix("./"): member
+                for member in archive.getmembers()
+            }
+    except (OSError, tarfile.TarError) as exc:
+        raise RuntimeError(f"Invalid NX estimator archive: {path}.") from exc
+    member = members.get(executable)
+    if member is None or not member.isfile() or member.size == 0:
+        raise RuntimeError(
+            f"NX estimator archive is missing required executable: {executable}."
+        )
+    if current_platform != "Windows" and member.mode & 0o111 == 0:
+        raise RuntimeError(
+            f"NX estimator archive executable is not executable: {executable}."
+        )
 
 
 def _file_sha256(path: Path) -> str:
@@ -319,6 +355,7 @@ class CustomBuildHook(BuildHookInterface):
             if archive_path.exists():
                 actual_sha = _file_sha256(archive_path)
                 if actual_sha == expected_sha:
+                    _validate_estimator_archive(archive_path, spec)
                     continue
                 archive_path.unlink()
 
@@ -333,3 +370,4 @@ class CustomBuildHook(BuildHookInterface):
                 raise RuntimeError(f"Unsupported vendor artifact type: {spec['type']}")
 
             _download_and_verify(url, archive_path, expected_sha)
+            _validate_estimator_archive(archive_path, spec)

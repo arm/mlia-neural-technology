@@ -32,7 +32,7 @@ class NXPerformanceEstimatorPlugin(BackendPlugin):
                     AdviceCategory.PERFORMANCE,
                     AdviceCategory.COMPATIBILITY,
                 ],
-                supported_systems=[System.LINUX_AMD64],
+                supported_systems=[System.LINUX_AMD64, System.WINDOWS_AMD64],
                 backend_type=BackendType.CUSTOM,
                 installation=get_nx_performance_estimator_installation(),
                 cli_options=CONFIG_TO_CLI_OPTION,
