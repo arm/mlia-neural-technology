@@ -1,4 +1,4 @@
-END USER LICENSE AGREEMENT FOR ARM ECOSYSTEM SOFTWARE
+﻿END USER LICENSE AGREEMENT FOR ARM ECOSYSTEM SOFTWARE
 
 This end user license agreement (“License”) is a legal agreement between you (a single individual), or the company or organisation (a single legal entity) that you represent and have the legal authority to bind, and Arm relating to use of the Arm Tools. By clicking “I Agree” or by installing or otherwise using the Arm Tools you indicate that you agree to be bound by all of the terms and conditions of this License. 
 
