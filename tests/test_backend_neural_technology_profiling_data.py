@@ -13,6 +13,7 @@ from typing import Any, cast
 import pytest
 
 from mlia.backend.neural_technology_profiling_data.parser import (
+    ProfilingDevice,
     load_capture_input,
     parse_capture,
     parse_debug_database,
@@ -37,6 +38,15 @@ from mlia.core.output_validation import validate_standardized_output
 
 def _u32_blob(words: list[int]) -> bytes:
     return b"".join(struct.pack("<I", word) for word in words)
+
+
+def _mode1_task(core: int, counters: dict[int, int], word_count: int) -> list[int]:
+    """Encode one task using hardware counter word offsets."""
+    words = [0] * word_count
+    words[0] = core
+    for offset, value in counters.items():
+        words[offset] = value
+    return words
 
 
 def _statistics_info_blob(words: list[int]) -> bytes:
@@ -566,16 +576,28 @@ def test_parse_statistics_info_and_mode0(tmp_path: Path) -> None:
     assert rows[0]["totalCycles"] == 60
 
 
-def test_parse_statistics_mode0_uses_g2_block_size(tmp_path: Path) -> None:
-    """G2 mode-0 data should group 1024 tasks into each statistics block."""
+@pytest.mark.parametrize(
+    "device,slots_per_block", [("Mali-G1", 512), ("Mali-G2", 1024)]
+)
+def test_mode0_keeps_summing_with_generation_block_sizes(
+    tmp_path: Path, device: ProfilingDevice, slots_per_block: int
+) -> None:
+    """Realistic task counts and padding must preserve mode-0 stripe sums."""
     statistics = tmp_path / "statistics_mode0.bin"
-    task = [1, *([0] * 15)]
-    statistics.write_bytes(_u32_blob(task * 513))
+    words = [0] * (3 * slots_per_block * 16)
+    words[0] = 1
+    words[16] = 2
+    words[slots_per_block * 16] = 10
+    words[slots_per_block * 16 + 1] = 20
+    statistics.write_bytes(_u32_blob(words))
 
-    rows = parse_statistics_file(statistics, mode=0, device="Mali-G2")
+    rows = parse_statistics_file(
+        statistics, mode=0, device=device, included_zero_block_ids=frozenset({2})
+    )
 
-    assert len(rows) == 1
-    assert rows[0]["opCycles"] == 513
+    assert [row["id"] for row in rows] == [0, 1, 2]
+    assert [row["opCycles"] for row in rows] == [3, 30, 0]
+    assert [row["totalCycles"] for row in rows] == [3, 30, 0]
 
 
 def test_parse_statistics_mode1_uses_g2_task_layout(tmp_path: Path) -> None:
@@ -596,6 +618,277 @@ def test_parse_statistics_mode1_uses_g2_task_layout(tmp_path: Path) -> None:
     }
     assert utilization["me_src0_stall"] == 20
     assert utilization["me_src1_stall"] == 30
+
+
+@pytest.mark.parametrize("device,word_count", [("Mali-G1", 32), ("Mali-G2", 64)])
+@pytest.mark.parametrize("reverse_tasks", [False, True])
+def test_mode1_takes_each_counter_maximum_after_summing_per_core(
+    tmp_path: Path, device: ProfilingDevice, word_count: int, reverse_tasks: bool
+) -> None:
+    """Every active/stall counter uses its own busiest core, including core zero."""
+    offsets = [*range(2, 30), *([31, 32] if word_count == 64 else [])]
+    tasks = [
+        _mode1_task(0, {1: 100, **{offset: offset for offset in offsets}}, word_count),
+        _mode1_task(
+            7,
+            {
+                1: 150,
+                **{
+                    offset: offset * (4 if offset % 2 == 0 else 2) for offset in offsets
+                },
+            },
+            word_count,
+        ),
+        _mode1_task(
+            0, {1: 100, **{offset: 2 * offset for offset in offsets}}, word_count
+        ),
+    ]
+    # Neither reserved words nor unused record slots contribute counters or core IDs.
+    tasks[0][30] = 0xFFFFFFFF
+    tasks[0][-1] = 0xFFFFFFFF
+    if reverse_tasks:
+        tasks.reverse()
+    words = [word for task in tasks for word in task]
+    words.extend([0] * ((256 - len(tasks)) * word_count))
+    statistics = tmp_path / "statistics_mode1.bin"
+    statistics.write_bytes(_u32_blob(words))
+
+    (row,) = parse_statistics_file(statistics, mode=1, device=device)
+
+    assert set(row) == {"id", "opCycles", "totalCycles", "Memory", "Utilization"}
+    assert (
+        row["opCycles"] == row["totalCycles"] == 200
+    )  # Core 0: 100 + 100; core 7: 150.
+    expected = {
+        "nx_active": 200,
+        "dl_active": 8,
+        "ir_active": 9,
+        "wf_active": 16,
+        "ce_active": 15,
+        "ve_active": 24,
+        "tu_active": 21,
+        "ow_active": 32,
+        "task_init_stall": 27,
+        "rd_ll_stall": 40,
+        "rd_hl_stall": 33,
+        "dma_wr_stall": 48,
+        "ir_idx_stall": 39,
+        "ce_src0_stall": 56,
+        "ce_src1_stall": 45,
+        "ve_src0_ir_stall": 64,
+        "ve_src0_ce_stall": 51,
+        "ve_src0_ve_stall": 72,
+        "ve_src0_tu_stall": 57,
+        "ve_src1_ir_stall": 80,
+        "ve_src1_ve_stall": 63,
+        "ve_src1_tu_stall": 88,
+        "tu_src0_ir_stall": 69,
+        "tu_src0_ve_stall": 96,
+        "tu_src0_tu_stall": 75,
+        "ow_src0_ir_stall": 104,
+        "ow_src0_ve_stall": 81,
+        "ow_src0_tu_stall": 112,
+        "ow_idx_stall": 87,
+    }
+    if word_count == 64:
+        expected.update(me_src0_stall=93, me_src1_stall=128)
+    assert {
+        item["sectionName"]: item["cycles"] for item in row["Utilization"]
+    } == expected
+
+
+@pytest.mark.parametrize("device,word_count", [("Mali-G1", 32), ("Mali-G2", 64)])
+def test_mode1_resets_core_totals_at_stripe_boundaries(
+    tmp_path: Path, device: ProfilingDevice, word_count: int
+) -> None:
+    """The 256th task belongs to the first stripe, and zero blocks retain their IDs."""
+    tasks = [
+        _mode1_task(
+            0 if index % 2 == 0 else 7, {1: 1 if index % 2 == 0 else 2}, word_count
+        )
+        for index in range(256)
+    ]
+    tasks.extend(
+        [
+            _mode1_task(0, {1: 7}, word_count),
+            _mode1_task(7, {1: 9}, word_count),
+            _mode1_task(0, {1: 11}, word_count),
+        ]
+    )
+    words = [word for task in tasks for word in task]
+    words.extend([0] * ((3 * 256 - len(tasks)) * word_count))
+    statistics = tmp_path / "statistics_mode1.bin"
+    statistics.write_bytes(_u32_blob(words))
+
+    rows = parse_statistics_file(
+        statistics, mode=1, device=device, included_zero_block_ids=frozenset({2})
+    )
+
+    assert [row["id"] for row in rows] == [0, 1, 2]
+    assert [row["opCycles"] for row in rows] == [256, 18, 0]
+    assert [row["totalCycles"] for row in rows] == [256, 18, 0]
+    assert rows[2]["Utilization"] == []
+    assert len(parse_statistics_file(statistics, mode=1, device=device)) == 2
+
+
+@pytest.mark.parametrize("device,word_count", [("Mali-G1", 32), ("Mali-G2", 64)])
+def test_mode1_core_sums_do_not_wrap_at_uint32(
+    tmp_path: Path, device: ProfilingDevice, word_count: int
+) -> None:
+    """Per-core accumulation preserves values larger than one hardware counter."""
+    tasks = [
+        _mode1_task(0, {1: 0xFFFFFFFF}, word_count),
+        _mode1_task(7, {1: 1}, word_count),
+        _mode1_task(0, {1: 0xFFFFFFFF}, word_count),
+    ]
+    statistics = tmp_path / "statistics_mode1.bin"
+    statistics.write_bytes(_u32_blob([word for task in tasks for word in task]))
+
+    (row,) = parse_statistics_file(statistics, mode=1, device=device)
+
+    assert row["opCycles"] == row["totalCycles"] == 8589934590
+
+
+@pytest.mark.parametrize("device,word_count", [("Mali-G1", 32), ("Mali-G2", 64)])
+def test_mode1_preserves_zero_active_cycles(
+    tmp_path: Path, device: ProfilingDevice, word_count: int
+) -> None:
+    """Zero nx_active remains zero without discarding other counters."""
+    tasks = [
+        _mode1_task(0, {5: 10}, word_count),
+        _mode1_task(7, {5: 20, 6: 3}, word_count),
+        _mode1_task(0, {5: 15}, word_count),
+    ]
+    statistics = tmp_path / "statistics_mode1.bin"
+    statistics.write_bytes(_u32_blob([word for task in tasks for word in task]))
+
+    (row,) = parse_statistics_file(statistics, mode=1, device=device)
+
+    assert row["opCycles"] == row["totalCycles"] == 0
+    counters = {item["sectionName"]: item["cycles"] for item in row["Utilization"]}
+    assert counters["ce_active"] == 25
+    assert counters["ve_active"] == 3
+
+
+@pytest.mark.parametrize("device,word_count", [("Mali-G1", 32), ("Mali-G2", 64)])
+@pytest.mark.parametrize(
+    "stripe_tasks,expected_cycles,expected_counters",
+    [
+        pytest.param(
+            [
+                [
+                    (0, {1: 70, 5: 60, 6: 5}),
+                    (7, {1: 60, 5: 10, 6: 50}),
+                    (0, {1: 30, 5: 20}),
+                ],
+                [
+                    (7, {1: 40, 5: 5, 6: 30}),
+                    (0, {1: 30, 5: 10, 6: 20}),
+                    (7, {1: 50, 5: 10, 6: 30}),
+                ],
+            ],
+            190,
+            {"nx_active_cycles": 190, "ce_active_cycles": 95, "ve_active_cycles": 110},
+            id="multicore-stripe-maxima-then-sum",
+        ),
+        pytest.param(
+            [[(7, {1: 10, 5: 5, 6: 2}), (7, {1: 20, 5: 10, 6: 4})]],
+            30,
+            {"nx_active_cycles": 30, "ce_active_cycles": 15, "ve_active_cycles": 6},
+            id="single-core-unchanged",
+        ),
+        pytest.param(
+            [[(0, {5: 10}), (7, {5: 20, 6: 3}), (0, {5: 15})]],
+            0,
+            {"nx_active_cycles": 0, "ce_active_cycles": 25, "ve_active_cycles": 3},
+            id="zero-active-with-other-counters",
+        ),
+        pytest.param([[(0, {})]], 0, {}, id="zero-block"),
+        pytest.param([[(7, {})]], 0, {"nx_active_cycles": 0}, id="core-id-only"),
+    ],
+)
+def test_mode1_aggregation_reaches_standardized_output_without_new_metrics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    device: ProfilingDevice,
+    word_count: int,
+    stripe_tasks: list[list[tuple[int, dict[int, int]]]],
+    expected_cycles: int,
+    expected_counters: dict[str, int],
+) -> None:
+    """Parser, chain/cascade merging and model totals must use the same stripe estimates."""
+    root = _write_capture(
+        tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)])], mode=1, device=device
+    )
+    pipeline = root / "pipeline_000000"
+    dispatch = _dispatch(root, 0, 0, 0)
+    words = []
+    for tasks in stripe_tasks:
+        for core, counters in tasks:
+            words.extend(_mode1_task(core, counters, word_count))
+        words.extend([0] * ((256 - len(tasks)) * word_count))
+    stripe_ids = list(range(len(stripe_tasks)))
+    debug_database = (
+        _debug_database_payload()
+        .replace("0\t30\t40\n", "".join(f"{index}\t30\t40\n" for index in stripe_ids))
+        .replace("0\t0\n", "".join(f"{index}\t{index}\n" for index in stripe_ids))
+    )
+    for artifact, contents, manifest in [
+        (
+            dispatch / "statistics_mode1.bin",
+            _u32_blob(words),
+            dispatch / "dispatch.json",
+        ),
+        (
+            pipeline / "neural_statistics_info.bin",
+            _statistics_info_blob(stripe_ids),
+            pipeline / "pipeline.json",
+        ),
+        (
+            pipeline / "debug_database.bin",
+            _debug_database_blob(debug_database),
+            pipeline / "pipeline.json",
+        ),
+    ]:
+        artifact.write_bytes(contents)
+        document = json.loads(manifest.read_text())
+        next(
+            item
+            for item in document["artifacts"]
+            if item["path"] == artifact.relative_to(root).as_posix()
+        )["size"] = len(contents)
+        _write_json(manifest, document)
+    monkeypatch.setattr(
+        "mlia.backend.neural_technology_profiling_data.profiling.read_spirv_debug_names_from_bytes",
+        lambda _data: SpirvDebugNameMap(op_ext_inst_spirv_ids=["504"]),
+    )
+
+    output = analyze_profiling_data(
+        target_profile=str(_write_profile(tmp_path)),
+        profiling_data=[root],
+        categories={"performance"},
+    )
+
+    validate_standardized_output(output)
+    result = output["results"][0]
+    model_metrics = {item["name"]: item.get("value") for item in result["metrics"]}
+    assert (
+        model_metrics["compute_cycles"]
+        == model_metrics["total_cycles"]
+        == expected_cycles
+    )
+    breakdowns = {item["entity_id"]: item["metrics"] for item in result["breakdowns"]}
+    for entity_id in ("chain/segment_0/30", "cascade/segment_0/40"):
+        metrics = {item["name"]: item["value"] for item in breakdowns[entity_id]}
+        assert metrics["op_cycles"] == metrics["total_cycles"] == expected_cycles
+        for name, value in expected_counters.items():
+            assert metrics[name] == value
+    for metrics in breakdowns.values():
+        assert all(item["aggregation"] == "sum" for item in metrics)
+        assert all(item["unit"] == "cycles" for item in metrics)
+        assert not {"cores_used", "core_ids"}.intersection(
+            item["name"] for item in metrics
+        )
 
 
 def test_parse_framed_binary_statistics_info(tmp_path: Path) -> None:

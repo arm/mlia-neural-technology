@@ -1299,12 +1299,13 @@ def _parse_mode1(
     labels: tuple[str | None, ...],
     included_zero_block_ids: frozenset[int],
 ) -> PerformanceDatabaseContentsType:
+    """Sum tasks per core, then take each counter's maximum within its stripe."""
     _validate_statistics_words(words, words_per_task, "Mode1")
     tasks_per_block = 256
     rows: PerformanceDatabaseContentsType = []
     task_count = len(words) // words_per_task
     for block_index, block_start in enumerate(range(0, task_count, tasks_per_block)):
-        counter_totals: dict[str, int] = {}
+        counters_by_core: dict[int, dict[str, int]] = {}
         block_end = min(block_start + tasks_per_block, task_count)
         for task_index in range(block_start, block_end):
             task = words[
@@ -1312,12 +1313,18 @@ def _parse_mode1(
             ]
             if not any(task):
                 continue
+            core_totals = counters_by_core.setdefault(task[0], {})
             for word_index in range(1, min(words_per_task, len(labels))):
                 label = labels[word_index]
                 if label is None or label == "reserved":
                     continue
-                counter_totals[label] = counter_totals.get(label, 0) + task[word_index]
-        if not counter_totals:
+                core_totals[label] = core_totals.get(label, 0) + task[word_index]
+        # Different counters can reach their maxima on different cores.
+        counter_maxima: dict[str, int] = {}
+        for core_totals in counters_by_core.values():
+            for label, value in core_totals.items():
+                counter_maxima[label] = max(counter_maxima.get(label, 0), value)
+        if not counter_maxima:
             if block_index in included_zero_block_ids:
                 rows.append(
                     _performance_row(
@@ -1325,14 +1332,13 @@ def _parse_mode1(
                     )
                 )
             continue
-        op_cycles = counter_totals.get("nx_active", 0)
-        total_cycles = op_cycles or sum(counter_totals.values())
+        op_cycles = counter_maxima.get("nx_active", 0)
         rows.append(
             _performance_row(
                 block_index,
                 op_cycles=op_cycles,
-                total_cycles=total_cycles,
-                counters=counter_totals,
+                total_cycles=op_cycles,
+                counters=counter_maxima,
             )
         )
     return rows

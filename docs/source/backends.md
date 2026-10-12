@@ -78,7 +78,9 @@ Measured profiling supports performance analysis only. It accepts either:
 
 The measured path uses the same correlation, aggregation, entity provenance,
 and standardized-output construction as estimator mode. See [CLI](cli.md) for
-the capture layout and selection rules.
+the capture layout and selection rules. See
+[Outputs and metrics](outputs_metrics.md#estimator-versus-measured-mode) for
+counter aggregation and the meaning and limitations of the reported cycle counts.
 
 ## Conversion support integrations
 

@@ -156,7 +156,10 @@ Memory and hardware-section names are normalized to lowercase snake case. For
 example, `SystemCache` becomes the `system_cache_` prefix. In estimator mode,
 breakdown values are estimates from the performance model rather than hardware
 measurements. In measured profiling mode, breakdown values are derived from
-captured hardware counters and are hardware measurements.
+captured hardware counters. Their interpretation depends on the statistics
+format; see the aggregation rules for
+[mode 0 statistics](#aggregating-mode-0-neural-statistics) and
+[mode 1 statistics](#aggregating-mode-1-neural-statistics).
 
 Do not add breakdowns from related entities together. Authoritative and
 projected breakdowns at different hierarchy levels can describe overlapping
@@ -215,6 +218,40 @@ and runtime metadata.
 Both modes share per-segment correlation, totals, warnings, entity provenance,
 and breakdown aggregation. Compute-only VGF segments that are excluded from NX
 analysis are reported through warnings.
+
+### Aggregating mode 0 neural statistics
+
+When analyzing a neural statistics capture with “mode 0” statistics, MLIA sums
+the section counters across all tasks in each stripe and uses that sum for both
+`op_cycles` and `total_cycles`. These values are accumulated further when
+stripes are combined.
+
+The values represent accumulated section-active cycles, not elapsed execution
+time. These statistics provide neither core assignments nor timestamps, so
+MLIA does not correct for parallel tasks or overlapping section activity. The
+totals are not directly equivalent to the estimator’s cycle predictions. The
+result’s `measured` designation identifies the source of the counters, not a
+measurement of elapsed duration.
+
+### Aggregating mode 1 neural statistics
+
+When analyzing a neural statistics capture with “mode 1” statistics, MLIA groups
+the tasks in each stripe by their captured core ID. It sums each counter within
+each group, then reports the maximum group total for that counter. This applies
+to all active and stall counters. Each counter is calculated independently, so
+the maxima can come from different cores. No core IDs or per-core figures are
+included in the output.
+
+For each stripe, both `op_cycles` and `total_cycles` use the aggregated
+`nx_active` counter, including when it is zero. Other counters are reported
+independently. Stripe values are then summed when constructing chain, cascade
+and model totals.
+
+This calculation treats activity on different cores as overlapping. The capture
+does not provide timestamps to reconstruct staggered starts, idle gaps or
+overlap between stripes. The resulting cycle values are derived from measured
+activity counters, not measurements of elapsed execution time. They are not
+directly equivalent to the estimator’s cycle predictions.
 
 ## Generated artifacts
 

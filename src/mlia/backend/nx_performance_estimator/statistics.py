@@ -198,10 +198,13 @@ class NXOperatorPerformanceStats:
 
         for util_k, util_v in utilization_dict.items():
             sum_v = sum(util_v)
+            percentage = (
+                round(sum_v / self.total_cycles * 100, 1) if self.total_cycles else 0.0
+            )
             util = {
                 "sectionName": util_k,
                 "cycles": f"{sum_v}",
-                "percentage": f"{round(sum_v / self.total_cycles * 100, 1)}%",
+                "percentage": f"{percentage}%",
             }
             self.utilization.append(util)
 
