@@ -12,6 +12,8 @@ from unittest.mock import Mock
 import mlia.core.output_schema as schema
 import pytest
 from tosa_serializer import (
+    TOSA_VERSION_MAJOR,
+    TOSA_VERSION_MINOR,
     DType,
     Op,
     TosaOpLocation,
@@ -181,6 +183,49 @@ def test_tosa_compatibility_scenarios(
     assert metric["value"] == expected_percentage
     assert not result.get("warnings")
     validate_standardized_output(output)
+
+
+@pytest.mark.parametrize(
+    ("major", "minor", "supported"),
+    [
+        pytest.param(TOSA_VERSION_MAJOR, TOSA_VERSION_MINOR, True, id="same-version"),
+        pytest.param(TOSA_VERSION_MAJOR, 0, True, id="older-minor"),
+        pytest.param(
+            TOSA_VERSION_MAJOR, TOSA_VERSION_MINOR + 1, False, id="newer-minor"
+        ),
+        pytest.param(TOSA_VERSION_MAJOR - 1, 0, False, id="older-major"),
+        pytest.param(TOSA_VERSION_MAJOR + 1, 0, False, id="newer-major"),
+    ],
+)
+def test_prepare_tosa_model_validates_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    major: int,
+    minor: int,
+    supported: bool,
+) -> None:
+    """Accept only matching major versions and supported minor versions."""
+    model = tmp_path / "versioned.tosa"
+    original = TosaSerializer(
+        targetMajor=major, targetMinor=minor, targetPatch=0, targetDraft=True
+    ).serialize()
+    model.write_bytes(original)
+    serializer = Mock(wraps=TosaSerializer)
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.compat.TosaSerializer", serializer
+    )
+    checker = NXCompatibilityChecker(tmp_path)
+
+    if supported:
+        prepared = checker._prepare_tosa_model(model)
+        assert prepared.is_file()
+        serializer.assert_called_once()
+    else:
+        with pytest.raises(ValueError, match="Unsupported TOSA version"):
+            checker._prepare_tosa_model(model)
+        serializer.assert_not_called()
+        assert not (tmp_path / "versioned_processed.tosa").exists()
+    assert model.read_bytes() == original
 
 
 def test_compatibility_output_reports_nx_operator_percentage(tmp_path: Path) -> None:

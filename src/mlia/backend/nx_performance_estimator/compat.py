@@ -18,7 +18,7 @@ from typing import Any
 from tosa import (
     TosaGraph,
 )
-from tosa_serializer import TosaSerializer
+from tosa_serializer import TOSA_VERSION_MAJOR, TOSA_VERSION_MINOR, TosaSerializer
 
 import mlia
 import mlia.core.output_schema as schema
@@ -668,11 +668,18 @@ class NXCompatibilityChecker:
         Empty labels become unknown_<n>; existing labels become <label>_<n>.
         The processed model is the source of labels used for compiler attribution.
         """
-        tosa_ops = (
-            read_tosa_mlir_ops(tosa_path)
-            if tosa_path.suffix == ".tosamlir"
-            else read_tosa_flatbuffer_ops(tosa_path)
-        )
+        if tosa_path.suffix == ".tosamlir":
+            tosa_ops = read_tosa_mlir_ops(tosa_path)
+        else:
+            version = TosaGraph.TosaGraph.GetRootAs(tosa_path.read_bytes()).Version()
+            major, minor = version._Major(), version._Minor()
+            if major != TOSA_VERSION_MAJOR or minor > TOSA_VERSION_MINOR:
+                raise ValueError(
+                    f"Unsupported TOSA version {major}.{minor} in {tosa_path}: "
+                    f"tosa-tools requires major {TOSA_VERSION_MAJOR} and "
+                    f"minor <= {TOSA_VERSION_MINOR}."
+                )
+            tosa_ops = read_tosa_flatbuffer_ops(tosa_path)
         # Unique labels let us recover a compiler record for each TOSA operation,
         # even when operations originally shared a label.
         _assign_synthetic_labels(tosa_ops)
@@ -699,7 +706,6 @@ class NXCompatibilityChecker:
             )
             return annotated_path
 
-        version = TosaGraph.TosaGraph.GetRootAs(tosa_path.read_bytes()).Version()
         serializer = TosaSerializer(
             targetMajor=version._Major(),
             targetMinor=version._Minor(),
