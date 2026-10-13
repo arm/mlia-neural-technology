@@ -138,7 +138,7 @@ def test_run_advisor_compatibility_routes_backend_options(
             return _fake_standardized_output("model.vgf", "vgf")
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.compat."
+        "mlia.backend.nx_performance_estimator.compat."
         "NXCompatibilityChecker.check_compatibility",
         MagicMock(return_value=FakeCompatibilityInfo()),
     )
@@ -519,7 +519,7 @@ def test_run_advisor_compatibility_accepts_torch_module_input(
         fake_transform_front_end_model,
     )
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.compat."
+        "mlia.backend.nx_performance_estimator.compat."
         "NXCompatibilityChecker.check_compatibility",
         MagicMock(return_value=FakeCompatibilityInfo()),
     )

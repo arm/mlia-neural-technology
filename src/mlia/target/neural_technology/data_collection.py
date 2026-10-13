@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mlia.backend.ml_sdk_model_converter.compat import (
+from mlia.backend.nx_performance_estimator.compat import (
     NXCompatibilityChecker,
     NXModelCompatibilityInfo,
     TOSAModel,

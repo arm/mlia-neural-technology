@@ -42,9 +42,11 @@ _RE_MLIR_LOCATION = re.compile(r"^\s*(#loc\d+)\s*=\s*loc\((.*?)(?:\(#loc\))?\)\s
 # will have 5, "tosa.const", "i8" and "#loc1" captured
 # %44 = tosa.const_shape  {values = ...} : () -> !tosa.shape<4> loc(#loc1)
 # will have 44, "tosa.const_shape", "tosa.shape" and "#loc1" captured
+# Consume quoted strings (including escapes) as units so ')' inside a label
+# does not terminate the location. Preparation replaces the exact group 4 span.
 _RE_MLIR_OP_LINE = re.compile(
     r'^\s*%(\w+)\s*=\s*"?([\w.]+)"?.*?->\s*'
-    r"([^({]+?)(?:\s+loc\(([^)]*)\))?\s*$"
+    r'([^({]+?)(?:\s+loc\(((?:"(?:\\.|[^"\\])*"|[^")])*)\))?\s*$'
 )
 
 
@@ -149,7 +151,12 @@ def read_tosa_mlir_ops(tosa_mlir_file: Path) -> dict[int, TosaOp]:
             logger.debug("Line %s ignored", line)
 
     for op_id, tosa_op in id_to_ops.items():
-        tosa_op.loc = loc_ref_to_loc.get(id_to_loc_ref[op_id], "")
+        loc_ref = id_to_loc_ref[op_id]
+        tosa_op.loc = (
+            loc_ref_to_loc.get(loc_ref, "")
+            if loc_ref.startswith("#")
+            else _normalize_mlir_location(get_debug_node_name(loc_ref) or loc_ref)
+        )
 
     return id_to_ops
 
@@ -235,10 +242,9 @@ def read_tosa_flatbuffer_ops(tosa_flatbuffer_file: Path) -> dict[int, TosaOp]:
                 # Handle ExecuTorch JSON location format
                 if op_loc:
                     op_loc = get_debug_node_name(op_loc) or op_loc
-                else:
-                    op_loc = "unknown"
 
-                op_name = tosa_flatbuffer_ops[operation.Op()]
+                # e.g. ADD -> tosa.add
+                op_name = f"tosa.{tosa_flatbuffer_ops[operation.Op()].lower()}"
 
                 # Assing output type as op's type
                 op_type = None

@@ -11,9 +11,8 @@ from unittest.mock import MagicMock
 
 import pytest
 import mlia.core.output_schema as schema
-from mlia.backend.ml_sdk_model_converter.compat import NXModelCompatibilityInfo
+from mlia.backend.nx_performance_estimator.compat import NXModelCompatibilityInfo
 from mlia.backend.ml_sdk_model_converter.conversion import get_front_end_output_subdir
-from mlia.backend.ml_sdk_model_converter.tosa_reader import TosaOp, TosaOpType
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
@@ -178,7 +177,7 @@ def test_neural_technology_compatibility_collect_data(
     mock_check_compatibility = MagicMock(return_value=None)
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.compat."
+        "mlia.backend.nx_performance_estimator.compat."
         + "NXCompatibilityChecker.check_compatibility",
         mock_check_compatibility,
     )
@@ -241,7 +240,7 @@ def test_neural_technology_compatibility_skips_frontend_conversion_for_vgf(
         MagicMock(side_effect=AssertionError("frontend conversion should be skipped")),
     )
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.compat."
+        "mlia.backend.nx_performance_estimator.compat."
         "NXCompatibilityChecker.check_compatibility",
         MagicMock(return_value=None),
     )
@@ -350,7 +349,7 @@ def test_neural_technology_compatibility_collect_data_preserves_profile_metadata
             return {"schema_version": "1.0.0", "results": [{}]}
 
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.compat."
+        "mlia.backend.nx_performance_estimator.compat."
         "NXCompatibilityChecker.check_compatibility",
         MagicMock(return_value=FakeCompatibilityInfo()),
     )
@@ -392,14 +391,19 @@ def test_tflite_compatibility_uses_converted_operator_entities(
     converted_model.write_bytes(b"tosa")
 
     compatibility = NXModelCompatibilityInfo()
-    compatibility.add_lowered_to_tosa(
-        TosaOp("ADD", "add_0", TosaOpType.INT),
-        source_operator_id=schema.tosa_source_operator_id(0),
+    compatibility.add_estimator_placement(
+        "record_0",
+        "add_0",
+        "NX",
+        op_type="ADD",
+        source_operator_id=schema.vgf_source_operator_id(0, 10),
     )
-    compatibility.add_lowering_error(
-        "unsupported_1",
-        "unsupported operation",
-        source_operator_id=schema.tosa_source_operator_id(1),
+    compatibility.add_estimator_placement(
+        "record_1",
+        "mul_1",
+        "EE",
+        op_type="MUL",
+        source_operator_id=schema.vgf_source_operator_id(0, 11),
     )
 
     monkeypatch.setattr(
@@ -407,7 +411,7 @@ def test_tflite_compatibility_uses_converted_operator_entities(
         MagicMock(return_value=converted_model),
     )
     monkeypatch.setattr(
-        "mlia.backend.ml_sdk_model_converter.compat."
+        "mlia.backend.nx_performance_estimator.compat."
         "NXCompatibilityChecker.check_compatibility",
         MagicMock(return_value=compatibility),
     )
@@ -424,7 +428,7 @@ def test_tflite_compatibility_uses_converted_operator_entities(
     assert result["entity_kinds"] == [{"id": "converted_operator"}]
     assert result["entities"] == [
         {
-            "id": "converted_operator/0",
+            "id": "converted_operator/segment_0/spirv-10",
             "kind": "converted_operator",
             "name": "ADD",
             "placement": "NX",
@@ -432,29 +436,29 @@ def test_tflite_compatibility_uses_converted_operator_entities(
                 "index": 0,
                 "compat_level": "TOSA",
                 "display_label": "add_0",
-                "tosa_op": "ADD",
-                "converted_tosa_operator_id": "0",
+                "op_type": "ADD",
+                "converted_tosa_operator_id": "segment_0/spirv-10",
             },
         },
         {
-            "id": "converted_operator/1",
+            "id": "converted_operator/segment_0/spirv-11",
             "kind": "converted_operator",
-            "name": "unsupported_1",
-            "placement": "CPU",
+            "name": "MUL",
+            "placement": "EE",
             "attributes": {
                 "index": 1,
-                "compat_level": "Non-NX",
-                "display_label": "unsupported_1",
-                "converted_tosa_operator_id": "1",
+                "compat_level": "Shader",
+                "display_label": "mul_1",
+                "op_type": "MUL",
+                "converted_tosa_operator_id": "segment_0/spirv-11",
             },
         },
     ]
     assert [check["entity_id"] for check in result["checks"]] == [
-        "converted_operator/0",
-        "converted_operator/1",
+        "converted_operator/segment_0/spirv-10",
+        "converted_operator/segment_0/spirv-11",
     ]
-    assert [check["status"] for check in result["checks"]] == ["pass", "fail"]
-    assert result["checks"][1]["details"] == {"error": "unsupported operation"}
+    assert [check["status"] for check in result["checks"]] == ["pass", "pass"]
     metrics = {metric["name"]: metric for metric in result["metrics"]}
     assert metrics[schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE]["value"] == 50.0
     validate_standardized_output(collected.standardized_output)

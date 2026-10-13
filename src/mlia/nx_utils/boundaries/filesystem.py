@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -35,6 +36,13 @@ def write_user_output_binary(path: Path, writer: Callable[[BinaryIO], bool]) -> 
     """Write binary user output through the supplied stream writer."""
     with path.open("wb") as output:
         return writer(output)
+
+
+def write_persistent_state_bytes_with_notice(
+    logger: logging.Logger, message: str, path: Path, content: bytes
+) -> None:
+    """Write persistent state owned by MLIA."""
+    path.write_bytes(content)
 
 
 @contextmanager
