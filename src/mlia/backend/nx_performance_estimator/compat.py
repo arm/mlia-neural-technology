@@ -59,6 +59,17 @@ from mlia.utils.filesystem import sha256
 logger = logging.getLogger(__name__)
 
 _CONVERTED_OPERATOR_ENTITY_KIND = "converted_operator"
+_TRIVIAL_OPS = {
+    "tosa.const",
+    "tosa.const_shape",
+    "tosa.reshape",
+    "CONST",
+    "CONST_SHAPE",
+    "RESHAPE",
+    "Const",
+    "ConstShape",
+    "Reshape",
+}
 
 
 @dataclass
@@ -525,6 +536,7 @@ class NXCompatibilityChecker:
         self._backend_config = NXPerformanceEstimatorConfig(
             backend_options["system_config"],
             backend_options["compiler_config"],
+            skip_trivial_ops=backend_options.get("skip_trivial_ops", False),
         )
         self._backend_config.set_config_dir(get_nx_resource_dir())
 
@@ -624,7 +636,16 @@ class NXCompatibilityChecker:
     ) -> None:
         """Add compatibility records for one segment debug-database table."""
         for op_id, api_labels in op_ids.items():
-            db_op_type = types.get(op_id, [""])[0]
+            op_types = types.get(op_id, [])
+            if (
+                self._backend_config.skip_trivial_ops
+                and op_types
+                and all(op_type in _TRIVIAL_OPS for op_type in op_types)
+            ):
+                continue
+            db_op_type = "/".join(
+                dict.fromkeys(op_type for op_type in op_types if op_type)
+            )
             if not any(label.strip() for label in api_labels):
                 # Placement still counts even when no source can be attributed.
                 comp_info.add_estimator_placement(
@@ -775,12 +796,14 @@ class NXCompatibilityChecker:
         source_names = {
             schema.tosa_source_operator_id(op_id): op.name
             for op_id, op in tosa_ops.items()
+            if not self._backend_config.skip_trivial_ops or op.name not in _TRIVIAL_OPS
         }  # e.g {'source_operator/16' : 'tosa.reshape'}
         # Keep original labels even when the compiler omits an operation.
         # Strip only our appended counter, preserving any original suffix.
         source_labels = {
             schema.tosa_source_operator_id(op_id): op.loc.rsplit("_", 1)[0]
             for op_id, op in tosa_ops.items()
+            if not self._backend_config.skip_trivial_ops or op.name not in _TRIVIAL_OPS
         }
 
         compat_info.add_structural_source_operators(
@@ -815,12 +838,22 @@ class NXCompatibilityChecker:
                 )
 
         for record in unattributed_records:
+            if (
+                self._backend_config.skip_trivial_ops
+                and record.op_type
+                and all(
+                    op_type in _TRIVIAL_OPS for op_type in record.op_type.split("/")
+                )
+            ):
+                continue
             compat_info.add_estimator_placement(
                 record.record_key, record.label, record.placement, record.op_type
             )
 
         for source_op_id, record in compiler_records.items():
             source_id = schema.tosa_source_operator_id(source_op_id)
+            if source_id not in source_names:  # e.g a skipped trivial op
+                continue
             compat_info.add_estimator_placement(
                 f"{record.record_key}_source_{source_op_id}",
                 source_labels[source_id],

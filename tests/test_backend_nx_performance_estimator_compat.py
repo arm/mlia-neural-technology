@@ -493,6 +493,146 @@ def test_vgf_compatibility_uses_estimator_debug_database(
     ]
 
 
+def test_tosa_compatibility_skips_trivial_records(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Skip attributed and unattributed trivial records, retaining mixed types."""
+    model = tmp_path / "model.tosamlir"
+    model.write_text(
+        '%0 = tosa.abs %arg0 : (tensor<1xi32>) -> tensor<1xi32> loc("known")\n'
+        '%1 = "tosa.const"() <{values = dense<0> : tensor<1xi32>}> '
+        ': () -> tensor<1xi32> loc("constant")\n',
+        encoding="utf-8",
+    )
+    module = "mlia.backend.nx_performance_estimator.compat"
+    monkeypatch.setattr(f"{module}.get_ml_sdk_model_converter_path", lambda: tmp_path)
+    vgf = tmp_path / "converted.vgf"
+    monkeypatch.setattr(
+        f"{module}.MLSDKModelConverter", Mock(return_value=Mock(return_value=vgf))
+    )
+    monkeypatch.setattr(
+        f"{module}.prepare_gcpe_compatible_vgfs",
+        lambda *_: [GCPEVGFSegment(0, "main", vgf, SpirvDebugNameMap(), [])],
+    )
+    checker = NXCompatibilityChecker(
+        tmp_path, {"nx-performance-estimator": {"skip_trivial_ops": True}}
+    )
+    monkeypatch.setattr(
+        checker,
+        "_run_estimator_debug_database",
+        Mock(
+            return_value={
+                "tosa_op_id_to_api_labels": {
+                    "1": ["known_0"],
+                    "2": ["constant_0"],  # Attributed trivial record.
+                    "3": [],  # Unlabeled trivial record.
+                    "4": ["unmatched"],  # Unmatched trivial record.
+                    "5": ["mixed"],
+                },
+                "tosa_op_id_to_tosa_op": {
+                    "1": ["ABS"],
+                    "2": ["Const"],
+                    "3": ["Reshape"],
+                    "4": ["ConstShape"],
+                    "5": ["Reshape", "Add"],
+                },
+                "shader_op_id_to_api_labels": {"6": []},
+            }
+        ),
+    )
+
+    compatibility = checker.check_compatibility(TOSAModel(model))
+
+    records = compatibility.get_records()
+    assert {
+        (record.display_label, record.placement, record.type, record.source_operator_id)
+        for record in records
+    } == {
+        ("known", "NX", "ABS", schema.tosa_source_operator_id(0)),
+        ("mixed", "NX", "Reshape/Add", None),
+        ("unknown", "EE", None, None),
+    }
+    output = compatibility.to_standardized_output(
+        model, source_operator_attribution_available=False
+    )
+    assert len(output["results"][0]["checks"]) == 3
+    assert len(output["results"][0]["entities"]) == 3
+    metric = _result_metrics(output)[schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE]
+    assert metric["value"] == pytest.approx(200 / 3)
+    validate_standardized_output(output)
+
+
+def test_vgf_compatibility_skips_trivial_records(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Skip attributed and unattributed trivial VGF records, retaining mixed types."""
+    model = tmp_path / "model.vgf"
+    model.write_bytes(b"model")
+    debug_names = SpirvDebugNameMap(
+        spirv_id_to_debug_name={"10": "known", "11": "constant"},
+        debug_name_to_spirv_ids={"known": ["10"], "constant": ["11"]},
+    )
+    source_ids = [schema.vgf_source_operator_id(0, value) for value in (10, 11)]
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.compat.prepare_gcpe_compatible_vgfs",
+        lambda *_: [GCPEVGFSegment(0, "main", model, debug_names, source_ids)],
+    )
+    checker = NXCompatibilityChecker(
+        tmp_path, {"nx-performance-estimator": {"skip_trivial_ops": True}}
+    )
+    monkeypatch.setattr(
+        checker,
+        "_run_estimator_debug_database",
+        Mock(
+            return_value={
+                "tosa_op_id_to_api_labels": {
+                    "1": ["known"],
+                    "2": ["constant"],  # Attributed trivial record.
+                    "3": [],  # Unlabeled trivial record.
+                    "4": ["unmatched"],  # Unmatched trivial record.
+                    "5": ["mixed"],
+                },
+                "tosa_op_id_to_tosa_op": {
+                    "1": ["Abs"],
+                    "2": ["Const"],
+                    "3": ["Reshape"],
+                    "4": ["ConstShape"],
+                    "5": ["Reshape", "Add", "Reshape", "", "Add"],
+                },
+                "shader_op_id_to_api_labels": {"6": []},
+            }
+        ),
+    )
+
+    compatibility = checker.check_compatibility(VGFModel(model))
+
+    assert {
+        (record.display_label, record.placement, record.type, record.source_operator_id)
+        for record in compatibility.get_records()
+    } == {
+        ("known", "NX", "Abs", source_ids[0]),
+        ("mixed", "NX", "Reshape/Add", None),
+        ("unknown", "EE", "", None),
+    }
+    output = compatibility.to_standardized_output(
+        model, source_operator_attribution_available=False
+    )
+    assert len(output["results"][0]["checks"]) == 3
+    assert len(output["results"][0]["entities"]) == 3
+    mixed_entity = next(
+        entity
+        for entity in output["results"][0]["entities"]
+        if entity["attributes"]["display_label"] == "mixed"
+    )
+    assert mixed_entity["name"] == "Reshape/Add"
+    assert mixed_entity["attributes"]["op_type"] == "Reshape/Add"
+    metric = _result_metrics(output)[schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE]
+    assert metric["value"] == pytest.approx(200 / 3)
+    validate_standardized_output(output)
+
+
 @pytest.mark.parametrize("suffix", [".vgf", ".tosamlir"])
 @pytest.mark.parametrize("empty_labels", [[], [""], ["", " \t", ""]])
 def test_compiler_record_without_labels_preserves_unattributed_placement(

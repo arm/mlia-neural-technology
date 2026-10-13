@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class NXPerformanceEstimatorPlugin(BackendPlugin):
     """Neural Accelerator  Performance Estimator Backend Plugin."""
 
-    plugin_interface_version = "0.0.1"
+    plugin_interface_version = "0.0.2"
 
     @staticmethod
     def register(registry: BackendRegistry) -> None:

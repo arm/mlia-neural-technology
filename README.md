@@ -66,6 +66,17 @@ These profiles are shipped under `src/mlia/resources/target_profiles/`.
 Provides the performance-estimation flow for Neural Technology targets and uses
 bundled system and graph-compiler configuration assets.
 
+For TOSA compatibility reports, omit constants, shape constants, and reshapes
+with the optional boolean flag (no value is required):
+
+```bash
+uv run mlia check -t neural-technology --compatibility \
+  --nx-performance-estimator.skip-trivial-ops -- model.tosamlir
+```
+
+Without the flag, these operations remain in the report. This controls MLIA's
+compatibility reporting, not the estimator's compilation or performance analysis.
+
 ### Measured profiling data
 
 The built-in `neural-technology-profiling-data` backend analyzes structured

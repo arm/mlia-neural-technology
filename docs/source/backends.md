@@ -62,6 +62,19 @@ mlia check my_model.tosa \
 | --- | --- |
 | `--nx-performance-estimator.system-config` | Override the system configuration file |
 | `--nx-performance-estimator.compiler-config` | Override the graph-compiler configuration file |
+| `--nx-performance-estimator.skip-trivial-ops` | Exclude trivial TOSA operations (const, const_shape, etc.) from compatibility checks and accelerator operator percentages |
+
+`--nx-performance-estimator.skip-trivial-ops` is a boolean flag that takes no
+value and is disabled by default. It filters constants (`CONST`), shape constants
+(`CONST_SHAPE`), and reshapes (`RESHAPE`) during compatibility analysis of TOSA
+FlatBuffer, TOSA MLIR, and VGF inputs. Compiler records are retained when their
+types are unknown or include non-trivial operations. The flag does not change
+model compilation or performance estimation.
+
+```bash
+uv run mlia check -t neural-technology --compatibility \
+  --nx-performance-estimator.skip-trivial-ops -- my_model.tosa
+```
 
 ## Measured profiling data
 

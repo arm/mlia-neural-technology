@@ -7,9 +7,26 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-CONFIG_TO_CLI_OPTION = {
-    "system_config": "--system-config",
-    "compiler_config": "--compiler-config",
+import click
+
+from mlia.backend.config import BackendCliOption
+
+CONFIG_TO_CLI_OPTION: dict[str, BackendCliOption] = {
+    "system_config": click.Option(
+        ["--system-config"],
+        default=None,
+        type=click.Path(path_type=Path),
+    ),
+    "compiler_config": click.Option(
+        ["--compiler-config"],
+        default=None,
+        type=click.Path(path_type=Path),
+    ),
+    "skip_trivial_ops": click.Option(
+        ["--skip-trivial-ops"],
+        is_flag=True,
+        default=None,
+    ),
 }
 
 
@@ -21,6 +38,7 @@ class NXPerformanceEstimatorConfig:
 
     system_config: str | Path
     compiler_config: str | Path
+    skip_trivial_ops: bool = False
 
     def __post_init__(self) -> None:
         """Convert string paths to Path objects."""
