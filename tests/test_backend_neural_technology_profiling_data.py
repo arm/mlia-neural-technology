@@ -1286,8 +1286,21 @@ def test_analyze_rejects_multiple_captures(tmp_path: Path) -> None:
         (['{"source": "first(); second()"}', "fallback"], []),
     ],
 )
+@pytest.mark.parametrize(
+    ("table_name", "headers", "row_prefix"),
+    [
+        ("tosa_op_id", '"id", "tosa_op", "api_labels"', "10, Conv2D, "),
+        ("tosa_op_id", '"id", "api_labels"', "10, "),
+        ("shader_op_id", '"id", "api_labels"', "10, "),
+    ],
+)
 def test_estimation_and_profiling_recover_identical_api_labels(
-    tmp_path: Path, labels: list[str], known_labels: list[str]
+    tmp_path: Path,
+    labels: list[str],
+    known_labels: list[str],
+    table_name: str,
+    headers: str,
+    row_prefix: str,
 ) -> None:
     """Both wire formats must preserve the same complete API label values."""
     raw_labels = ";".join(labels)
@@ -1297,13 +1310,14 @@ def test_estimation_and_profiling_recover_identical_api_labels(
 
     estimated = NXDebugDatabaseParser(known_api_labels=known_labels)
     estimated.raw_xmlish = (
-        '<debug><table name="tosa_op_id"><![CDATA[\n'
-        '"id", "tosa_op", "api_labels"\n'
-        f"10, Conv2D, {raw_labels};\n"
+        f'<debug><table name="{table_name}"><![CDATA[\n'
+        f"{headers}\n{row_prefix}{raw_labels};\n"
         "]]></table></debug>"
     )
     assert captured["tosa_op_id_to_api_labels"]["10"] == labels
-    assert estimated.parse_debug_database()["tosa_op_id_to_api_labels"]["10"] == labels
+    assert (
+        estimated.parse_debug_database()[f"{table_name}_to_api_labels"]["10"] == labels
+    )
 
 
 @pytest.mark.parametrize("with_vgf", [False, True])

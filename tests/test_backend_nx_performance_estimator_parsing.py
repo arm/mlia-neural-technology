@@ -514,6 +514,49 @@ def test_known_api_labels_do_not_affect_other_third_columns() -> None:
     assert records["stripe_op_id_to_cascade_op_id"]["0"] == ["1672"]
 
 
+@pytest.mark.parametrize(
+    ("table_name", "headers", "row_prefix"),
+    [
+        ("shader_op_id", '"id", "api_labels"', "10, "),
+        ("tosa_op_id", '"id", "api_labels"', "10, "),
+        ("tosa_op_id", '"id", "tosa_op", "api_labels"', "10, Conv2D, "),
+    ],
+)
+@pytest.mark.parametrize(
+    ("value", "known_labels", "expected"),
+    [
+        ("known;label;", ["known;label"], ["known;label"]),
+        (
+            '{"source": "first(); second()", "name": "op"};',
+            [],
+            ['{"source": "first(); second()", "name": "op"}'],
+        ),
+        ("first;known;label;last;", ["known;label"], ["first", "known;label", "last"]),
+        ("first;second;", [], ["first", "second"]),
+        ("", [], []),
+    ],
+)
+def test_api_labels_use_shared_recovery_in_every_table_shape(
+    table_name: str,
+    headers: str,
+    row_prefix: str,
+    value: str,
+    known_labels: list[str],
+    expected: list[str],
+) -> None:
+    """Shader and TOSA label columns preserve the same complete labels."""
+    parser = NXDebugDatabaseParser(known_api_labels=known_labels)
+    parser.raw_xmlish = (
+        f'<debug><table name="{table_name}"><![CDATA[\n'
+        f"{headers}\n{row_prefix}{value}\n"
+        "]]></table></debug>"
+    )
+
+    records = parser.parse_debug_database()
+
+    assert records[f"{table_name}_to_api_labels"]["10"] == expected
+
+
 def test_parse_debug_database_uses_empty_list_for_blank_api_labels() -> None:
     """Blank api_labels cells mean the op has no source location."""
     contents = (
@@ -583,8 +626,7 @@ def test_make_parsed_db_debug_db() -> None:
         table_data = parser.extract_cdata(table_element)
         reader = parser.get_csv_reader(table_data=table_data)
         headers = parser.get_csv_headers(csv_reader=reader)
-        headers[0] = table_name + "_to_" + headers[1]
-        parser.make_parsed_db(csv_reader=reader, headers=headers)
+        parser.make_parsed_db(csv_reader=reader, table_name=table_name, headers=headers)
 
     assert len(parser.debug_db) == 4
     assert parser.debug_db["fused_op_id_to_tosa_op_ids"]["531"] == ["334"]
@@ -620,8 +662,9 @@ def test_make_parsed_db_debug_db_invalid_num_headers() -> None:
             table_data = parser.extract_cdata(table_element)
             reader = parser.get_csv_reader(table_data=table_data)
             headers = parser.get_csv_headers(csv_reader=reader)
-            headers[0] = table_name + "_to_" + headers[1]
-            parser.make_parsed_db(csv_reader=reader, headers=headers)
+            parser.make_parsed_db(
+                csv_reader=reader, table_name=table_name, headers=headers
+            )
 
 
 @pytest.mark.parametrize(

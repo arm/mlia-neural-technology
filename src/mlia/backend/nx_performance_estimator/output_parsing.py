@@ -296,44 +296,43 @@ class NXDebugDatabaseParser(NXOutputParser):
             table_data = self.extract_cdata(table_element)
             reader = self.get_csv_reader(table_data=table_data)
             headers = self.get_csv_headers(csv_reader=reader)
-            if len(headers) > MAX_NUM_DEBUG_DB_HEADERS:
-                raise RuntimeError(
-                    f"Unsupported number of headers. Found {len(headers)} headers but "
-                    f"max {MAX_NUM_DEBUG_DB_HEADERS} headers supported."
-                )
-            headers[0] = table_name + "_to_" + headers[1]
-            if len(headers) == MAX_NUM_DEBUG_DB_HEADERS:
-                headers[1] = table_name + "_to_" + headers[2]
-
-            self.make_parsed_db(csv_reader=reader, headers=headers)
+            self.make_parsed_db(
+                csv_reader=reader, table_name=table_name, headers=headers
+            )
 
         return self.debug_db
 
-    def make_parsed_db(self, csv_reader: Iterator[list[str]], headers: list) -> None:
-        """Parse database into dictionary."""
-        self.debug_db[headers[0]] = {}
-
+    def make_parsed_db(
+        self,
+        csv_reader: Iterator[list[str]],
+        table_name: str,
+        headers: list[str],
+    ) -> None:
+        """Parse each value column according to its header."""
         if len(headers) > MAX_NUM_DEBUG_DB_HEADERS:
             raise RuntimeError(
                 f"Unsupported number of headers. Found {len(headers)} headers but "
                 f"max {MAX_NUM_DEBUG_DB_HEADERS} headers supported."
             )
 
-        if len(headers) == MAX_NUM_DEBUG_DB_HEADERS:
-            self.debug_db[headers[1]] = {}
+        columns = [
+            (index, header, f"{table_name}_to_{header}")
+            for index, header in enumerate(headers[1:], start=1)
+        ]
+        for _, _, mapping_key in columns:
+            self.debug_db[mapping_key] = {}
 
         for row in csv_reader:
-            op_ids_list = [
-                op_id for op_id in row[1].strip().split(";") if op_id.strip()
-            ]
-            self.debug_db[headers[0]][row[0]] = op_ids_list
-            if len(headers) == MAX_NUM_DEBUG_DB_HEADERS:
-                raw_value = ",".join(row[2:]).strip()
+            for index, header, mapping_key in columns:
+                # Legacy dumps leave commas inside the final field unquoted.
+                raw_value = (
+                    ",".join(row[index:]) if index == len(headers) - 1 else row[index]
+                ).strip()
                 values = (
                     self.api_label_parser.parse(raw_value)
-                    if headers[1].endswith("_to_api_labels")
+                    if header == "api_labels"
                     else [
                         value.strip() for value in raw_value.split(";") if value.strip()
                     ]
                 )
-                self.debug_db[headers[1]][row[0]] = values
+                self.debug_db[mapping_key][row[0]] = values
