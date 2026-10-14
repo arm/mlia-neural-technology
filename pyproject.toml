@@ -137,10 +137,6 @@ addopts = [
 pythonpath = ["src"]
 
 [dependency-groups]
-pytorch-e2e = [
-    "mlia-converters-pytorch",
-    "torch==2.13.0"
-]
 test = [
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
