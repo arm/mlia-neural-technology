@@ -17,6 +17,14 @@ Compatible converter plugins for upstream model formats include
 `mlia-converters-litert` (for LiteRT / TensorFlow Lite `.tflite` models) and
 `mlia-converters-pytorch`.
 
+## Start here: Arm Learning Path
+
+**[Estimate neural accelerator (NX) performance with ML Inference Advisor](https://learn.arm.com/learning-paths/mobile-graphics-and-gaming/mlia-nx-performance-estimator/)**
+
+Follow this hands-on guide to install the plugin, analyze quantized MobileNet
+models, check operator compatibility, and interpret NX Performance Estimator
+reports.
+
 ## Documentation Map
 
 - [Target profiles](target_profiles.md)

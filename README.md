@@ -18,6 +18,12 @@ The package is distributed as `mlia-neural-technology` and contributes:
 - The internal `tosa-flatbuffers` serialization integration.
 - Bundled Neural Technology target profiles and backend configuration assets.
 
+> Start here: Arm Learning Path
+>
+> [Estimate neural accelerator (NX) performance with ML Inference Advisor](https://learn.arm.com/learning-paths/mobile-graphics-and-gaming/mlia-nx-performance-estimator/)
+> is a hands-on guide to installing the plugin, analyzing quantized MobileNet
+> models, checking operator compatibility, and interpreting performance estimates.
+
 ## Table of Contents
 
 - [Overview](#overview)
