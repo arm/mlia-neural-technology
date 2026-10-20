@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import mlia.core.output_schema as schema
+from mlia.backend.nx_performance_estimator.advice import NXAdviceRecord
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
@@ -68,6 +69,14 @@ def test_nx_performance_estimator_performance_estimator(
         "neural-technology"
     )
     pco_mock = MagicMock()
+    advice_record = NXAdviceRecord("advice/0", "performance", "info", "Backend advice")
+    advice_mock = MagicMock(
+        side_effect=lambda _path, advice: advice.append(advice_record)
+    )
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.add_vgf_performance_advice",
+        advice_mock,
+    )
     mock_repo = MagicMock()
     mock_repo.get_backend_settings = MagicMock(return_value=(tmp_path / "backend", {}))
     monkeypatch.setattr(
@@ -149,6 +158,9 @@ def test_nx_performance_estimator_performance_estimator(
         tmp_path, neural_technology_cfg.backend_config, operator_types_mapping
     )
     metrics = estimator.estimate(tmp_path / model_file)
+    expected_vgf = tmp_path / (model_file if model_file == "model.vgf" else "vgf_file")
+    advice_mock.assert_called_once_with(expected_vgf, metrics.advice)
+    assert metrics.advice == [advice_record]
     assert isinstance(metrics.backend_config, NXPerformanceEstimatorConfig)
     json_dump_path = Path(tmp_path / "nx_performance_statistics.json")
     assert json_dump_path.exists()
@@ -158,6 +170,11 @@ def test_nx_performance_estimator_prefixes_subgraph_ids_with_segment_and_kind(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Raw debug DB ids should be namespaced by segment and subgraph kind."""
+    advice_mock = MagicMock()
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.performance.add_vgf_performance_advice",
+        advice_mock,
+    )
     stats_chain = NXOperatorPerformanceStats(
         op_id=["0"],
         op_cycles=4500,
@@ -268,6 +285,8 @@ def test_nx_performance_estimator_prefixes_subgraph_ids_with_segment_and_kind(
     )
 
     assert set(metrics.chain_performance_metrics) == {"chain/segment_0/5300"}
+    advice_mock.assert_called_once_with(tmp_path / "segment.vgf", [])
+    assert metrics.advice == []
     assert set(metrics.cascade_performance_metrics) == {"cascade/segment_0/9114"}
     assert metrics.segment_entities == [
         NXSegmentPerformanceEntities(
@@ -579,6 +598,23 @@ def test_nx_performance_metrics_to_standardized_output(
         chain_performance_metrics={"chain_0": stats_chain_0, "chain_1": stats_chain_1},
         cascade_performance_metrics={"cascade_0": stats_stripe},
         model_performance_stats=model_performance,
+        advice=[
+            NXAdviceRecord(
+                "advice/0",
+                "performance",
+                "info",
+                "Backend advice",
+                "source_operator/test-0",
+            ),
+            NXAdviceRecord("advice/unlinked", "performance", "info", "Unlinked advice"),
+            NXAdviceRecord(
+                "advice/missing",
+                "performance",
+                "info",
+                "Missing entity advice",
+                "source_operator/missing",
+            ),
+        ],
     )
 
     # Create a model file for hash computation
@@ -597,6 +633,15 @@ def test_nx_performance_metrics_to_standardized_output(
         assert key in output
 
     assert output["schema_version"] == schema.SCHEMA_VERSION
+    assert output["results"][0]["advice"] == [
+        {
+            "id": "advice/0",
+            "category": "performance",
+            "severity": "info",
+            "message": "Backend advice",
+            "affected_entity_ids": ["source_operator/test-0"],
+        }
+    ]
 
     # Backend checks
     assert len(output["backends"]) == 1

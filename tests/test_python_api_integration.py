@@ -198,7 +198,16 @@ def test_run_advisor_performance_routes_backend_options(
     class FakeMetrics:
         def to_standardized_output(self, **kwargs: Any) -> dict[str, Any]:
             captured["standardized_kwargs"] = kwargs
-            return _fake_standardized_output("model.tosa", "tosa", "performance")
+            output = _fake_standardized_output("model.tosa", "tosa", "performance")
+            output["results"][0]["advice"] = [
+                {
+                    "id": "advice/0",
+                    "category": "performance",
+                    "severity": "info",
+                    "message": "Backend advice",
+                }
+            ]
+            return output
 
     def fake_init(
         self,
@@ -244,13 +253,10 @@ def test_run_advisor_performance_routes_backend_options(
     assert len(output["results"]) == 1
     assert output["results"][0]["advice"] == [
         {
-            "id": "performance_metrics",
+            "id": "advice/0",
             "category": "performance",
             "severity": "info",
-            "message": (
-                "Please refer to the performance metrics shown in the report "
-                "to find possible optimizations."
-            ),
+            "message": "Backend advice",
         }
     ]
     assert captured["backend_config"] == {

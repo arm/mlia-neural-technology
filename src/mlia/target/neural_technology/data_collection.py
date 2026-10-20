@@ -41,10 +41,6 @@ from mlia.utils.logging import log_action
 
 logger = logging.getLogger(__name__)
 
-PERFORMANCE_ADVICE_MESSAGE = (
-    "Please refer to the performance metrics shown in the report "
-    "to find possible optimizations."
-)
 TFLITE_SOURCE_ATTRIBUTION_WARNING = (
     "Source operator attribution is unavailable for TFLite input converted to TOSA "
     "because tosa-converter-for-tflite does not preserve the exact original TFLite "
@@ -57,21 +53,6 @@ def _cli_arguments() -> list[str]:
     if not sys.argv:
         return []
     return [Path(sys.argv[0]).name, *sys.argv[1:]]
-
-
-def _add_performance_advice(output: dict[str, Any]) -> None:
-    """Add Neural Technology advice directly to each performance result."""
-    for result in output.get("results", []):
-        if not isinstance(result, dict) or result.get("kind") != "performance":
-            continue
-        result.setdefault("advice", []).append(
-            {
-                "id": "performance_metrics",
-                "category": "performance",
-                "severity": "info",
-                "message": PERFORMANCE_ADVICE_MESSAGE,
-            }
-        )
 
 
 def _is_tflite_file(model: Path) -> bool:
@@ -220,7 +201,6 @@ class NeuralTechnologyPerformance(ContextAwareDataCollector):
                 target_config=target_config,
                 cli_arguments=cli_args,
             )
-            _add_performance_advice(standardized)
 
             return NXPerformanceResult(
                 legacy_info=metrics,

@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 import logging
+import mmap
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -68,6 +70,59 @@ def read_vgf_segment_name(path: Path, segment_index: int = 0) -> str:
             f"0..{segment_count - 1}."
         )
     return str(decoded.sequence.getSegmentName(segment_index))
+
+
+def for_each_vgf_op(path: Path, callback: Callable[[int, bytes], None]) -> None:
+    """Call ``callback(segment_index, op_bytes)`` for every SPIR-V instruction.
+
+    Visit all segments in model-sequence order, including compute segments.
+    Each instruction includes its word-count/opcode word and all operands;
+    the five-word module header is excluded. Shared modules are visited once
+    per segment that references them. Non-SPIR-V segments raise ``ValueError``.
+
+    Map the file read-only and use buffer views for module data. Only the
+    current instruction is copied to ``bytes``, so callbacks can retain it
+    after the mapping closes. Callback exceptions propagate to the caller.
+    """
+    with path.open("rb") as stream:
+        if stream.seek(0, 2) == 0:
+            raise ValueError(f"Invalid empty VGF file: {path}")
+        with mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as mapped:
+            with memoryview(mapped) as data:
+                decoded = _decode_vgf(data, vgfpy, path)
+                for segment_index in range(decoded.sequence.modelSequenceTableSize()):
+                    module_index = decoded.sequence.getSegmentModuleIndex(segment_index)
+                    if not decoded.modules.isSPIRV(
+                        module_index
+                    ) or not decoded.modules.hasSPIRVCode(module_index):
+                        raise ValueError(
+                            f"VGF segment {segment_index} does not contain SPIR-V code"
+                        )
+                    with (
+                        memoryview(
+                            decoded.modules.getSPIRVModuleCode(module_index)
+                        ) as words,
+                        words.cast("B") as code,
+                    ):
+                        if (
+                            len(code) < 20
+                            or len(code) % 4
+                            or struct.unpack_from("<I", code)[0] != 0x07230203
+                        ):
+                            raise ValueError(
+                                f"Invalid SPIR-V module in VGF segment {segment_index}"
+                            )
+                        offset = 20
+                        while offset < len(code):
+                            word_count = struct.unpack_from("<I", code, offset)[0] >> 16
+                            end = offset + word_count * 4
+                            if word_count == 0 or end > len(code):
+                                raise ValueError(
+                                    f"Invalid SPIR-V instruction in VGF segment "
+                                    f"{segment_index} at byte offset {offset}"
+                                )
+                            callback(segment_index, bytes(code[offset:end]))
+                            offset = end
 
 
 def prepare_gcpe_compatible_vgfs(path: Path, output_dir: Path) -> GCPEVGFSegments:

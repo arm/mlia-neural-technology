@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import singledispatchmethod
 from pathlib import Path
 from typing import Any
@@ -36,6 +36,10 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import (
 )
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
+)
+from mlia.backend.nx_performance_estimator.advice import (
+    NXAdviceRecord,
+    add_vgf_performance_advice,
 )
 from mlia.backend.nx_performance_estimator.output_parsing import (
     NXDebugDatabaseParser,
@@ -188,6 +192,7 @@ class NXModelCompatibilityInfo:
     def __init__(self, *, model_converter_used: bool = False) -> None:
         """Initialize records and track whether the executed path used conversion."""
         self._layer_map = {}
+        self.advice: list[NXAdviceRecord] = []
         self._model_converter_used = model_converter_used
         self._structural_source_operator_ids: list[str] = []
         self._structural_source_operator_names: dict[str, str] = {}
@@ -475,6 +480,11 @@ class NXModelCompatibilityInfo:
                 )
 
         entities = [*provenance_builder.entities(), *converted_operator_entities]
+        nx_entity_ids = {
+            entity.id
+            for entity in entities
+            if entity.placement == schema.PlacementType.NX.value
+        }
         entity_kinds = provenance_builder.entity_kind_declarations()
         if converted_operator_entities:
             entity_kinds.append(schema.EntityKind(id=_CONVERTED_OPERATOR_ENTITY_KIND))
@@ -500,6 +510,17 @@ class NXModelCompatibilityInfo:
             checks=checks,
             entities=entities,
             entity_kinds=entity_kinds,
+            advice=[
+                schema.Advice(
+                    id=record.id,
+                    category=schema.AdviceCategory(record.category),
+                    severity=schema.AdviceSeverity(record.severity),
+                    message=record.message,
+                    affected_entity_ids=[record.entity_id],
+                )
+                for record in self.advice
+                if record.entity_id is not None and record.entity_id in nx_entity_ids
+            ],
         )
 
         return schema.StandardizedOutput(
@@ -570,17 +591,65 @@ class NXCompatibilityChecker:
     @check_compatibility.register
     def _(self, vgf_model: VGFModel) -> NXModelCompatibilityInfo:
         """Check compatibility of every graph segment in a VGF model."""
+        comp_info = NXModelCompatibilityInfo()
         segments = prepare_gcpe_compatible_vgfs(
             vgf_model.path, self.output_dir / "gcpe-vgf-segments"
         )
-        comp_info = NXModelCompatibilityInfo()
         for segment in segments:
+            self._add_segment_advice(comp_info, segment)
             comp_info.add_structural_source_operators(
                 segment.structural_source_operator_ids
             )
             debug_db = self._run_estimator_debug_database(segment)
             self._add_compatibility_from_debug_database(comp_info, debug_db, segment)
         return comp_info
+
+    def _add_segment_advice(
+        self,
+        comp_info: NXModelCompatibilityInfo,
+        segment: GCPEVGFSegment,
+        location_to_ops: dict[str, int] | None = None,
+    ) -> None:
+        """Gather advice from a single-segment VGF and resolve its report IDs."""
+        advice: list[NXAdviceRecord] = []
+        add_vgf_performance_advice(segment.path, advice)
+        tosa_entity_ids: dict[str, str] = {}
+        if location_to_ops is not None:
+            for spirv_id, label in segment.debug_names.spirv_id_to_debug_name.items():
+                if not label.strip():
+                    continue
+                source_op_id = location_to_ops.get(label)
+                if source_op_id is None:
+                    provenance = source_provenance_from_api_label(label)
+                    source_op_id = location_to_ops.get(provenance.display_label)
+                if source_op_id is not None:
+                    tosa_entity_ids[schema.vgf_source_operator_id(0, int(spirv_id))] = (
+                        schema.tosa_source_operator_id(source_op_id)
+                    )
+        for record in advice:
+            entity_id = record.entity_id
+            if entity_id is not None:
+                if location_to_ops is not None:
+                    entity_id = tosa_entity_ids.get(entity_id)
+                else:
+                    entity_id = entity_id.replace(
+                        "source_operator/segment_0/",
+                        f"source_operator/segment_{segment.segment_index}/",
+                        1,
+                    )
+            # Each generated file has local segment index zero. Restore the
+            # original segment namespace so advice IDs remain unique.
+            comp_info.advice.append(
+                replace(
+                    record,
+                    id=record.id.replace(
+                        "advice/segment_0/",
+                        f"advice/segment_{segment.segment_index}/",
+                        1,
+                    ),
+                    entity_id=entity_id,
+                )
+            )
 
     def _run_estimator_debug_database(
         self,
@@ -788,10 +857,10 @@ class NXCompatibilityChecker:
             vmc_path, _ = backend_repo.get_backend_settings("ml-sdk-model-converter")
         model_converter = MLSDKModelConverter(vmc_path)
         vgf_file = model_converter(tosa_path, self.output_dir)
+        compat_info = NXModelCompatibilityInfo(model_converter_used=True)
         segments = prepare_gcpe_compatible_vgfs(
             vgf_file, self.output_dir / "gcpe-vgf-segments"
         )
-        compat_info = NXModelCompatibilityInfo(model_converter_used=True)
 
         source_names = {
             schema.tosa_source_operator_id(op_id): op.name
@@ -820,6 +889,7 @@ class NXCompatibilityChecker:
         unattributed_records: list[_CompilerRecord] = []
 
         for segment in segments:
+            self._add_segment_advice(compat_info, segment, location_to_ops)
             debug_db = self._run_estimator_debug_database(
                 segment, list(location_to_ops)
             )
@@ -858,8 +928,7 @@ class NXCompatibilityChecker:
                 f"{record.record_key}_source_{source_op_id}",
                 source_labels[source_id],
                 record.placement,
-                record.op_type
-                or tosa_ops[source_op_id].name,  # EE ops have record.op_type empty
+                record.op_type or tosa_ops[source_op_id].name,  # EE has no op_type
                 source_operator_id=source_id,
             )
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,10 @@ from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverter
 from mlia.backend.ml_sdk_model_converter.install import get_ml_sdk_model_converter_path
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
+)
+from mlia.backend.nx_performance_estimator.advice import (
+    NXAdviceRecord,
+    add_vgf_performance_advice,
 )
 from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
 from mlia.backend.nx_performance_estimator.output_parsing import (
@@ -194,6 +198,7 @@ class NXPerformanceEstimatorPerformanceMetrics:
     model_performance_stats: NXModelPerformanceStats
     segment_entities: list[NXSegmentPerformanceEntities] | None = None
     warnings: list[str] | None = None
+    advice: list[NXAdviceRecord] | None = None
 
     def _build_model_metric(
         self,
@@ -629,7 +634,11 @@ class NXPerformanceEstimatorPerformanceMetrics:
                     child_ids=list(dict.fromkeys(segment_child_ids[segment_entity_id])),
                 )
             )
-
+        nx_entity_ids = {
+            entity.id
+            for entity in entities
+            if entity.placement == schema.PlacementType.NX.value
+        }
         result = schema.Result(
             kind=schema.ResultKind.PERFORMANCE,
             status=schema.ResultStatus.OK,
@@ -641,6 +650,17 @@ class NXPerformanceEstimatorPerformanceMetrics:
             breakdowns=breakdowns,
             entities=entities,
             entity_kinds=NX_ENTITY_KINDS,
+            advice=[
+                schema.Advice(
+                    id=record.id,
+                    category=schema.AdviceCategory(record.category),
+                    severity=schema.AdviceSeverity(record.severity),
+                    message=record.message,
+                    affected_entity_ids=[record.entity_id],
+                )
+                for record in self.advice or []
+                if record.entity_id is not None and record.entity_id in nx_entity_ids
+            ],
         )
         return schema.StandardizedOutput(
             schema_version=schema.SCHEMA_VERSION,
@@ -829,6 +849,33 @@ class NXPerformanceEstimatorPerformanceEstimator(
                 gcpe_segments, model_path.stem, skipped_compute_segments
             )
 
+    def _add_segment_advice(
+        self, advice: list[NXAdviceRecord], segment: GCPEVGFSegment
+    ) -> None:
+        """Gather prepared-segment advice and restore original segment IDs."""
+        segment_advice: list[NXAdviceRecord] = []
+        add_vgf_performance_advice(segment.path, segment_advice)
+        for record in segment_advice:
+            entity_id = record.entity_id
+            if entity_id is not None:
+                entity_id = entity_id.replace(
+                    "source_operator/segment_0/",
+                    f"source_operator/segment_{segment.segment_index}/",
+                    1,
+                )
+            # Prepared files have local segment zero; keep original namespaces.
+            advice.append(
+                replace(
+                    record,
+                    id=record.id.replace(
+                        "advice/segment_0/",
+                        f"advice/segment_{segment.segment_index}/",
+                        1,
+                    ),
+                    entity_id=entity_id,
+                )
+            )
+
     def _estimate_gcpe_segments(
         self,
         gcpe_segments: list[GCPEVGFSegment],
@@ -839,8 +886,10 @@ class NXPerformanceEstimatorPerformanceEstimator(
             raise ValueError("No VGF graph segments found for GCPE estimation.")
 
         perf_db_parser = None
+        advice: list[NXAdviceRecord] = []
         segment_databases: list[NXSegmentPerformanceDatabase] = []
         for gcpe_segment in gcpe_segments:
+            self._add_segment_advice(advice, gcpe_segment)
             segment_output_name = (
                 output_name
                 if len(gcpe_segments) == 1
@@ -891,6 +940,7 @@ class NXPerformanceEstimatorPerformanceEstimator(
             performance_db_parser=perf_db_parser,
             warnings=_skipped_compute_segments_warnings(skipped_compute_segments or []),
         )
+        metrics.advice = advice
         self.json_dump(
             metrics.chain_performance_metrics,
             self.output_dir / "nx_performance_statistics.json",

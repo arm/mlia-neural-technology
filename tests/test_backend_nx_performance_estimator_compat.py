@@ -32,6 +32,7 @@ from mlia.backend.nx_performance_estimator.compat import (
     TOSAModel,
     VGFModel,
 )
+from mlia.backend.nx_performance_estimator.advice import NXAdviceRecord
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
@@ -44,6 +45,39 @@ from mlia.backend.nx_performance_estimator.vgf import GCPEVGFSegment, GCPEVGFSeg
 from mlia.core.output_validation import validate_standardized_output
 
 
+def test_compatibility_advice_requires_nx_placement(tmp_path: Path) -> None:
+    """Only include advice linked to an entity placed exclusively on NX."""
+    compatibility = NXModelCompatibilityInfo()
+    for index, placement in enumerate(("NX", "EE", "NX/EE")):
+        compatibility.add_estimator_placement(
+            str(index),
+            str(index),
+            placement,
+            source_operator_id=f"source_operator/{index}",
+        )
+    compatibility.add_structural_source_operators(["source_operator/unplaced"])
+    for index, entity_id in enumerate(
+        (
+            "source_operator/0",
+            "source_operator/1",
+            "source_operator/2",
+            "source_operator/unplaced",
+            "source_operator/missing",
+            None,
+        )
+    ):
+        compatibility.advice.append(
+            NXAdviceRecord(
+                f"advice/{index}", "performance", "info", "Advice", entity_id
+            )
+        )
+    output = compatibility.to_standardized_output(_model_file(tmp_path))
+    validate_standardized_output(output)
+    advice = output["results"][0]["advice"]
+    assert [record["id"] for record in advice] == ["advice/0"]
+    assert advice[0]["affected_entity_ids"] == ["source_operator/0"]
+
+
 def _model_file(tmp_path: Path) -> Path:
     model_path = tmp_path / "model.tosamlir"
     model_path.write_bytes(b"test model content")
@@ -52,6 +86,17 @@ def _model_file(tmp_path: Path) -> Path:
 
 def _result_metrics(output: dict) -> dict[str, dict]:
     return {metric["name"]: metric for metric in output["results"][0]["metrics"]}
+
+
+@pytest.fixture(autouse=True)
+def advice_mock(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    """Keep fake VGF fixtures out of the binary advice reader."""
+    mock = Mock()
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.compat.add_vgf_performance_advice",
+        mock,
+    )
+    return mock
 
 
 @pytest.mark.parametrize(
@@ -72,6 +117,7 @@ def test_tosa_compatibility_scenarios(
     expected_status: str,
     suffix: str,
     original_label: str,
+    advice_mock: Mock,
 ) -> None:
     """Report full and mixed NX/EE placement using unique compiler labels."""
     model = tmp_path / f"model{suffix}"
@@ -119,6 +165,14 @@ def test_tosa_compatibility_scenarios(
     monkeypatch.setattr(f"{module}.{reader.__name__}", reader_mock)
     monkeypatch.setattr(f"{module}.get_ml_sdk_model_converter_path", lambda: tmp_path)
     vgf = tmp_path / "model.vgf"
+    advice_record = NXAdviceRecord(
+        "advice/segment_0/spirv_42",
+        "performance",
+        "info",
+        "Model advice",
+        "source_operator/segment_0/spirv-42",
+    )
+    advice_mock.side_effect = lambda _path, advice: advice.append(advice_record)
 
     def convert(annotated: Path, output_dir: Path) -> Path:
         assert annotated != model
@@ -129,10 +183,31 @@ def test_tosa_compatibility_scenarios(
         return vgf
 
     monkeypatch.setattr(f"{module}.MLSDKModelConverter", Mock(return_value=convert))
-    monkeypatch.setattr(
-        f"{module}.prepare_gcpe_compatible_vgfs",
-        lambda *_: [GCPEVGFSegment(0, "main", vgf, SpirvDebugNameMap(), [])],
-    )
+
+    def prepare_segments(path: Path, _output_dir: Path) -> list[GCPEVGFSegment]:
+        assert path == vgf
+        advice_mock.assert_not_called()
+        return [
+            GCPEVGFSegment(
+                index,
+                f"region_{index}",
+                tmp_path / f"split_{index}.vgf",
+                SpirvDebugNameMap(
+                    spirv_id_to_debug_name={"42": label},
+                    debug_name_to_spirv_ids={label: ["42"]},
+                ),
+                [],
+            )
+            for index, label in enumerate(
+                [
+                    labels[0],
+                    json.dumps({"aten_info": {"node_name": labels[1]}}),
+                    "missing",
+                ]
+            )
+        ]
+
+    monkeypatch.setattr(f"{module}.prepare_gcpe_compatible_vgfs", prepare_segments)
     debug_db = {
         table: {
             str(i): [label]
@@ -160,6 +235,20 @@ def test_tosa_compatibility_scenarios(
     output = compatibility.to_standardized_output(model)
 
     result = output["results"][0]
+    assert [call.args[0] for call in advice_mock.call_args_list] == [
+        tmp_path / f"split_{index}.vgf" for index in range(3)
+    ]
+    assert [record.entity_id for record in compatibility.advice] == [
+        schema.tosa_source_operator_id(0),
+        schema.tosa_source_operator_id(1),
+        None,
+    ]
+    assert len({record.id for record in compatibility.advice}) == 3
+    assert [record["affected_entity_ids"] for record in result["advice"]] == [
+        [schema.tosa_source_operator_id(index)]
+        for index, placement in enumerate(placements)
+        if placement == "NX"
+    ]
     assert [backend["id"] for backend in output["backends"]] == [
         "ml-sdk-model-converter",
         "nx-performance-estimator",
@@ -409,11 +498,19 @@ def test_tosa_unique_location_uses_explicit_unknown_prefix_for_empty_locations(
 
 
 def test_vgf_compatibility_uses_estimator_debug_database(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, advice_mock: Mock
 ) -> None:
     """VGF compatibility should be recovered from debug database."""
     vgf_path = tmp_path / "model.vgf"
     vgf_path.write_text("vgf", encoding="utf-8")
+    advice_record = NXAdviceRecord(
+        "advice/segment_0/spirv_42",
+        "performance",
+        "info",
+        "VGF advice",
+        "source_operator/segment_0/spirv-42",
+    )
+    advice_mock.side_effect = lambda _path, advice: advice.append(advice_record)
     debug_db_path = tmp_path / "model_debug_database.dat"
     debug_db_path.touch()
     converter = Mock()
@@ -429,7 +526,9 @@ def test_vgf_compatibility_uses_estimator_debug_database(
                     segment_name="main",
                     path=vgf_path,
                     debug_names=SpirvDebugNameMap(),
-                    structural_source_operator_ids=[],
+                    structural_source_operator_ids=[
+                        "source_operator/segment_0/spirv-42"
+                    ],
                 )
             ]
         ),
@@ -472,11 +571,13 @@ def test_vgf_compatibility_uses_estimator_debug_database(
     )
 
     compatibility = checker.check_compatibility(VGFModel(vgf_path))
+    advice_mock.assert_called_once_with(vgf_path, compatibility.advice)
     converter.assert_not_called()
     output = compatibility.to_standardized_output(
         vgf_path,
         backend_config={"ml-sdk-model-converter": {}, "nx-performance-estimator": {}},
     )
+    assert output["results"][0].get("advice", []) == []
     assert [backend["id"] for backend in output["backends"]] == [
         "nx-performance-estimator"
     ]
@@ -1016,11 +1117,25 @@ def test_shared_provenance_does_not_multiply_placement_evidence(
 
 
 def test_vgf_compatibility_preserves_segment_scoped_source_ids(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, advice_mock: Mock
 ) -> None:
     """Multi-segment compatibility should use performance's canonical identities."""
     vgf_path = tmp_path / "model.vgf"
     vgf_path.write_text("vgf", encoding="utf-8")
+
+    def gather_advice(path: Path, advice: list[NXAdviceRecord]) -> None:
+        spirv_id = 10 if path.name == "left.vgf" else 20
+        advice.append(
+            NXAdviceRecord(
+                f"advice/segment_0/spirv_{spirv_id}",
+                "performance",
+                "info",
+                "Segment advice",
+                schema.vgf_source_operator_id(0, spirv_id),
+            )
+        )
+
+    advice_mock.side_effect = gather_advice
     labels = [
         json.dumps({"aten_info": {"node_name": "shared", "operator_name": "Add"}}),
         json.dumps({"aten_info": {"node_name": "shared", "operator_name": "Mul"}}),
@@ -1079,6 +1194,19 @@ def test_vgf_compatibility_preserves_segment_scoped_source_ids(
         "source_operator/segment_1/spirv-10",
         "source_operator/segment_3/spirv-20",
     }
+    assert [call.args[0] for call in advice_mock.call_args_list] == [
+        tmp_path / "left.vgf",
+        tmp_path / "right.vgf",
+    ]
+    assert {record["id"] for record in output["results"][0]["advice"]} == {
+        "advice/segment_1/spirv_10",
+        "advice/segment_3/spirv_20",
+    }
+    assert {
+        entity_id
+        for record in output["results"][0]["advice"]
+        for entity_id in record["affected_entity_ids"]
+    } == source_ids
     assert {
         check["entity_id"] for check in output["results"][0]["checks"]
     } == source_ids
