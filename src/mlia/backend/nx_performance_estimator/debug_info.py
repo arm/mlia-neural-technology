@@ -4,14 +4,17 @@
 
 from __future__ import annotations
 
+import re
 import struct
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
 
+from mlia.nx_utils.boundaries.filesystem import mapped_file_view
+
 _SPIRV_MAGIC = 0x07230203
-_SPIRV_MAGIC_BYTES = struct.pack("<I", _SPIRV_MAGIC)
+_SPIRV_MAGIC_PATTERN = re.compile(re.escape(struct.pack("<I", _SPIRV_MAGIC)))
 
 _OP_STRING = 7
 _OP_EXT_INST_IMPORT = 11
@@ -42,24 +45,29 @@ class SpirvDebugNameMap:
 
 def read_vgf_spirv_debug_names(vgf_file: Path) -> SpirvDebugNameMap:
     """Read graph debug operation names from VGF-embedded SPIR-V modules."""
-    return read_spirv_debug_names_from_bytes(vgf_file.read_bytes())
+    if vgf_file.stat().st_size == 0:
+        return SpirvDebugNameMap()
+
+    with mapped_file_view(vgf_file) as data:
+        return read_spirv_debug_names_from_bytes(data)
 
 
-def read_spirv_debug_names_from_bytes(data: bytes) -> SpirvDebugNameMap:
-    """Read graph debug operation names from one or more SPIR-V byte streams."""
+def read_spirv_debug_names_from_bytes(data: memoryview) -> SpirvDebugNameMap:
+    """Read graph debug operation names from a contiguous SPIR-V byte view."""
     spirv_id_to_debug_name: dict[str, str] = {}
     op_ext_inst_spirv_ids: list[str] = []
     for module_start in _spirv_module_offsets(data):
-        module = data[module_start:]
-        word_count = len(module) // 4
-        if word_count < 5:
+        # A SPIR-V header contains five 32-bit words.
+        if len(data) - module_start < 20:
             continue
 
-        words = struct.unpack_from(f"<{word_count}I", module)
-        if words[0] != _SPIRV_MAGIC:
+        if struct.unpack_from("<I", data, module_start)[0] != _SPIRV_MAGIC:
             continue
 
-        module_debug_names, module_op_ext_inst_ids = _read_spirv_module_graph_ops(words)
+        module_debug_names, module_op_ext_inst_ids = _read_spirv_module_graph_ops(
+            data, module_start
+        )
+
         spirv_id_to_debug_name.update(module_debug_names)
         op_ext_inst_spirv_ids.extend(
             spirv_id
@@ -78,17 +86,14 @@ def read_spirv_debug_names_from_bytes(data: bytes) -> SpirvDebugNameMap:
     )
 
 
-def _spirv_module_offsets(data: bytes) -> list[int]:
-    offsets = []
-    search_start = 0
-    while (offset := data.find(_SPIRV_MAGIC_BYTES, search_start)) >= 0:
-        offsets.append(offset)
-        search_start = offset + len(_SPIRV_MAGIC_BYTES)
-    return offsets
+def _spirv_module_offsets(data: memoryview) -> list[int]:
+    # memoryview has no find(); search its buffer without copying to bytes.
+    return [match.start() for match in _SPIRV_MAGIC_PATTERN.finditer(data)]
 
 
 def _read_spirv_module_graph_ops(
-    words: Sequence[int],
+    data: memoryview,
+    module_start: int,
 ) -> tuple[dict[str, str], list[str]]:
     strings: dict[int, str] = {}
     debug_instruction_sets: set[int] = set()
@@ -96,16 +101,26 @@ def _read_spirv_module_graph_ops(
     spirv_id_to_debug_name: dict[str, str] = {}
     op_ext_inst_spirv_ids: list[str] = []
 
-    instruction_index = 5
-    while instruction_index < len(words):
-        word = words[instruction_index]
+    offset = module_start + 20  # Skip the five-word header.
+    limit = len(data)
+
+    while offset + 4 <= limit:
+        word = struct.unpack_from("<I", data, offset)[0]
         word_count = word >> 16
         opcode = word & 0xFFFF
+        instruction_end = offset + word_count * 4
 
-        if word_count == 0 or instruction_index + word_count > len(words):
+        if word_count == 0 or instruction_end > limit:
             break
 
-        operands = words[instruction_index + 1 : instruction_index + word_count]
+        # Other instructions do not contribute debug names or result IDs.
+        if opcode not in (_OP_STRING, _OP_EXT_INST_IMPORT, _OP_EXT_INST):
+            offset = instruction_end
+            continue
+
+        operand_count = word_count - 1
+        operands = struct.unpack_from(f"<{operand_count}I", data, offset + 4)
+
         if opcode == _OP_STRING and len(operands) >= 2:
             strings[operands[0]] = _decode_spirv_string(operands[1:])
         elif opcode == _OP_EXT_INST_IMPORT and len(operands) >= 2:
@@ -130,7 +145,7 @@ def _read_spirv_module_graph_ops(
             ):
                 _record_debug_operation(strings, operands[4:], spirv_id_to_debug_name)
 
-        instruction_index += word_count
+        offset = instruction_end
 
     return spirv_id_to_debug_name, op_ext_inst_spirv_ids
 

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from dataclasses import dataclass, field, replace
@@ -57,6 +56,7 @@ from mlia.nx_utils.boundaries.filesystem import (
 from mlia.backend.repo import get_backend_repository
 from mlia.core.performance import PerformanceEstimator
 from mlia.nx_utils.filesystem import is_vgf_file
+from mlia.utils.filesystem import sha256
 from mlia.utils.logging import log_action
 from mlia.utils.misc import summarize_list
 
@@ -373,7 +373,7 @@ class NXPerformanceEstimatorPerformanceMetrics:
         )
 
         # Calculate model hash and size
-        model_hash = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        model_hash = sha256(model_path)
         model_size = model_path.stat().st_size
 
         # Determine model format (suffix without the dot)

@@ -38,6 +38,7 @@ from mlia.backend.nx_performance_estimator.vgf import (
 from mlia.core.errors import ConfigurationError
 from mlia.core.output_schema import ModeType
 from mlia.nx_utils.boundaries.filesystem import (
+    mapped_file_view,
     materialize_user_output_file,
     temporary_directory,
 )
@@ -189,8 +190,8 @@ def _select_without_vgf(inputs: list[CaptureInput]) -> list[_SelectedSegment]:
             )
         dispatch = dispatches[0]
     pipeline = capture_input.capture.pipeline_for_dispatch(dispatch)
-    spirv = pipeline.spirv_path.read_bytes()
-    debug_names = read_spirv_debug_names_from_bytes(spirv)
+    with mapped_file_view(pipeline.spirv_path) as spirv:
+        debug_names = read_spirv_debug_names_from_bytes(spirv)
     return [
         _SelectedSegment(
             segment_index=0,
@@ -299,10 +300,10 @@ def _select_vgf_from_anchor(
 ) -> list[_SelectedSegment]:
     _reject_duplicate_segment_spirv(segments)
     anchor_pipeline = capture.pipeline_for_dispatch(anchor)
-    anchor_spirv = anchor_pipeline.spirv_path.read_bytes()
-    matching_segments = [
-        segment for segment in segments if segment.spirv == anchor_spirv
-    ]
+    with mapped_file_view(anchor_pipeline.spirv_path) as anchor_spirv:
+        matching_segments = [
+            segment for segment in segments if segment.spirv == anchor_spirv
+        ]
     if len(matching_segments) != 1:
         raise ConfigurationError(
             "The selected dispatch pipeline does not match exactly one VGF graph "
@@ -357,11 +358,11 @@ def _reject_duplicate_segment_spirv(segments: list[GCPEVGFSegment]) -> None:
 def _unique_pipeline_for_spirv(
     capture: StructuredCapture, spirv: bytes, segment_index: int
 ) -> CapturePipeline:
-    matches = [
-        pipeline
-        for pipeline in capture.pipelines
-        if pipeline.spirv_path.read_bytes() == spirv
-    ]
+    matches = []
+    for pipeline in capture.pipelines:
+        with mapped_file_view(pipeline.spirv_path) as captured_spirv:
+            if captured_spirv == spirv:
+                matches.append(pipeline)
     if not matches:
         raise ConfigurationError(
             f"No captured pipeline SPIR-V matches VGF graph segment {segment_index}. "
@@ -383,12 +384,13 @@ def _require_dispatch_matches_segment(
     segment: GCPEVGFSegment,
 ) -> CapturePipeline:
     pipeline = capture.pipeline_for_dispatch(dispatch)
-    if pipeline.spirv_path.read_bytes() != segment.spirv:
-        raise ConfigurationError(
-            f"Dispatch {dispatch.id} pipeline SPIR-V does not match VGF graph "
-            f"segment {segment.segment_index}. Ensure repeated --profiling-data "
-            "values are ordered to match the VGF graph segments."
-        )
+    with mapped_file_view(pipeline.spirv_path) as spirv:
+        if spirv != segment.spirv:
+            raise ConfigurationError(
+                f"Dispatch {dispatch.id} pipeline SPIR-V does not match VGF graph "
+                f"segment {segment.segment_index}. Ensure repeated --profiling-data "
+                "values are ordered to match the VGF graph segments."
+            )
     return pipeline
 
 

@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import logging
-import mmap
 import struct
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -22,6 +21,7 @@ from mlia.backend.nx_performance_estimator.provenance import (
 import mlia.core.output_schema as schema
 from mlia.nx_utils.boundaries.filesystem import (
     ensure_user_output_directory,
+    mapped_file_view,
     write_user_output_binary,
 )
 from mlia.utils.misc import summarize_list
@@ -60,18 +60,6 @@ class GCPEVGFSegments(list[GCPEVGFSegment]):
         self.skipped_compute_segments = skipped_compute_segments or []
 
 
-def read_vgf_segment_name(path: Path, segment_index: int = 0) -> str:
-    """Return the model-sequence name for one VGF segment."""
-    decoded = _decode_vgf(memoryview(path.read_bytes()), vgfpy, path)
-    segment_count = decoded.sequence.modelSequenceTableSize()
-    if segment_index < 0 or segment_index >= segment_count:
-        raise ValueError(
-            f"VGF segment index {segment_index} is outside the available range "
-            f"0..{segment_count - 1}."
-        )
-    return str(decoded.sequence.getSegmentName(segment_index))
-
-
 def for_each_vgf_op(path: Path, callback: Callable[[int, bytes], None]) -> None:
     """Call ``callback(segment_index, op_bytes)`` for every SPIR-V instruction.
 
@@ -84,45 +72,41 @@ def for_each_vgf_op(path: Path, callback: Callable[[int, bytes], None]) -> None:
     current instruction is copied to ``bytes``, so callbacks can retain it
     after the mapping closes. Callback exceptions propagate to the caller.
     """
-    with path.open("rb") as stream:
-        if stream.seek(0, 2) == 0:
-            raise ValueError(f"Invalid empty VGF file: {path}")
-        with mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as mapped:
-            with memoryview(mapped) as data:
-                decoded = _decode_vgf(data, vgfpy, path)
-                for segment_index in range(decoded.sequence.modelSequenceTableSize()):
-                    module_index = decoded.sequence.getSegmentModuleIndex(segment_index)
-                    if not decoded.modules.isSPIRV(
-                        module_index
-                    ) or not decoded.modules.hasSPIRVCode(module_index):
+    if path.stat().st_size == 0:
+        raise ValueError(f"Invalid empty VGF file: {path}")
+    with mapped_file_view(path) as data:
+        decoded = _decode_vgf(data, vgfpy, path)
+        for segment_index in range(decoded.sequence.modelSequenceTableSize()):
+            module_index = decoded.sequence.getSegmentModuleIndex(segment_index)
+            if not decoded.modules.isSPIRV(
+                module_index
+            ) or not decoded.modules.hasSPIRVCode(module_index):
+                raise ValueError(
+                    f"VGF segment {segment_index} does not contain SPIR-V code"
+                )
+            with (
+                memoryview(decoded.modules.getSPIRVModuleCode(module_index)) as words,
+                words.cast("B") as code,
+            ):
+                if (
+                    len(code) < 20
+                    or len(code) % 4
+                    or struct.unpack_from("<I", code)[0] != 0x07230203
+                ):
+                    raise ValueError(
+                        f"Invalid SPIR-V module in VGF segment {segment_index}"
+                    )
+                offset = 20
+                while offset < len(code):
+                    word_count = struct.unpack_from("<I", code, offset)[0] >> 16
+                    end = offset + word_count * 4
+                    if word_count == 0 or end > len(code):
                         raise ValueError(
-                            f"VGF segment {segment_index} does not contain SPIR-V code"
+                            f"Invalid SPIR-V instruction in VGF segment "
+                            f"{segment_index} at byte offset {offset}"
                         )
-                    with (
-                        memoryview(
-                            decoded.modules.getSPIRVModuleCode(module_index)
-                        ) as words,
-                        words.cast("B") as code,
-                    ):
-                        if (
-                            len(code) < 20
-                            or len(code) % 4
-                            or struct.unpack_from("<I", code)[0] != 0x07230203
-                        ):
-                            raise ValueError(
-                                f"Invalid SPIR-V module in VGF segment {segment_index}"
-                            )
-                        offset = 20
-                        while offset < len(code):
-                            word_count = struct.unpack_from("<I", code, offset)[0] >> 16
-                            end = offset + word_count * 4
-                            if word_count == 0 or end > len(code):
-                                raise ValueError(
-                                    f"Invalid SPIR-V instruction in VGF segment "
-                                    f"{segment_index} at byte offset {offset}"
-                                )
-                            callback(segment_index, bytes(code[offset:end]))
-                            offset = end
+                    callback(segment_index, bytes(code[offset:end]))
+                    offset = end
 
 
 def prepare_gcpe_compatible_vgfs(path: Path, output_dir: Path) -> GCPEVGFSegments:
@@ -144,76 +128,80 @@ def validate_gcpe_compatible_vgf(path: Path) -> None:
 def _prepare_gcpe_compatible_vgfs(
     path: Path, output_dir: Path, vgfpy_module: Any
 ) -> GCPEVGFSegments:
-    data = memoryview(path.read_bytes())
-    decoded = _decode_vgf(data, vgfpy_module, path)
-    segment_count = decoded.sequence.modelSequenceTableSize()
+    with mapped_file_view(path) as data:
+        decoded = _decode_vgf(data, vgfpy_module, path)
+        segment_count = decoded.sequence.modelSequenceTableSize()
 
-    if segment_count == 1:
-        segment_type = decoded.sequence.getSegmentType(0)
-        if segment_type == vgfpy_module.ModuleType.Graph:
-            debug_names = read_vgf_spirv_debug_names(path)
-            return GCPEVGFSegments(
-                [
+        if segment_count == 1:
+            segment_type = decoded.sequence.getSegmentType(0)
+            if segment_type == vgfpy_module.ModuleType.Graph:
+                debug_names = read_vgf_spirv_debug_names(path)
+                return GCPEVGFSegments(
+                    [
+                        GCPEVGFSegment(
+                            segment_index=0,
+                            segment_name=str(decoded.sequence.getSegmentName(0)),
+                            path=path,
+                            debug_names=debug_names,
+                            structural_source_operator_ids=(
+                                _segment_structural_source_operator_ids(0, debug_names)
+                            ),
+                            structural_source_operator_names=(
+                                _segment_structural_source_operator_names(
+                                    0, debug_names
+                                )
+                            ),
+                            spirv=_segment_spirv(decoded, 0),
+                        )
+                    ]
+                )
+            elif segment_type == vgfpy_module.ModuleType.Compute:
+                _warn_compute_segments_skipped([0])
+                return GCPEVGFSegments([], skipped_compute_segments=[0])
+            else:
+                raise _unsupported_segment_type(path, 0, segment_type)
+
+        ensure_user_output_directory(output_dir, parents=True)
+        segments = []
+        skipped_compute_segments = []
+        for segment_index in range(segment_count):
+            segment_type = decoded.sequence.getSegmentType(segment_index)
+            if segment_type == vgfpy_module.ModuleType.Graph:
+                segment_path = output_dir / f"{path.stem}_segment_{segment_index}.vgf"
+                _write_single_segment_vgf(
+                    decoded, segment_index, segment_path, vgfpy_module
+                )
+                debug_names = read_vgf_spirv_debug_names(segment_path)
+                segments.append(
                     GCPEVGFSegment(
-                        segment_index=0,
-                        segment_name=str(decoded.sequence.getSegmentName(0)),
-                        path=path,
+                        segment_index=segment_index,
+                        segment_name=str(
+                            decoded.sequence.getSegmentName(segment_index)
+                        ),
+                        path=segment_path,
                         debug_names=debug_names,
                         structural_source_operator_ids=(
-                            _segment_structural_source_operator_ids(0, debug_names)
+                            _segment_structural_source_operator_ids(
+                                segment_index, debug_names
+                            )
                         ),
                         structural_source_operator_names=(
-                            _segment_structural_source_operator_names(0, debug_names)
+                            _segment_structural_source_operator_names(
+                                segment_index, debug_names
+                            )
                         ),
-                        spirv=_segment_spirv(decoded, 0),
+                        spirv=_segment_spirv(decoded, segment_index),
                     )
-                ]
-            )
-        elif segment_type == vgfpy_module.ModuleType.Compute:
-            _warn_compute_segments_skipped([0])
-            return GCPEVGFSegments([], skipped_compute_segments=[0])
-        else:
-            raise _unsupported_segment_type(path, 0, segment_type)
-
-    ensure_user_output_directory(output_dir, parents=True)
-    segments = []
-    skipped_compute_segments = []
-    for segment_index in range(segment_count):
-        segment_type = decoded.sequence.getSegmentType(segment_index)
-        if segment_type == vgfpy_module.ModuleType.Graph:
-            segment_path = output_dir / f"{path.stem}_segment_{segment_index}.vgf"
-            _write_single_segment_vgf(
-                decoded, segment_index, segment_path, vgfpy_module
-            )
-            debug_names = read_vgf_spirv_debug_names(segment_path)
-            segments.append(
-                GCPEVGFSegment(
-                    segment_index=segment_index,
-                    segment_name=str(decoded.sequence.getSegmentName(segment_index)),
-                    path=segment_path,
-                    debug_names=debug_names,
-                    structural_source_operator_ids=(
-                        _segment_structural_source_operator_ids(
-                            segment_index, debug_names
-                        )
-                    ),
-                    structural_source_operator_names=(
-                        _segment_structural_source_operator_names(
-                            segment_index, debug_names
-                        )
-                    ),
-                    spirv=_segment_spirv(decoded, segment_index),
                 )
-            )
-        elif segment_type == vgfpy_module.ModuleType.Compute:
-            skipped_compute_segments.append(segment_index)
-        else:
-            raise _unsupported_segment_type(path, segment_index, segment_type)
+            elif segment_type == vgfpy_module.ModuleType.Compute:
+                skipped_compute_segments.append(segment_index)
+            else:
+                raise _unsupported_segment_type(path, segment_index, segment_type)
 
-    if skipped_compute_segments:
-        _warn_compute_segments_skipped(skipped_compute_segments)
+        if skipped_compute_segments:
+            _warn_compute_segments_skipped(skipped_compute_segments)
 
-    return GCPEVGFSegments(segments, skipped_compute_segments)
+        return GCPEVGFSegments(segments, skipped_compute_segments)
 
 
 def _segment_structural_source_operator_ids(
@@ -242,18 +230,18 @@ def _segment_structural_source_operator_names(
 
 
 def _validate_gcpe_compatible_vgf(path: Path, vgfpy_module: Any) -> None:
-    data = memoryview(path.read_bytes())
-    decoded = _decode_vgf(data, vgfpy_module, path)
-    segment_count = decoded.sequence.modelSequenceTableSize()
+    with mapped_file_view(path) as data:
+        decoded = _decode_vgf(data, vgfpy_module, path)
+        segment_count = decoded.sequence.modelSequenceTableSize()
 
-    for segment_index in range(segment_count):
-        segment_type = decoded.sequence.getSegmentType(segment_index)
-        if segment_type == vgfpy_module.ModuleType.Graph:
-            _validate_graph_resource_shapes(decoded, path, segment_index)
-        elif segment_type == vgfpy_module.ModuleType.Compute:
-            continue
-        else:
-            raise _unsupported_segment_type(path, segment_index, segment_type)
+        for segment_index in range(segment_count):
+            segment_type = decoded.sequence.getSegmentType(segment_index)
+            if segment_type == vgfpy_module.ModuleType.Graph:
+                _validate_graph_resource_shapes(decoded, path, segment_index)
+            elif segment_type == vgfpy_module.ModuleType.Compute:
+                continue
+            else:
+                raise _unsupported_segment_type(path, segment_index, segment_type)
 
 
 def _validate_graph_resource_shapes(
@@ -338,23 +326,27 @@ def _decode_vgf(data: memoryview, vgfpy_module: Any, path: Path) -> _DecodedVGF:
 
     modules = _create_section_decoder(
         vgfpy_module.CreateModuleTableDecoder,
-        data[header.GetModuleTableOffset() :],
-        header.GetModuleTableSize(),
+        data,
+        size=header.GetModuleTableSize(),
+        offset=header.GetModuleTableOffset(),
     )
     sequence = _create_section_decoder(
         vgfpy_module.CreateModelSequenceTableDecoder,
-        data[header.GetModelSequenceTableOffset() :],
-        header.GetModelSequenceTableSize(),
+        data,
+        size=header.GetModelSequenceTableSize(),
+        offset=header.GetModelSequenceTableOffset(),
     )
     resources = _create_section_decoder(
         vgfpy_module.CreateModelResourceTableDecoder,
-        data[header.GetModelResourceTableOffset() :],
-        header.GetModelResourceTableSize(),
+        data,
+        size=header.GetModelResourceTableSize(),
+        offset=header.GetModelResourceTableOffset(),
     )
     constants = _create_section_decoder(
         vgfpy_module.CreateConstantDecoder,
-        data[header.GetConstantsOffset() :],
-        header.GetConstantsSize(),
+        data,
+        size=header.GetConstantsSize(),
+        offset=header.GetConstantsOffset(),
     )
 
     if sequence is None:
@@ -378,12 +370,18 @@ def _create_header_decoder(data: memoryview, vgfpy_module: Any) -> Any:
         )
 
 
-def _create_section_decoder(factory: Any, data: memoryview, size: int) -> Any:
-    section = data[:size]
-    try:
-        return factory(section)
-    except TypeError:
-        return factory(section, size)
+def _create_section_decoder(
+    factory: Any,
+    data: memoryview,
+    size: int,
+    *,
+    offset: int,
+) -> Any:
+    with data[offset : offset + size] as section:
+        try:
+            return factory(section)
+        except TypeError:
+            return factory(section, size)
 
 
 def _segment_spirv(decoded: _DecodedVGF, segment_index: int) -> bytes:

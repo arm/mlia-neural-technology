@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-"""Filesystem boundary gateways for Neural Technology runtime output."""
+"""Filesystem boundary gateways for Neural Technology runtime I/O."""
 
 from __future__ import annotations
 
 import json
 import logging
+import mmap
 import shutil
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -14,6 +15,22 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Any, BinaryIO
 
 from mlia.core.errors import ConfigurationError
+
+
+@contextmanager
+def mapped_file_view(path: Path) -> Generator[memoryview, None, None]:
+    """Yield a read-only view of a nonempty file without copying its contents.
+
+    The view is released before the mapping and file close, including on errors.
+    Callers must release any derived views before leaving the context.
+    Empty files raise ``ValueError``.
+    """
+    with (
+        path.open("rb") as stream,
+        mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
+        memoryview(mapped) as data,
+    ):
+        yield data
 
 
 def ensure_user_output_directory(path: Path, *, parents: bool = False) -> None:
