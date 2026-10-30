@@ -40,10 +40,8 @@ from mlia.target.neural_technology.data_collection import (
 
 
 @pytest.fixture(scope="session", name="test_tosa_model")
-def fixture_test_tflite_no_act_model(test_models_path: Path) -> Path:
+def fixture_test_tosa_model(test_models_path: Path) -> Path:
     """Return test TOSA model."""
-    # For whatever reason defining this in conftest.py would remove the no act TFLite
-    # model somehow
     return test_models_path / "model.tosa"
 
 
@@ -89,7 +87,7 @@ def test_get_front_end_output_subdir_returns_shared_conversion_location(
         ("test_tosa_model", "nx-performance-estimator", does_not_raise()),
         ("test_pte_model", "nx-performance-estimator", does_not_raise()),
         (
-            "test_keras_model",
+            "test_h5_model",
             "nx-performance-estimator",
             pytest.raises(
                 ConfigurationError,
@@ -107,11 +105,6 @@ def test_neural_technology_performance_collect_data(
     request: pytest.FixtureRequest,
 ) -> None:
     """Tests for the NeuralTechnologyPerformance class."""
-    try:
-        from mlia.nn.tensorflow import tflite_graph
-    except ImportError:
-        pytest.skip("mlia.nn.tensorflow.tflite_graph not available")
-
     monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance."
         + "NXPerformanceEstimatorPerformanceEstimator.estimate",
@@ -130,11 +123,6 @@ def test_neural_technology_performance_collect_data(
                 model_performance_stats=MagicMock(spec=NXModelPerformanceStats),
             )
         ),
-    )
-    monkeypatch.setattr(
-        tflite_graph,
-        "operator_names_to_types",
-        MagicMock(return_value={}),
     )
 
     model = request.getfixturevalue(model_fixture)
@@ -158,7 +146,7 @@ def test_neural_technology_performance_collect_data(
         ("test_vgf_model", does_not_raise()),
         ("test_pte_model", does_not_raise()),
         (
-            "test_keras_model",
+            "test_h5_model",
             pytest.raises(
                 ConfigurationError,
                 match="Input must be a TOSA, VGF, TFLite, PyTorch or PTE file.",
