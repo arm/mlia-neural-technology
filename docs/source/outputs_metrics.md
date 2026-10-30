@@ -10,7 +10,8 @@ SPDX-License-Identifier: Apache-2.0
 Neural Technology workflows produce standardized MLIA results from either:
 
 - model-based estimation with `nx-performance-estimator`; or
-- measured structured captures with `neural-technology-profiling-data`.
+- measured structured captures or ETRecord/ETDump pairs with
+  `neural-technology-profiling-data`.
 
 Both modes use the same metric, breakdown, entity, and provenance structure.
 Conversion and estimator artifacts may also be written to the run output
@@ -165,6 +166,12 @@ Do not add breakdowns from related entities together. Authoritative and
 projected breakdowns at different hierarchy levels can describe overlapping
 views of the same work.
 
+ETRecord/ETDump adds stripe and compiler `backend_operator` entities to measured
+VGF observations. Ordinary ETDump runtime observations have source-operator
+breakdowns in milliseconds, with unavailable model-cycle and latency metrics
+when those cannot be measured. See [ETRecord and ETDump](etrecord.md) for cycle
+summaries, repeated executions, runtime statistics and mapping confidence.
+
 ### Interpreting L1/cache write bytes
 
 At model level, `cache_write_bytes` is the total estimated traffic passing
@@ -208,16 +215,25 @@ NX cycle, byte, traffic, and hardware-section counters use
 accounting origins may be combined when core projects figures across the entity
 graph. Existing breakdowns remain authoritative.
 
+For ETDump, averages can be combined only when they cover the same recorded
+executions. Percentiles, minima, maxima and execution counts are non-additive.
+Shared or partially mapped runtime observations also have non-additive
+averages and event counts. See
+[ETRecord and ETDump](etrecord.md#read-the-measurements).
+
 ## Estimator versus measured mode
 
 Estimator results contain performance estimates and omit the optional `mode`
-field. Measured profiling results set `mode` to `measured` and record capture
-device, statistics files, debug databases, and selected dispatches in backend
-and runtime metadata.
+field. Measured profiling results set `mode` to `measured`. Structured captures
+record capture device, statistics files, debug databases, and selected
+dispatches in backend and runtime metadata. ETRecord/ETDump results record
+input paths, the selected method and, for VGF profiling, effective decoder
+settings and fallback assumptions.
 
-Both modes share per-segment correlation, totals, warnings, entity provenance,
-and breakdown aggregation. Compute-only VGF segments that are excluded from NX
-analysis are reported through warnings.
+Estimator and structured-capture modes share per-segment correlation, totals,
+warnings, entity provenance, and breakdown aggregation. ETDump has additional
+execution-coverage and shared-timing rules described above. Compute-only VGF
+segments that are excluded from NX analysis are reported through warnings.
 
 ### Aggregating mode 0 neural statistics
 

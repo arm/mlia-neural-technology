@@ -13,15 +13,11 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import mlia.core.output_schema as schema
 from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
-
-NN_MODULE_ENTITY_KIND = "nn_module"
-NX_PROVENANCE_ENTITY_KIND_DECLARATIONS = (
-    schema.EntityKind(
-        id=NN_MODULE_ENTITY_KIND,
-        parent_kinds=[NN_MODULE_ENTITY_KIND],
-        child_kinds=[NN_MODULE_ENTITY_KIND, schema.ENTITY_KIND_SOURCE_OPERATOR],
-    ),
+from mlia.nx_utils.performance import (
+    NN_MODULE_ENTITY_KIND,
+    NX_PROVENANCE_ENTITY_KIND_DECLARATIONS,
 )
+
 
 _SPIRV_API_LABEL_RE = re.compile(r"_spirv_id_(\d+)$")
 _STACK_TRACE_FRAME_RE = re.compile(

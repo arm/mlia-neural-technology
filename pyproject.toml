@@ -9,7 +9,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "ai-ml-sdk-model-converter==0.10.0",
     "tosa-tools==2026.2.1",
-    "mlia>=0.12.3,<0.13"
+    "mlia>=0.13.0,<0.14"
 ]
 keywords = ["ml", "arm", "nx", "neural-technology"]
 authors = [{name = "Arm Ltd", email = "mlia@arm.com"}]
@@ -27,6 +27,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence"
 ]
+
+[project.optional-dependencies]
+executorch = ["mlia-converters-pytorch>=0.1.4,<0.2"]
 
 [project.urls]
 Homepage = "https://github.com/arm/mlia-neural-technology.git"
@@ -124,12 +127,12 @@ markers = [
     "slow: marks tests that require heavyweight runtime dependencies or backend artifacts"
 ]
 addopts = [
-    "--cov=mlia.backend.ml_sdk_model_converter",
-    "--cov=mlia.backend.nx_performance_estimator",
-    "--cov=mlia.backend.neural_technology_profiling_data",
-    "--cov=mlia.backend.tosa_flatbuffers",
-    "--cov=mlia.nx_utils",
-    "--cov=mlia.target.neural_technology",
+    "--cov=src/mlia/backend/ml_sdk_model_converter",
+    "--cov=src/mlia/backend/nx_performance_estimator",
+    "--cov=src/mlia/backend/neural_technology_profiling_data",
+    "--cov=src/mlia/backend/tosa_flatbuffers",
+    "--cov=src/mlia/nx_utils",
+    "--cov=src/mlia/target/neural_technology",
     "--cov-report=term-missing",
     "--cov-report=xml:coverage.xml",
     "--cov-fail-under=65"
@@ -144,6 +147,7 @@ test = [
     "jsonschema==4.24.0",
     "numpy==2.1.3",
     "mlia-converters-litert",
+    "mlia-converters-pytorch>=0.1.4,<0.2",
     "tensorflow==2.20.0",
     "tf-keras==2.20.1"
 ]

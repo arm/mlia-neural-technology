@@ -6,12 +6,20 @@ from __future__ import annotations
 
 import json
 import struct
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from mlia.backend.executorch.capture import ProfilingCapture
+from mlia.backend.registry import BackendRegistry
+from mlia.core.common import AdviceCategory
+from mlia.core.errors import ConfigurationError
+from mlia.core.output_validation import validate_standardized_output
 
+from mlia.backend.neural_technology_profiling_data import vgf_etdump
 from mlia.backend.neural_technology_profiling_data.parser import (
     ProfilingDevice,
     load_capture_input,
@@ -30,10 +38,6 @@ from mlia.backend.neural_technology_profiling_data.profiling import (
 from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
 from mlia.backend.nx_performance_estimator.output_parsing import NXDebugDatabaseParser
 from mlia.backend.nx_performance_estimator.vgf import GCPEVGFSegment, GCPEVGFSegments
-from mlia.backend.registry import BackendRegistry
-from mlia.core.common import AdviceCategory
-from mlia.core.errors import ConfigurationError
-from mlia.core.output_validation import validate_standardized_output
 
 
 def _u32_blob(words: list[int]) -> bytes:
@@ -95,6 +99,43 @@ def _write_profile(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     return profile
+
+
+@pytest.mark.parametrize("model_suffix", [".etrecord", ".bin"])
+@pytest.mark.parametrize("suffix", [".etdp", ".etdump"])
+def test_etrecord_accepts_standard_etdump_file_extensions(
+    tmp_path: Path, monkeypatch, suffix: str, model_suffix: str
+) -> None:
+    """ETRecord profiling accepts supported model and ETDump extensions."""
+    model = tmp_path / f"model{model_suffix}"
+    model.write_bytes(b"record")
+    profiling_data = tmp_path / f"run{suffix}"
+    profiling_data.write_bytes(b"dump")
+    from mlia.core import output_schema as schema
+
+    from mlia.core.performance import (
+        MeasuredPerformanceMetrics,
+        PerformanceObservations,
+    )
+
+    monkeypatch.setattr(
+        vgf_etdump,
+        "load_etdump_metrics",
+        lambda *_args, **_kwargs: MeasuredPerformanceMetrics(
+            [PerformanceObservations()],
+            model_format="etrecord",
+        ),
+    )
+    output = analyze_profiling_data(
+        target_profile=str(_write_profile(tmp_path)),
+        profiling_data=[profiling_data],
+        categories={"performance"},
+        model=str(model),
+    )
+    assert output["schema_version"] == schema.SCHEMA_VERSION
+    assert output["model"]["format"] == "etrecord"
+    assert output["results"][0]["mode"] == "measured"
+    validate_standardized_output(output)
 
 
 def _pipeline_spec(
@@ -949,6 +990,7 @@ def test_analyze_without_vgf_uses_the_only_captured_dispatch(
     assert configuration["vendor_id"] == 0x13B5
     assert configuration["device_id"] == 2
     assert output["results"][0]["mode"] == "measured"
+    assert output["target"]["components"][0]["variant"] == "default"
 
 
 def test_analyze_without_vgf_rejects_multiple_dispatches(tmp_path: Path) -> None:
@@ -1375,7 +1417,11 @@ def test_profiling_passes_selected_spirv_names_to_label_recovery(
         parent = groups[0]
         assert parent["parent_ids"] == [chain["id"]]
         assert parent["id"] in chain["child_ids"]
-    assert parent["child_ids"] == source_ids
+    assert [
+        child_id
+        for child_id in parent["child_ids"]
+        if entities[child_id]["kind"] == "source_operator"
+    ] == source_ids
     for source_id in source_ids:
         assert entities[source_id]["parent_ids"] == [parent["id"]]
         if len(source_ids) == 1:
@@ -1408,3 +1454,183 @@ def test_plugin_advertises_profiling_data_support() -> None:
     assert backend.selectable is False
     assert backend.supports_estimation is False
     assert backend.supports_profiling_data is True
+
+
+@pytest.mark.parametrize("categories", [{"compatibility"}, set()])
+@pytest.mark.parametrize("suffix", [".etrecord", ".bin"])
+def test_etrecord_uses_common_category_validation(tmp_path, categories, suffix):
+    """ETRecord requests obey the same analysis contract as captures."""
+    with pytest.raises(ConfigurationError, match="performance|compatibility"):
+        analyze_profiling_data(
+            target_profile="neural-technology",
+            profiling_data=[tmp_path / "run.etdump"],
+            categories=categories,
+            model=str(tmp_path / f"model{suffix}"),
+        )
+
+
+@pytest.mark.parametrize("suffix", [".vgf", ".etrecord", ".bin"])
+def test_measured_inputs_validate_target_before_parsing(tmp_path, suffix):
+    """Every adapter resolves and verifies the selected target first."""
+    profile = tmp_path / "wrong-target.toml"
+    profile.write_text('target = "other-target"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="Wrong target"):
+        analyze_profiling_data(
+            target_profile=str(profile),
+            profiling_data=[tmp_path / "missing"],
+            categories={"performance"},
+            model=str(tmp_path / f"model{suffix}"),
+        )
+
+
+def test_capture_and_etdump_share_measured_output_contract(tmp_path, monkeypatch):
+    """Equal cycle observations retain units and common metadata across adapters."""
+    root = _write_capture(tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)])])
+    monkeypatch.setattr(
+        "mlia.backend.neural_technology_profiling_data.profiling.read_spirv_debug_names_from_bytes",
+        lambda _data: SpirvDebugNameMap(op_ext_inst_spirv_ids=["504"]),
+    )
+    target_profile = str(_write_profile(tmp_path))
+    capture_output = analyze_profiling_data(
+        target_profile=target_profile,
+        profiling_data=[root],
+        categories={"performance"},
+    )
+    model = tmp_path / "model.bin"
+    model.write_bytes(b"record")
+    dump = tmp_path / "run.etdump"
+    dump.write_bytes(b"dump")
+    capture = ProfilingCapture(
+        method="forward",
+        etrecord_path=str(model),
+        etdump_path=str(dump),
+        events=(),
+        source_graph={},
+        nodes_by_handle={},
+        instruction_handles={},
+    )
+    monkeypatch.setattr(
+        vgf_etdump, "read_profiling_capture", lambda *_args, **_kwargs: capture
+    )
+    monkeypatch.setattr(
+        vgf_etdump,
+        "build_mappings",
+        lambda *_args, **_kwargs: {
+            "warning": "measured",
+            "groups": [
+                {
+                    "event_block": "Execute",
+                    "instruction_id": 0,
+                    "segment_index": 0,
+                    "segment_id": 0,
+                    "stripe_id": 0,
+                    "chain_ids": ["30"],
+                    "cascade_ids": ["40"],
+                    "method": "forward",
+                    "statistics": {"op_cycles": 60, "total_cycles": 60, "counters": {}},
+                    "operator_group": {
+                        "nodes": [],
+                        "backend_operations": [],
+                        "confidence": "delegate-only",
+                        "strategy": "unmapped",
+                    },
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        vgf_etdump, "build_standard_runtime_mappings", lambda *_args, **_kwargs: []
+    )
+    etdump_output = analyze_profiling_data(
+        target_profile=target_profile,
+        profiling_data=[dump],
+        categories={"performance"},
+        model=str(model),
+    )
+    for output in (capture_output, etdump_output):
+        validate_standardized_output(output)
+        result = output["results"][0]
+        assert result["mode"] == "measured"
+        metrics = {metric["name"]: metric for metric in result["metrics"]}
+        assert metrics["total_cycles"]["value"] == 60
+        assert metrics["total_cycles"]["unit"] == "cycles"
+        assert metrics["inference_time"]["availability"] == "unavailable"
+        assert result["producer"] == "neural-technology-profiling-data"
+    for key in ("schema_version", "tool"):
+        assert capture_output[key] == etdump_output[key]
+    assert capture_output["target"]["components"][0]["variant"] == "default"
+    assert "variant" not in etdump_output["target"]["components"][0]
+    capture_target = dict(capture_output["target"])
+    capture_target["components"] = [
+        {key: value for key, value in component.items() if key != "variant"}
+        for component in capture_target["components"]
+    ]
+    assert capture_target == etdump_output["target"]
+
+
+@pytest.mark.parametrize(
+    "model_name, companion_name, error",
+    [
+        (None, "model.pte", "requires ETRecord profiling data"),
+        ("model.vgf", "model.pte", "requires ETRecord profiling data"),
+        ("model.etrecord", "model.vgf", "must reference a .pte file"),
+    ],
+)
+def test_nt_rejects_unsupported_companion_pair_before_reading_artifacts(
+    tmp_path, model_name, companion_name, error
+):
+    """NT owns format restrictions, including for direct profiling API callers."""
+    companion = tmp_path / companion_name
+    companion.touch()
+    model = tmp_path / model_name if model_name is not None else None
+    if model is not None:
+        model.touch()
+    dump = tmp_path / "run.etdump"
+    dump.touch()
+    with pytest.raises(ConfigurationError, match=error):
+        analyze_profiling_data(
+            target_profile=str(_write_profile(tmp_path)),
+            profiling_data=[dump],
+            categories={"performance"},
+            model=str(model) if model is not None else None,
+            companion_model=companion,
+        )
+
+
+def test_structured_capture_does_not_require_executorch_reader(tmp_path):
+    """Block optional imports before loading native analysis in a fresh process."""
+    root = _write_capture(tmp_path, [_pipeline_spec(0, b"spirv-a", [(0, 0, 0)])])
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import importlib.abc
+import sys
+from pathlib import Path
+
+class BlockExecuTorch(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split(".")[0] in {"torch", "executorch"} or fullname.startswith("mlia.backend.executorch"):
+            raise AssertionError(f"Native analysis imported {fullname}")
+
+sys.meta_path.insert(0, BlockExecuTorch())
+from mlia.backend.neural_technology_profiling_data import profiling
+from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
+
+profiling.read_spirv_debug_names_from_bytes = lambda _data: SpirvDebugNameMap(op_ext_inst_spirv_ids=["504"])
+output = profiling.analyze_profiling_data(
+    target_profile=sys.argv[1], profiling_data=[Path(sys.argv[2])], categories={"performance"}
+)
+assert output["results"][0]["mode"] == "measured"
+assert next(metric["value"] for metric in output["results"][0]["metrics"]
+            if metric["name"] == "total_cycles") == 60
+""",
+            str(_write_profile(tmp_path)),
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

@@ -95,6 +95,58 @@ when `--profiling-data` is supplied and supports performance analysis only.
 and `tosa-flatbuffers` supplies low-level TOSA serialization support. Both are
 internal, non-selectable dependency integrations rather than analysis backends.
 
+### Measured ETRecord and ETDump profiling
+
+Pair an ExecuTorch ETRecord (`.etrecord` or `.bin`) with one matching ETDump
+(`.etdump` or `.etdp`) to analyze recorded performance. Runtime timings are
+reported in milliseconds. VGF profiling adds NX cycle and hardware-counter
+measurements for segments, cascades, chains and stripes.
+
+From this repository checkout, enable ExecuTorch support and run analysis:
+
+```bash
+uv sync --extra executorch
+uv run --extra executorch mlia check model.etrecord \
+  --target-profile neural-technology \
+  --performance \
+  --profiling-data run.etdump \
+  --output-dir mlia-etrecord-result
+```
+
+`--profiling-data` selects the measured backend automatically. The output
+directory contains `mlia-output.json` with the analysis results. For a
+multi-method ETRecord, also supply
+`--neural-technology-profiling-data.etrecord-method decode`, replacing `decode`
+with the captured method.
+
+To generate and open a standalone visualization, make Model Explorer available
+for the command:
+
+```bash
+uv run --extra executorch --with "mlia-model-explorer[executorch]" \
+  mlia check model.etrecord \
+  --target-profile neural-technology \
+  --performance \
+  --profiling-data run.etdump \
+  --output-dir mlia-etrecord-result \
+  --model-explorer open
+```
+
+Use `--model-explorer files` to generate the visualization without opening it.
+Optionally add `--companion-model model.pte` for a matching PTE's VGF graph.
+Companion operator associations use VGF profiling data. Structural matching assumes you
+supplied the matching PTE; it does not verify that the PTE produced the capture.
+The result records the analyzed PTE's SHA-256 digest. Before generating its
+companion visualization, Model Explorer compares the file's current digest with
+the recorded digest and rejects a mismatch. Analysis does not monitor later
+file changes.
+
+Shared runtime timings are non-additive, and cycle totals describe captured
+observations rather than proving a complete inference was recorded. See
+[ETRecord and ETDump profiling](docs/source/etrecord.md) for required artifacts,
+measurement interpretation, supported decoder layouts and incomplete-capture
+limitations.
+
 ## Installation
 
 The wheel requires CPython 3.12 (`>=3.12,<3.13`). On x86-64 Linux, it requires
@@ -106,7 +158,7 @@ The bundled native `vgfpy` extension also requires a matching CPython ABI.
 Install into an environment that already contains `mlia`:
 
 ```bash
-pip install mlia-neural-technology
+uv pip install mlia-neural-technology
 ```
 
 A typical MLIA workflow then references one of the bundled profiles, for

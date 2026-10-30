@@ -33,6 +33,8 @@ This package participates in workflows for several model formats:
 - VGF (`.vgf`).
 - PyTorch export (`.pt2`).
 - ExecuTorch PTE (`.pte`).
+- ExecuTorch ETRecord (`.etrecord`, `.bin`), when paired with ETDump for measured
+  performance analysis.
 
 Not every format is consumed directly by the NX Performance Estimator. Some are
 handled through conversion integrations in this package or through installed
@@ -90,6 +92,12 @@ performance analysis only and use the built-in
 `neural-technology-profiling-data` backend automatically.
 
 See [CLI](cli.md) for the accepted capture layout and dispatch-selection rules.
+
+An ETRecord and matching ETDump use this same measured backend, with the
+optional ExecuTorch dependency. Target-profile selection does not choose the
+ETDump decoder's statistics mode or device. See
+[ETRecord and ETDump](etrecord.md) for supported inputs and the current CLI
+decoder defaults.
 
 ## Configuration concepts
 

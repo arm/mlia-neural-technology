@@ -33,6 +33,97 @@ from mlia.core.settings import ApplicationSettings, FilteringSettings
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 
 
+@pytest.mark.parametrize("positional_class", ["segment", "metrics"])
+def test_main_positional_constructors_preserve_standardized_output(
+    tmp_path: Path, positional_class: str
+) -> None:
+    """Main's positional arguments retain provenance and warnings when exported."""
+    source_id = "source_operator/segment_0/1"
+    segment_args: tuple[int, str, list[str], list[str], list[str], dict[str, str]] = (
+        0,
+        "Graph",
+        [],
+        [],
+        [source_id],
+        {source_id: "Conv2d"},
+    )
+    keyword_segment = NXSegmentPerformanceEntities(
+        segment_index=segment_args[0],
+        segment_name=segment_args[1],
+        chain_ids=segment_args[2],
+        cascade_ids=segment_args[3],
+        structural_source_operator_ids=segment_args[4],
+        structural_source_operator_names=segment_args[5],
+    )
+    segment = (
+        NXSegmentPerformanceEntities(*segment_args)
+        if positional_class == "segment"
+        else keyword_segment
+    )
+    config = NXPerformanceEstimatorConfig("default", "default")
+    stats = NXModelPerformanceStats(
+        compiled_size=0,
+        cache_cycles=0,
+        cache_read_bytes=0,
+        cache_write_bytes=0,
+        compute_cycles=50,
+        dram_cycles=0,
+        dram_read_bytes=0,
+        dram_write_bytes=0,
+        dram_footprint=0,
+        inference_time=1.0,
+        infs_per_sec=1000.0,
+        total_cycles=100,
+    )
+    warnings = ["Existing warning"]
+    metrics_args: tuple[
+        NXPerformanceEstimatorConfig,
+        None,
+        dict[str, NXOperatorPerformanceStats],
+        dict[str, NXOperatorPerformanceStats],
+        NXModelPerformanceStats,
+        list[NXSegmentPerformanceEntities],
+        list[str],
+    ] = (config, None, {}, {}, stats, [segment], warnings)
+    keyword_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=config,
+        performance_db_parser=None,
+        chain_performance_metrics={},
+        cascade_performance_metrics={},
+        model_performance_stats=stats,
+        segment_entities=[keyword_segment],
+        warnings=warnings,
+    )
+    metrics = (
+        NXPerformanceEstimatorPerformanceMetrics(*metrics_args)
+        if positional_class == "metrics"
+        else NXPerformanceEstimatorPerformanceMetrics(
+            backend_config=config,
+            performance_db_parser=None,
+            chain_performance_metrics={},
+            cascade_performance_metrics={},
+            model_performance_stats=stats,
+            segment_entities=[segment],
+            warnings=warnings,
+        )
+    )
+    model = tmp_path / "model.vgf"
+    model.write_bytes(b"model")
+    export_args = {
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "timestamp": "2026-10-08T00:00:00Z",
+    }
+    output = metrics.to_standardized_output(model, **export_args)
+
+    assert output == keyword_metrics.to_standardized_output(model, **export_args)
+    validate_standardized_output(output)
+    result = output["results"][0]
+    assert result["warnings"] == warnings
+    entities = {entity["id"]: entity for entity in result["entities"]}
+    assert entities["segment/0"]["child_ids"] == [source_id]
+    assert entities[source_id]["name"] == "Conv2d"
+
+
 def test_nx_performance_estimator_output_files(tmp_path: Path) -> None:
     """Test for class NXPerformanceEstimatorConfig."""
     output_files = NXPerformanceEstimatorOutputFiles.from_output_dir(
@@ -225,6 +316,11 @@ def test_nx_performance_estimator_prefixes_subgraph_ids_with_segment_and_kind(
 
         def process_stats_per_cascade(self) -> dict[str, NXOperatorPerformanceStats]:
             return {"9114": stats_cascade}
+
+        def process_stats_per_stripe(self) -> dict[str, NXOperatorPerformanceStats]:
+            raise AssertionError(
+                "existing estimator flow must not process extra stripes"
+            )
 
     monkeypatch.setattr(
         "mlia.backend.nx_performance_estimator.performance."
@@ -1798,6 +1894,84 @@ def test_nx_entity_ids_use_kind_namespaces() -> None:
     assert _performance_group_entity_id("chain/segment_7/1178", 0) == (
         "performance_group/segment_7/chain_1178/0"
     )
+
+
+def test_nx_database_output_preserves_aggregate_chain_breakdowns(
+    tmp_path: Path,
+) -> None:
+    """Database output retains aggregate counters without adding stripe entities."""
+    chain_stats = NXOperatorPerformanceStats(
+        op_id=["7"],
+        op_cycles=45,
+        total_cycles=50,
+        memory={},
+        utilization=[
+            {"sectionName": "nx_active", "cycles": 45},
+            {"sectionName": "ce_active", "cycles": 30},
+        ],
+        operators=[
+            {
+                "source_operator_ids": [],
+                "operator_types": ["Conv2D", "Rescale"],
+            }
+        ],
+    )
+    model_performance = NXModelPerformanceStats(
+        compiled_size=None,
+        cache_cycles=None,
+        cache_read_bytes=None,
+        cache_write_bytes=None,
+        compute_cycles=45,
+        dram_cycles=None,
+        dram_read_bytes=None,
+        dram_write_bytes=None,
+        dram_footprint=None,
+        inference_time=None,
+        infs_per_sec=None,
+        total_cycles=50,
+    )
+    chain_id = "chain/segment_0/42"
+    stripe_id = "stripe/segment_0/7"
+    perf_metrics = NXPerformanceEstimatorPerformanceMetrics(
+        backend_config=NXPerformanceEstimatorConfig(
+            system_config="default",
+            compiler_config="default",
+        ),
+        performance_db_parser=None,
+        chain_performance_metrics={chain_id: chain_stats},
+        cascade_performance_metrics={},
+        model_performance_stats=model_performance,
+        segment_entities=[
+            NXSegmentPerformanceEntities(
+                segment_index=0,
+                segment_name="segment",
+                chain_ids=[chain_id],
+                cascade_ids=[],
+            )
+        ],
+    )
+    model_file = tmp_path / "model.vgf"
+    model_file.write_bytes(b"model")
+
+    output = perf_metrics.to_standardized_output(model_path=model_file)
+    result = output["results"][0]
+    entities = {entity["id"]: entity for entity in result["entities"]}
+    breakdowns = {
+        breakdown["entity_id"]: breakdown for breakdown in result["breakdowns"]
+    }
+    assert stripe_id not in entities
+    assert stripe_id not in breakdowns
+    assert stripe_id not in entities[chain_id].get("child_ids", [])
+    assert not {"stripe", "backend_operator"}.intersection(
+        kind["id"] for kind in result["entity_kinds"]
+    )
+    chain_metrics = {
+        metric["name"]: metric for metric in breakdowns[chain_id]["metrics"]
+    }
+    assert chain_metrics["op_cycles"]["value"] == 45
+    assert chain_metrics["nx_active_cycles"]["value"] == 45
+    assert chain_metrics["ce_active_cycles"]["value"] == 30
+    validate_standardized_output(output)
 
 
 def test_nx_performance_metrics_projects_breakdowns_across_entity_views(

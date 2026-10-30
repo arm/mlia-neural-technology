@@ -10,12 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mlia.backend.nx_performance_estimator.compat import (
-    NXCompatibilityChecker,
-    NXModelCompatibilityInfo,
-    TOSAModel,
-    VGFModel,
-)
+from mlia.core.data_collection import ContextAwareDataCollector
+from mlia.core.errors import ConfigurationError
+from mlia.utils.logging import log_action
+
 from mlia.backend.ml_sdk_model_converter.conversion import (
     get_front_end_output_subdir,
     transform_front_end_model,
@@ -23,12 +21,16 @@ from mlia.backend.ml_sdk_model_converter.conversion import (
 from mlia.backend.neural_technology_profiling_data.profiling import (
     analyze_profiling_data,
 )
+from mlia.backend.nx_performance_estimator.compat import (
+    NXCompatibilityChecker,
+    NXModelCompatibilityInfo,
+    TOSAModel,
+    VGFModel,
+)
 from mlia.backend.nx_performance_estimator.performance import (
     NXPerformanceEstimatorPerformanceEstimator,
     NXPerformanceEstimatorPerformanceMetrics,
 )
-from mlia.core.data_collection import ContextAwareDataCollector
-from mlia.core.errors import ConfigurationError
 from mlia.nx_utils.boundaries.filesystem import ensure_user_output_directory
 from mlia.nx_utils.filesystem import (
     is_pte_file,
@@ -37,7 +39,6 @@ from mlia.nx_utils.filesystem import (
     is_vgf_file,
 )
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
-from mlia.utils.logging import log_action
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +124,15 @@ class NeuralTechnologyProfilingData(ContextAwareDataCollector):
         profiling_data: list[Path],
         target_profile: str | Path,
         model: Path | None,
+        etrecord_method: str | None = None,
+        companion_model: Path | None = None,
     ) -> None:
         """Initialize the profiling data collector."""
         self.profiling_data = profiling_data
         self.target_profile = target_profile
         self.model = model
+        self.etrecord_method = etrecord_method
+        self.companion_model = companion_model
 
     def collect_data(self) -> NXProfilingDataResult:
         """Analyze profiling data through the normal MLIA collection workflow."""
@@ -139,6 +144,12 @@ class NeuralTechnologyProfilingData(ContextAwareDataCollector):
             model=str(self.model) if self.model is not None else None,
             cli_arguments=cli_args,
             output_dir=self.context.output_dir,
+            etrecord_method=self.etrecord_method,
+            **(
+                {"companion_model": self.companion_model}
+                if self.companion_model is not None
+                else {}
+            ),
         )
         return NXProfilingDataResult(standardized_output=standardized_output)
 

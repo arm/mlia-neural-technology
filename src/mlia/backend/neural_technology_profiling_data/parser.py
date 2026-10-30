@@ -19,6 +19,7 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
 )
 from mlia.core.errors import ConfigurationError
 from mlia.nx_utils.api_labels import ApiLabelParser
+from mlia.nx_utils.debug_database import parse_debug_table
 from mlia.utils.misc import summarize_list
 
 ProfilingMode = Literal[0, 1]
@@ -454,28 +455,13 @@ def parse_profiling_data(
         device=capture.device_for_pipeline(pipeline).profiling_device,
     )
     stripe_ids = parse_statistics_info(files.statistics_info_path)
-    if len(stripe_ids) != len(set(stripe_ids)):
-        raise ConfigurationError("Statistics info contains duplicate stripe IDs.")
     performance_database = parse_statistics_file(
         files.primary_stats_path,
         mode=files.primary_mode,
         device=files.device,
         included_zero_block_ids=frozenset(stripe_ids),
     )
-    rows_by_id = {row["id"]: row for row in performance_database}
-    unexpected_ids = set(rows_by_id).difference(stripe_ids)
-    if unexpected_ids:
-        raise ConfigurationError(
-            "Statistics contains nonzero rows absent from statistics info: "
-            f"{summarize_list(sorted(unexpected_ids))}."
-        )
-    missing_ids = set(stripe_ids).difference(rows_by_id)
-    if missing_ids:
-        raise ConfigurationError(
-            "Statistics info contains stripe IDs outside the statistics block range: "
-            f"{summarize_list(sorted(missing_ids))}."
-        )
-    performance_database = [rows_by_id[stripe_id] for stripe_id in stripe_ids]
+    performance_database = select_statistics_rows(performance_database, stripe_ids)
     debug_database = _complete_debug_database(
         parse_debug_database(
             files.debug_database_path, known_api_labels=known_api_labels
@@ -1232,6 +1218,29 @@ def _parse_text_statistics_info(path: Path) -> list[int]:
     return stripe_ids
 
 
+def select_statistics_rows(
+    performance_database: PerformanceDatabaseContentsType,
+    stripe_ids: list[int],
+) -> PerformanceDatabaseContentsType:
+    """Select referenced statistics blocks by ID, rejecting unmapped active data."""
+    if len(stripe_ids) != len(set(stripe_ids)):
+        raise ConfigurationError("Statistics info contains duplicate stripe IDs.")
+    rows_by_id = {row["id"]: row for row in performance_database}
+    unexpected_ids = set(rows_by_id).difference(stripe_ids)
+    if unexpected_ids:
+        raise ConfigurationError(
+            "Statistics contains nonzero rows absent from statistics info: "
+            f"{summarize_list(sorted(unexpected_ids))}."
+        )
+    missing_ids = set(stripe_ids).difference(rows_by_id)
+    if missing_ids:
+        raise ConfigurationError(
+            "Statistics info contains stripe IDs outside the statistics block range: "
+            f"{summarize_list(sorted(missing_ids))}."
+        )
+    return [rows_by_id[stripe_id] for stripe_id in stripe_ids]
+
+
 def parse_statistics_file(
     path: Path,
     *,
@@ -1240,7 +1249,26 @@ def parse_statistics_file(
     included_zero_block_ids: frozenset[int] = frozenset(),
 ) -> PerformanceDatabaseContentsType:
     """Parse statistics, retaining requested blocks whose counters are all zero."""
-    words = _decode_words(path.read_bytes())
+    return parse_statistics_words(
+        _decode_words(path.read_bytes()),
+        mode=mode,
+        device=device,
+        included_zero_block_ids=included_zero_block_ids,
+    )
+
+
+def parse_statistics_words(
+    words: list[int],
+    *,
+    mode: ProfilingMode,
+    device: ProfilingDevice,
+    included_zero_block_ids: frozenset[int] = frozenset(),
+) -> PerformanceDatabaseContentsType:
+    """Decode statistics from capture files or ETDump memory with common rules."""
+    if mode not in (0, 1):
+        raise ConfigurationError("Statistics mode must be 0 or 1.")
+    if device not in ("Mali-G1", "Mali-G2"):
+        raise ConfigurationError("Profiling device must be Mali-G1 or Mali-G2.")
     if mode == 0:
         tasks_per_block = 512 if device == "Mali-G1" else 1024
         return _parse_mode0(words, tasks_per_block, included_zero_block_ids)
@@ -1432,33 +1460,9 @@ def _parse_debug_sections(
             "Debug database does not contain all expected profiling sections."
         )
     return {
-        name: _parse_debug_section(lines, api_label_parser)
+        name: parse_debug_table(lines, api_label_parser)
         for name, lines in zip(_SECTION_NAMES, raw_sections)
     }
-
-
-def _parse_debug_section(
-    lines: list[str], api_label_parser: ApiLabelParser
-) -> list[dict[str, list[str]]]:
-    if not lines:
-        return []
-    columns = lines[0].split("\t") if "\t" in lines[0] else lines[0].split()
-    rows = []
-    for line in lines[1:]:
-        values = line.split("\t")
-        row = {}
-        for index, column in enumerate(columns):
-            value = (values[index] if index < len(values) else "").rstrip("\0\r")
-            if column == "api_labels":
-                row[column] = api_label_parser.parse(value)
-            elif column == "api_label":
-                row[column] = [value] if value else []
-            else:
-                row[column] = [
-                    item.strip() for item in value.split(";") if item.strip()
-                ]
-        rows.append(row)
-    return rows
 
 
 def _rows_by_id(

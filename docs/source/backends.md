@@ -11,7 +11,7 @@ two internal conversion support integrations.
 | Backend | Role |
 | --- | --- |
 | `nx-performance-estimator` | Estimates compatibility and performance from a model |
-| `neural-technology-profiling-data` | Produces measured performance results from structured captures |
+| `neural-technology-profiling-data` | Produces measured performance results from structured captures or ETRecord/ETDump pairs |
 | `ml-sdk-model-converter` | Converts supported model formats for Neural Technology tools |
 | `tosa-flatbuffers` | Provides TOSA FlatBuffers serialization support |
 
@@ -83,7 +83,7 @@ uv run mlia check -t neural-technology --compatibility \
 to measured mode and causes core MLIA to select this profiling-capable backend.
 The backend is built in and normally does not need to be named explicitly.
 
-Measured profiling supports performance analysis only. It accepts either:
+Structured-capture profiling supports performance analysis only. It accepts:
 
 - one dispatch directory without a model;
 - a capture root or dispatch anchor associated with a VGF model; or
@@ -94,6 +94,12 @@ and standardized-output construction as estimator mode. See [CLI](cli.md) for
 the capture layout and selection rules. See
 [Outputs and metrics](outputs_metrics.md#estimator-versus-measured-mode) for
 counter aggregation and the meaning and limitations of the reported cycle counts.
+
+The same measured backend also accepts an ETRecord (`.etrecord` or `.bin`) and
+one matching ETDump (`.etdp` or `.etdump`). It reports runtime timings in
+milliseconds and, when present, decoded VGF cycles and hardware counters.
+See [ETRecord and ETDump](etrecord.md) for installation, method selection,
+runtime-only and mixed observations, and decoder limits.
 
 ## Conversion support integrations
 

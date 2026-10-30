@@ -88,7 +88,7 @@ pipeline_<id>/session_<id>/dispatch_<id>/dispatch.json
 
 Metadata references, IDs, parent relationships, paths, artifact types, byte
 sizes, capture status, and the capture device are validated before analysis.
-Profiling input must use this structured hierarchy. Pipeline inputs must declare
+Structured-capture input must use this hierarchy. Pipeline inputs must declare
 `debug_database.bin`, either `neural_statistics_info.bin` or
 `neural_statistics_info.txt`, and one `shader_module_<id>.spv`; each selected
 dispatch must declare exactly one mode-matching statistics artifact.
@@ -133,6 +133,10 @@ corresponding graph segment. Profiling data uses the same per-segment
 correlation, aggregation, totals, warnings, entities, and standardized-output
 flow as the NX Performance Estimator. Measured profiling supports
 `--performance` only.
+
+For the additional ETRecord/ETDump measured-input workflow, see
+[ETRecord and ETDump](etrecord.md). It uses the same backend with an ETRecord
+model and one dump file, rather than the capture-directory selection above.
 
 ## Practical debugging sequence
 

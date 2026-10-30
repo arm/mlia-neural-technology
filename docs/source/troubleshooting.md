@@ -119,7 +119,7 @@ from "the estimator never received a clean input."
 
 ### Capture input is rejected
 
-The measured backend requires schema-version 2 structured captures. Check that
+The structured-capture input requires schema-version 2 captures. Check that
 metadata references resolve within one capture and that every selected dispatch
 declares exactly one statistics artifact matching the capture mode.
 
@@ -133,6 +133,10 @@ each graph segment. When automatic matching is ambiguous, repeat
 Measured profiling supports `--performance` only. It does not accept
 compatibility analysis or NX estimator backend options. All explicitly selected
 dispatches must belong to the same capture and logical device.
+
+For ETRecord/ETDump inputs, check the matching deployed program, selected method,
+optional dependencies and decoder mode/device instead of capture-directory
+metadata. See [ETRecord troubleshooting](etrecord.md#troubleshooting).
 
 ## When the run succeeds but the result still looks wrong
 

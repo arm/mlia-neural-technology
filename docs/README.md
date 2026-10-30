@@ -15,6 +15,7 @@ repository.
 - `source/backends.md`: estimator-oriented backend behaviour and options
 - `source/outputs_metrics.md`: output shapes and key metrics produced by Neural Technology workflows
 - `source/cli.md`: practical CLI usage examples for common Neural Technology tasks
+- `source/etrecord.md`: additional ETRecord/ETDump profiling inputs and metrics
 - `source/troubleshooting.md`: backend-specific troubleshooting notes
 - `source/development.md`: local development, testing, and maintenance workflow
 - `source/neural_technology_api_walkthrough.ipynb`: Python API walkthrough for

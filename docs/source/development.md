@@ -51,6 +51,30 @@ Build the package:
 uv build
 ```
 
+## PyTorch converter and ETDump compatibility
+
+CI installs the `executorch` extra and the `test` dependency group in one
+environment, checks the installed requirements, and runs both converter and
+profiling regression tests. Reproduce the installation with:
+
+```bash
+uv sync --extra executorch --group test
+uv pip check
+```
+
+Run the combined integration test separately from the TensorFlow test fixtures:
+
+```bash
+MLIA_REQUIRE_PYTORCH_E2E=1 uv run --no-sync pytest -o addopts="" --noconftest tests/test_executorch_converter_integration.py
+```
+
+The test exports a real PyTorch module through the converter plugin, executes
+its portable PTE, and verifies standardized MLIA output from the generated
+ETRecord and a serialized ETDump containing controlled timing samples. Runtime
+wheel builds do not need on-device event tracing enabled. Missing converter
+packages fail the CI test; outside this job, the optional test can be skipped.
+The existing quick test job continues to enforce the repository coverage target.
+
 ## What usually changes together
 
 When you update one of these areas, review the adjacent layers as well:

@@ -4,8 +4,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence, cast
+from typing import Any, cast
 
 from mlia.core.advisor import DefaultInferenceAdvisor, InferenceAdvisor
 from mlia.core.common import AdviceCategory
@@ -13,13 +14,15 @@ from mlia.core.context import Context, ExecutionContext
 from mlia.core.data_analysis import DataAnalyzer
 from mlia.core.data_collection import DataCollector
 from mlia.core.errors import ConfigurationError
+from mlia.utils.misc import summarize_list
+
+from mlia.nx_utils.filesystem import is_etrecord_file
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
 from mlia.target.neural_technology.data_collection import (
     NeuralTechnologyCompatibility,
     NeuralTechnologyPerformance,
     NeuralTechnologyProfilingData,
 )
-from mlia.utils.misc import summarize_list
 
 PROFILING_DATA_BACKEND = "neural-technology-profiling-data"
 
@@ -39,6 +42,10 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
         if profiling_data is not None:
             return self._get_profiling_data_collectors(context, backend, profiling_data)
 
+        if self._get_optional_path(context, "companion_model") is not None:
+            raise ConfigurationError(
+                "A companion model requires ETRecord profiling data."
+            )
         model = self.get_model(context)
         target_cfg = self._get_target_cfg(context)
         collectors: list[DataCollector] = []
@@ -68,14 +75,20 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
             )
 
         model = self._get_optional_path(context, "model")
-        if model is not None and model.suffix.lower() != ".vgf":
+        if (
+            model is not None
+            and model.suffix.lower() != ".vgf"
+            and not is_etrecord_file(model)
+        ):
             raise ConfigurationError(
-                "Neural Technology profiling data can only be associated with a VGF model."
+                "Neural Technology profiling data can only be associated with a VGF or "
+                "ETRecord model."
             )
 
         backend_options = self._get_backend_options(context).get(backend, {})
-        if backend_options:
-            options = summarize_list(sorted(backend_options))
+        unsupported_options = set(backend_options).difference({"etrecord_method"})
+        if unsupported_options:
+            options = summarize_list(sorted(unsupported_options))
             raise ConfigurationError(
                 "Neural Technology profiling data does not support backend "
                 f"options: {options}."
@@ -86,6 +99,8 @@ class NeuralTechnologyInferenceAdvisor(DefaultInferenceAdvisor):
                 profiling_data=profiling_data,
                 target_profile=self.get_target_profile(context),
                 model=model,
+                etrecord_method=backend_options.get("etrecord_method"),
+                companion_model=self._get_optional_path(context, "companion_model"),
             )
         ]
 
@@ -181,6 +196,8 @@ def _get_config_parameters(
         parameters["model"] = str(model)
     if profiling_data := extra_args.get("profiling_data"):
         parameters["profiling_data"] = [str(path) for path in profiling_data]
+    if companion_model := extra_args.get("companion_model"):
+        parameters["companion_model"] = str(companion_model)
 
     backends: Sequence = extra_args.get("backends", [])
     if not backends:

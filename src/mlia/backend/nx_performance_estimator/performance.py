@@ -10,16 +10,22 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-import mlia
 import mlia.core.output_schema as schema
+from mlia.backend.repo import get_backend_repository
+from mlia.core.performance import PerformanceEstimator, PerformanceObservations
+from mlia.utils.filesystem import sha256
+from mlia.utils.logging import log_action
+from mlia.utils.misc import summarize_list
+
+import mlia
 from mlia.backend.ml_sdk_model_converter.conversion import MLSDKModelConverter
 from mlia.backend.ml_sdk_model_converter.install import get_ml_sdk_model_converter_path
-from mlia.backend.nx_performance_estimator.config import (
-    NXPerformanceEstimatorConfig,
-)
 from mlia.backend.nx_performance_estimator.advice import (
     NXAdviceRecord,
     add_vgf_performance_advice,
+)
+from mlia.backend.nx_performance_estimator.config import (
+    NXPerformanceEstimatorConfig,
 )
 from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
 from mlia.backend.nx_performance_estimator.output_parsing import (
@@ -29,7 +35,6 @@ from mlia.backend.nx_performance_estimator.output_parsing import (
     PerformanceDatabaseContentsType,
 )
 from mlia.backend.nx_performance_estimator.provenance import (
-    NX_PROVENANCE_ENTITY_KIND_DECLARATIONS,
     NXProvenanceEntityBuilder,
 )
 from mlia.backend.nx_performance_estimator.runner import (
@@ -38,8 +43,6 @@ from mlia.backend.nx_performance_estimator.runner import (
     run_nx_performance_estimator,
 )
 from mlia.backend.nx_performance_estimator.statistics import (
-    NXModelCountMetricValue,
-    NXModelFloatMetricValue,
     NXModelPerformanceStats,
     NXOperatorPerformanceStats,
     NXPerformanceStats,
@@ -53,35 +56,14 @@ from mlia.nx_utils.boundaries.filesystem import (
     ensure_user_output_directory,
     write_user_output_json,
 )
-from mlia.backend.repo import get_backend_repository
-from mlia.core.performance import PerformanceEstimator
 from mlia.nx_utils.filesystem import is_vgf_file
-from mlia.utils.filesystem import sha256
-from mlia.utils.logging import log_action
-from mlia.utils.misc import summarize_list
+from mlia.nx_utils.performance import (
+    NX_ENTITY_KINDS,
+    NX_MODEL_METRIC_UNITS,
+    normalize_nx_model_metrics,
+)
 
 logger = logging.getLogger(__name__)
-
-NX_ENTITY_KINDS = [
-    schema.EntityKind(id="segment", child_kinds=["cascade", "source_operator"]),
-    schema.EntityKind(id="cascade", parent_kinds=["segment"], child_kinds=["chain"]),
-    schema.EntityKind(
-        id="chain",
-        parent_kinds=["cascade"],
-        child_kinds=["source_operator", "performance_group"],
-    ),
-    schema.EntityKind(
-        id="performance_group",
-        parent_kinds=["chain"],
-        child_kinds=["source_operator"],
-    ),
-    *NX_PROVENANCE_ENTITY_KIND_DECLARATIONS,
-]
-
-
-_BACKEND_METRIC_UNAVAILABLE_REASON = (
-    "Backend output did not provide a numeric value for this metric."
-)
 
 
 def _metric_name_part(value: object) -> str:
@@ -189,7 +171,7 @@ class NXSegmentPerformanceDatabase:
 
 @dataclass
 class NXPerformanceEstimatorPerformanceMetrics:
-    """NX Performance Estimator configuration and performance metrics."""
+    """Parsed NX estimator and structured-capture performance metrics."""
 
     backend_config: NXPerformanceEstimatorConfig
     performance_db_parser: NXPerformanceDatabaseParser | None
@@ -200,40 +182,12 @@ class NXPerformanceEstimatorPerformanceMetrics:
     warnings: list[str] | None = None
     advice: list[NXAdviceRecord] | None = None
 
-    def _build_model_metric(
-        self,
-        name: str,
-        value: NXModelCountMetricValue | NXModelFloatMetricValue,
-        unit: str,
-    ) -> schema.Metric:
-        if value is None:
-            return schema.Metric(
-                name=name,
-                value=None,
-                unit=unit,
-                availability=schema.MetricAvailability.UNAVAILABLE,
-                reason=_BACKEND_METRIC_UNAVAILABLE_REASON,
-            )
-
-        return schema.Metric(name=name, value=value, unit=unit)
-
-    def _build_target_utilization_metric(self) -> schema.Metric:
-        compute_cycles = self.model_performance_stats.compute_cycles
-        total_cycles = self.model_performance_stats.total_cycles
-        if compute_cycles is None or total_cycles is None:
-            return schema.Metric(
-                name=schema.METRIC_NAME_TARGET_UTILIZATION,
-                value=None,
-                unit=schema.UNIT_PERCENT,
-                availability=schema.MetricAvailability.UNAVAILABLE,
-                reason=_BACKEND_METRIC_UNAVAILABLE_REASON,
-            )
-
-        return schema.Metric(
-            name=schema.METRIC_NAME_TARGET_UTILIZATION,
-            value=(compute_cycles / total_cycles * 100 if total_cycles else 0.0),
-            unit=schema.UNIT_PERCENT,
-        )
+    mode: schema.ModeType | None = None
+    backend_configuration: dict[str, Any] | None = None
+    runtime_configuration: dict[str, Any] | None = None
+    extensions: dict[str, Any] = field(default_factory=dict)
+    model_format: str | None = None
+    description: str = "Neural Accelerator (NX) performance estimation"
 
     def _build_breakdown_metrics(
         self, stats: NXOperatorPerformanceStats
@@ -313,17 +267,85 @@ class NXPerformanceEstimatorPerformanceMetrics:
         Returns:
             Dictionary representing standardized output
         """
-        # Generate run_id and timestamp if not provided
-        if run_id is None:
-            run_id = schema.StandardizedOutput.create_run_id()
-        if timestamp is None:
-            timestamp = schema.StandardizedOutput.create_timestamp()
+        variant = (
+            Path(self.backend_config.system_config).stem
+            if self.backend_config.system_config != NXPerformanceEstimatorConfig.DEFAULT
+            else None
+        )
+        results = [
+            schema.Result(
+                kind=schema.ResultKind.PERFORMANCE,
+                status=schema.ResultStatus.OK,
+                producer=backend_name,
+                mode=self.mode,
+                metrics=item.metrics,
+                entities=item.entities,
+                breakdowns=item.breakdowns,
+                entity_kinds=item.entity_kinds,
+                warnings=item.warnings,
+                advice=self._build_result_advice(item.entities),
+            )
+            for item in self._build_performance_observations()
+        ]
+        target_config = target_config or {}
+        target_type = target_config.get(
+            "target_type", target_config.get("target", "neural-accelerator")
+        )
+        measured = self.mode == schema.ModeType.MEASURED
+        return schema.StandardizedOutput(
+            schema_version=schema.SCHEMA_VERSION,
+            run_id=run_id
+            if run_id is not None
+            else schema.StandardizedOutput.create_run_id(),
+            timestamp=timestamp
+            if timestamp is not None
+            else schema.StandardizedOutput.create_timestamp(),
+            tool=schema.Tool(name="mlia", version=mlia.__version__),
+            target=schema.Target(
+                profile_name=target_config.get("profile_name", target_type),
+                target_type=target_type,
+                components=[
+                    schema.Component(
+                        type=schema.ComponentType.GPU,
+                        family="mali",
+                        model="nx",
+                        variant=variant,
+                    )
+                ],
+                configuration=target_config,
+                description=self.description,
+            ),
+            model=schema.Model(
+                name=model_path.name,
+                format=self.model_format
+                or model_path.suffix.lower().lstrip(".")
+                or "unknown",
+                hash=sha256(model_path),
+                size_bytes=model_path.stat().st_size,
+            ),
+            context=schema.Context(
+                cli_arguments=cli_arguments or [],
+                runtime_configuration=self.runtime_configuration,
+            ),
+            backends=[
+                schema.Backend(
+                    id=backend_name,
+                    name="Neural Technology Profiling Data"
+                    if measured
+                    else "Neural Accelerator (NX) Performance Estimator",
+                    version="experimental" if measured else "unknown",
+                    configuration=self.backend_configuration
+                    if self.backend_configuration is not None
+                    else self._estimator_backend_configuration(),
+                )
+            ],
+            results=results,
+            extensions=self.extensions,
+        ).to_dict()
 
-        # Create tool info
-        tool = schema.Tool(name="mlia", version=mlia.__version__)
-
-        # Create backend configuration
-        backend_config_dict = {
+    def _estimator_backend_configuration(self) -> dict[str, Any]:
+        """Preserve the estimator configuration for existing callers."""
+        return {
             "system_config": Path(self.backend_config.system_config).stem
             if self.backend_config.system_config != NXPerformanceEstimatorConfig.DEFAULT
             else "default",
@@ -333,99 +355,40 @@ class NXPerformanceEstimatorPerformanceMetrics:
             else "default",
         }
 
-        # Create backend
-        backend = schema.Backend(
-            id=backend_name,
-            name="Neural Accelerator (NX) Performance Estimator",
-            version="unknown",  # NX version not readily available
-            configuration=backend_config_dict,
-        )
-
-        # Extract target info from config
-        target_config = target_config or {}
-        target_type = target_config.get(
-            "target_type", target_config.get("target", "neural-accelerator")
-        )
-        profile_name = target_config.get("profile_name", target_type)
-
-        # Extract variant from system_config name if not default
-        variant = None
-        if self.backend_config.system_config != NXPerformanceEstimatorConfig.DEFAULT:
-            variant = Path(self.backend_config.system_config).stem
-
-        # Create target components - Neural Accelerator (NX)
-        components = [
-            schema.Component(
-                type=schema.ComponentType.GPU,
-                family="mali",
-                model="nx",
-                variant=variant,
+    def _build_result_advice(
+        self, entities: list[schema.Entity]
+    ) -> list[schema.Advice]:
+        """Keep static advice scoped to NX entities retained in this result."""
+        nx_entity_ids = {
+            entity.id
+            for entity in entities
+            if entity.placement == schema.PlacementType.NX.value
+        }
+        return [
+            schema.Advice(
+                id=record.id,
+                category=schema.AdviceCategory(record.category),
+                severity=schema.AdviceSeverity(record.severity),
+                message=record.message,
+                affected_entity_ids=[record.entity_id],
             )
+            for record in self.advice or []
+            if record.entity_id is not None and record.entity_id in nx_entity_ids
         ]
 
-        # Create target
-        target = schema.Target(
-            profile_name=profile_name,
-            target_type=target_type,
-            components=components,
-            configuration=target_config,
-            description="Neural Accelerator (NX) performance estimation",
+    def _build_model_metrics(self) -> list[schema.Metric]:
+        """Normalize parsed NX model statistics through the shared metric policy."""
+        return normalize_nx_model_metrics(
+            [
+                schema.Metric(name=name, value=value, unit=unit)
+                for name, unit in NX_MODEL_METRIC_UNITS.items()
+                if (value := getattr(self.model_performance_stats, name)) is not None
+            ]
         )
 
-        # Calculate model hash and size
-        model_hash = sha256(model_path)
-        model_size = model_path.stat().st_size
-
-        # Determine model format (suffix without the dot)
-        suffix = model_path.suffix.lower()
-        model_format = suffix.lstrip(".") or "unknown"
-
-        model = schema.Model(
-            name=model_path.name,
-            format=model_format,
-            hash=model_hash,
-            size_bytes=model_size,
-        )
-
-        # Create context
-        context = schema.Context(
-            cli_arguments=cli_arguments or [],
-            runtime_configuration=None,
-            git=None,
-            notes=None,
-        )
-
-        metric_units = {
-            "inference_time": "ms",
-            "infs_per_sec": "inferences/s",
-            "total_cycles": "cycles",
-            "compute_cycles": "cycles",
-            "cache_cycles": "cycles",
-            "dram_cycles": "cycles",
-            "compiled_size": "bytes",
-            "cache_read_bytes": "bytes",
-            "cache_write_bytes": "bytes",
-            "dram_read_bytes": "bytes",
-            "dram_write_bytes": "bytes",
-            "dram_footprint": "bytes",
-        }
-
-        metrics = []
-        for field_name, unit in metric_units.items():
-            value = getattr(self.model_performance_stats, field_name)
-            metrics.append(self._build_model_metric(field_name, value, unit))
-
-        if self.model_performance_stats.inference_time:
-            metrics.append(
-                schema.Metric(
-                    name=schema.METRIC_NAME_INFERENCES_PER_SECOND,
-                    value=1000 / self.model_performance_stats.inference_time,
-                    unit=schema.UNIT_INFERENCES_PER_SECOND,
-                )
-            )
-        metrics.append(self._build_target_utilization_metric())
-        metrics = schema.ensure_standard_performance_metrics(metrics)
-
+    def _build_performance_observations(self) -> list[PerformanceObservations]:
+        """Project parsed NX statistics and provenance into performance scopes."""
+        metrics = self._build_model_metrics()
         entities: list[schema.Entity] = []
         breakdowns: list[schema.Breakdown] = []
         segment_entities = self.segment_entities or []
@@ -634,46 +597,29 @@ class NXPerformanceEstimatorPerformanceMetrics:
                     child_ids=list(dict.fromkeys(segment_child_ids[segment_entity_id])),
                 )
             )
-        nx_entity_ids = {
-            entity.id
-            for entity in entities
-            if entity.placement == schema.PlacementType.NX.value
-        }
-        result = schema.Result(
-            kind=schema.ResultKind.PERFORMANCE,
-            status=schema.ResultStatus.OK,
-            producer=backend.id,
-            warnings=list(self.warnings or []),
-            errors=[],
-            metrics=metrics,
-            mode=None,  # NX doesn't specify simulation/measured,
-            breakdowns=breakdowns,
-            entities=entities,
-            entity_kinds=NX_ENTITY_KINDS,
-            advice=[
-                schema.Advice(
-                    id=record.id,
-                    category=schema.AdviceCategory(record.category),
-                    severity=schema.AdviceSeverity(record.severity),
-                    message=record.message,
-                    affected_entity_ids=[record.entity_id],
-                )
-                for record in self.advice or []
-                if record.entity_id is not None and record.entity_id in nx_entity_ids
-            ],
-        )
-        return schema.StandardizedOutput(
-            schema_version=schema.SCHEMA_VERSION,
-            run_id=run_id,
-            timestamp=timestamp,
-            tool=tool,
-            target=target,
-            model=model,
-            context=context,
-            backends=[backend],
-            results=[result],
-            extensions={},
-        ).to_dict()
+
+        return [
+            PerformanceObservations(
+                metrics=metrics,
+                entities=entities,
+                breakdowns=breakdowns,
+                entity_kinds=[
+                    schema.EntityKind.from_dict(
+                        {
+                            **kind.to_dict(),
+                            "child_kinds": [
+                                child
+                                for child in kind.child_kinds
+                                if child not in {"backend_operator", "stripe"}
+                            ],
+                        }
+                    )
+                    for kind in NX_ENTITY_KINDS
+                    if kind.id not in {"backend_operator", "stripe"}
+                ],
+                warnings=list(self.warnings or []),
+            )
+        ]
 
 
 def _sum_optional_numbers(left: Any, right: Any) -> Any:

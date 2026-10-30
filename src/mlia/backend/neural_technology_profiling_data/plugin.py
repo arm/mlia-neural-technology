@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Neural Technology profiling-data backend registration."""
 
+import click
+
 from mlia.backend.config import BackendConfiguration, BackendType
 from mlia.backend.registry import BackendRegistry
 from mlia.core.common import AdviceCategory
@@ -12,7 +14,7 @@ from mlia.target.neural_technology.filtering import DEFAULT_COLLAPSE_RULES
 class NeuralTechnologyProfilingDataPlugin(BackendPlugin):
     """Register the structured measured-data backend."""
 
-    plugin_interface_version = "0.0.1"
+    plugin_interface_version = "0.0.2"
 
     @staticmethod
     def register(registry: BackendRegistry) -> None:
@@ -21,6 +23,14 @@ class NeuralTechnologyProfilingDataPlugin(BackendPlugin):
             "neural-technology-profiling-data",
             BackendConfiguration(
                 supported_advice=[AdviceCategory.PERFORMANCE],
+                cli_options={
+                    "etrecord_method": click.Option(
+                        ["--etrecord-method"],
+                        type=str,
+                        default=None,
+                        help="ETRecord method to associate with this measured capture.",
+                    ),
+                },
                 supported_systems=None,
                 backend_type=BackendType.BUILTIN,
                 installation=None,

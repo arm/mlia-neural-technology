@@ -31,6 +31,7 @@ reports.
 - [Backends and conversion flow](backends.md)
 - [Outputs and metrics](outputs_metrics.md)
 - [CLI examples](cli.md)
+- [ETRecord and ETDump profiling](etrecord.md)
 - [Download the Python API walkthrough notebook](neural_technology_api_walkthrough.ipynb)
 - [Troubleshooting](troubleshooting.md)
 - [Development](development.md)

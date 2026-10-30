@@ -105,3 +105,45 @@ jobs:
           name: coverage-report
           path: coverage.xml
           if-no-files-found: ignore
+
+  test_pytorch_profiling:
+    name: PyTorch converter and ETDump integration
+    runs-on: ["${{ vars.UBUNTU_RUNNER }}", "X64"]
+    env:
+      # Missing optional plugins must fail this job rather than skip its test.
+      MLIA_REQUIRE_PYTORCH_E2E: "1"
+    steps:
+      - name: Import secrets from Vault
+        # Vault secrets must not be exposed to pull requests from forks.
+        if: >-
+          ${{ github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ secrets.VAULT_URL }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          namespace: iac-expkits/prod
+          secrets: *vault-common-ci-secrets
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dev
+      - name: Install converter and profiling dependencies together
+        # Keep the project's explicit CPU Torch index for this CPU-only test.
+        run: uv sync --extra executorch --group test
+      - name: Check installed dependency compatibility
+        run: uv pip check --python "$UV_PROJECT_ENVIRONMENT/bin/python"
+      - name: Test real PyTorch export and ETDump analysis
+        # This test needs only pytest's built-in fixtures. Keep the native
+        # PyTorch/ExecuTorch runtime isolated from TensorFlow's conftest imports.
+        run: >-
+          uv run --no-sync pytest -o addopts="" --noconftest
+          tests/test_executorch_converter_integration.py

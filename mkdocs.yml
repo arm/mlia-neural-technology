@@ -35,5 +35,6 @@ nav:
   - Backends: backends.md
   - Outputs and Metrics: outputs_metrics.md
   - CLI: cli.md
+  - ETRecord and ETDump: etrecord.md
   - Troubleshooting: troubleshooting.md
   - Development: development.md

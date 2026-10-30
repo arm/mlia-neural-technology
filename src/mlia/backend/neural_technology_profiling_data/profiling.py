@@ -1,12 +1,18 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
-"""Integrate structured measured captures with shared NX performance processing."""
+"""Integrate profiling-input adapters with shared measured performance processing."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from mlia.core import output_schema as schema
+from mlia.core.errors import ConfigurationError
+from mlia.core.output_schema import ModeType
+from mlia.core.performance import MeasuredPerformanceMetrics
+from mlia.utils.misc import summarize_list
 
 from mlia.backend.neural_technology_profiling_data.parser import (
     CaptureDevice,
@@ -24,6 +30,7 @@ from mlia.backend.nx_performance_estimator.debug_info import (
     read_spirv_debug_names_from_bytes,
 )
 from mlia.backend.nx_performance_estimator.performance import (
+    NXPerformanceEstimatorPerformanceMetrics,
     NXSegmentPerformanceDatabase,
     _skipped_compute_segments_warnings,
     build_performance_metrics_from_segment_databases,
@@ -35,15 +42,13 @@ from mlia.backend.nx_performance_estimator.vgf import (
     _segment_structural_source_operator_names,
     prepare_gcpe_compatible_vgfs,
 )
-from mlia.core.errors import ConfigurationError
-from mlia.core.output_schema import ModeType
 from mlia.nx_utils.boundaries.filesystem import (
     mapped_file_view,
     materialize_user_output_file,
     temporary_directory,
 )
+from mlia.nx_utils.filesystem import is_etrecord_file
 from mlia.target.neural_technology.config import NeuralTechnologyConfiguration
-from mlia.utils.misc import summarize_list
 
 BACKEND_ID = "neural-technology-profiling-data"
 
@@ -67,13 +72,16 @@ def analyze_profiling_data(
     model: str | None = None,
     cli_arguments: list[str] | None = None,
     output_dir: Path | None = None,
+    etrecord_method: str | None = None,
+    companion_model: Path | None = None,
+    statistics_mode: int = 1,
+    profiling_device: str = "Mali-G2",
 ) -> dict[str, object]:
-    """Analyze structured measured captures through shared NX processing."""
-    model_path = Path(model) if model is not None else None
-    if model_path is not None and model_path.suffix.lower() != ".vgf":
-        raise ConfigurationError(
-            "Neural Technology profiling data can only be associated with a VGF model."
-        )
+    """Analyze captures, using decoder arguments when VGF metadata omits settings.
+
+    Recorded schema-v2 mode and target/layout metadata take precedence over the
+    ETDump fallback arguments. Structured captures use their capture metadata.
+    """
     if "compatibility" in categories:
         raise ConfigurationError(
             "Backend does not support --compatibility with --profiling-data. "
@@ -85,7 +93,57 @@ def analyze_profiling_data(
             "analysis only."
         )
     if not profiling_data:
-        raise ConfigurationError("At least one profiling data directory is required.")
+        raise ConfigurationError("At least one profiling data input is required.")
+
+    target = NeuralTechnologyConfiguration.load_profile(target_profile)
+    model_path = Path(model) if model is not None else None
+    if companion_model is not None:
+        if model_path is None or not is_etrecord_file(model_path):
+            raise ConfigurationError(
+                "A companion model requires ETRecord profiling data."
+            )
+        if companion_model.suffix.lower() != ".pte":
+            raise ConfigurationError("The companion model must reference a .pte file.")
+    if etrecord_method is not None and (
+        model_path is None or not is_etrecord_file(model_path)
+    ):
+        raise ConfigurationError(
+            "ETRecord method selection requires an ETRecord model."
+        )
+    if model_path is not None and is_etrecord_file(model_path):
+        if len(profiling_data) != 1 or profiling_data[0].suffix.lower() not in {
+            ".etdp",
+            ".etdump",
+        }:
+            raise ConfigurationError(
+                "An ETRecord model requires exactly one .etdp or .etdump "
+                "--profiling-data file."
+            )
+        # ExecuteTorch is intentionally optional for users of capture-directory
+        # profiling. Import its integration only for an ETRecord request.
+        from mlia.backend.neural_technology_profiling_data.vgf_etdump import (
+            load_etdump_metrics,
+        )
+
+        metrics = load_etdump_metrics(
+            profiling_data[0],
+            model_path,
+            method=etrecord_method,
+            mode=statistics_mode,
+            device=profiling_device,
+        )
+        from mlia.backend.neural_technology_profiling_data.executorch_artifacts import (
+            enrich_output,
+        )
+
+        output = _measured_output(metrics, model_path, target, cli_arguments)
+        enrich_output(output, companion_model)
+        return output
+    if model_path is not None and model_path.suffix.lower() != ".vgf":
+        raise ConfigurationError(
+            "Neural Technology profiling data can only be associated with a VGF or "
+            "ETRecord model."
+        )
 
     inputs = [load_capture_input(path) for path in profiling_data]
     capture = _require_same_capture(inputs)
@@ -137,9 +195,46 @@ def analyze_profiling_data(
     if model_path is None and output_dir is not None:
         _materialize_effective_model(source_path, output_dir)
 
-    target = NeuralTechnologyConfiguration.load_profile(target_profile)
-    output = metrics.to_standardized_output(
-        model_path=source_path,
+    _apply_measured_metadata(metrics, capture, capture_device, parsed_segments)
+    return _measured_output(metrics, source_path, target, cli_arguments)
+
+
+def _measured_output(
+    metrics: NXPerformanceEstimatorPerformanceMetrics | MeasuredPerformanceMetrics,
+    model_path: Path,
+    target: NeuralTechnologyConfiguration,
+    cli_arguments: list[str] | None,
+) -> dict[str, Any]:
+    """Generate standardized output after shared target and request validation."""
+    metrics.mode = ModeType.MEASURED
+    if isinstance(metrics, MeasuredPerformanceMetrics):
+        return metrics.to_standardized_output(
+            model_path,
+            target=schema.Target(
+                profile_name=target.profile_name,
+                target_type=target.target,
+                components=[
+                    schema.Component(
+                        type=schema.ComponentType.GPU, family="mali", model="nx"
+                    )
+                ],
+                configuration={
+                    "target": target.target,
+                    "target_type": target.target,
+                    "profile_name": target.profile_name,
+                },
+                description="Neural Technology measured profiling data",
+            ),
+            backend=schema.Backend(
+                id=BACKEND_ID,
+                name="Neural Technology Profiling Data",
+                version="experimental",
+                configuration=metrics.backend_configuration,
+            ),
+            cli_arguments=cli_arguments,
+        )
+    return metrics.to_standardized_output(
+        model_path=model_path,
         backend_name=BACKEND_ID,
         target_config={
             "target": target.target,
@@ -148,8 +243,6 @@ def analyze_profiling_data(
         },
         cli_arguments=cli_arguments,
     )
-    _apply_measured_metadata(output, capture, capture_device, parsed_segments)
-    return output
 
 
 def _materialize_effective_model(source_path: Path, output_dir: Path) -> Path:
@@ -446,49 +539,27 @@ def _model_performance_stats(
 
 
 def _apply_measured_metadata(
-    output: dict[str, object],
+    metrics: NXPerformanceEstimatorPerformanceMetrics,
     capture: StructuredCapture,
     device: CaptureDevice,
     parsed_segments: list[ParsedProfilingData],
 ) -> None:
-    backends = output.get("backends")
-    if isinstance(backends, list) and backends and isinstance(backends[0], dict):
-        backends[0].update(
-            {
-                "id": BACKEND_ID,
-                "name": "Neural Technology Profiling Data",
-                "version": "experimental",
-                "configuration": {
-                    "device": device.name,
-                    "profiling_device": device.profiling_device,
-                    "vendor_id": device.vendor_id,
-                    "device_id": device.hardware_device_id,
-                    "mode": capture.mode,
-                    "capture_root": str(capture.root),
-                    "statistics_files": [
-                        str(parsed.files.primary_stats_path)
-                        for parsed in parsed_segments
-                    ],
-                    "debug_database_files": [
-                        str(parsed.files.debug_database_path)
-                        for parsed in parsed_segments
-                    ],
-                },
-            }
-        )
-
-    context = output.get("context")
-    if isinstance(context, dict):
-        context["runtime_configuration"] = {
-            "profiling_data": [
-                str(parsed.files.dispatch_dir) for parsed in parsed_segments
-            ]
-        }
-
-    target = output.get("target")
-    if isinstance(target, dict):
-        target["description"] = "Neural Technology measured profiling data"
-
-    results = output.get("results")
-    if isinstance(results, list) and results and isinstance(results[0], dict):
-        results[0]["mode"] = ModeType.MEASURED.value
+    """Attach capture provenance before common output generation."""
+    metrics.backend_configuration = {
+        "device": device.name,
+        "profiling_device": device.profiling_device,
+        "vendor_id": device.vendor_id,
+        "device_id": device.hardware_device_id,
+        "mode": capture.mode,
+        "capture_root": str(capture.root),
+        "statistics_files": [
+            str(parsed.files.primary_stats_path) for parsed in parsed_segments
+        ],
+        "debug_database_files": [
+            str(parsed.files.debug_database_path) for parsed in parsed_segments
+        ],
+    }
+    metrics.runtime_configuration = {
+        "profiling_data": [str(parsed.files.dispatch_dir) for parsed in parsed_segments]
+    }
+    metrics.description = "Neural Technology measured profiling data"

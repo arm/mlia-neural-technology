@@ -31,3 +31,10 @@ def is_pte_file(model: str | Path) -> bool:
     model_path = Path(model)
 
     return model_path.suffix == ".pte"
+
+
+def is_etrecord_file(model: str | Path) -> bool:
+    """Check if path contains an ETRecord file."""
+    model_path = Path(model)
+
+    return model_path.suffix.lower() in {".etrecord", ".bin"}

@@ -278,17 +278,41 @@ def test_run_advisor_performance_routes_backend_options(
     assert output["context"] == {}
 
 
+@pytest.mark.parametrize(
+    ("model_name", "etrecord_method", "with_companion"),
+    [
+        (None, None, False),
+        ("model.vgf", None, False),
+        ("model.bin", None, False),
+        ("model.etrecord", None, False),
+        ("model.etrecord", "decode", True),
+    ],
+    ids=["capture-only", "vgf", "bin", "etrecord-default", "etrecord-method-companion"],
+)
 def test_run_advisor_routes_profiling_data_through_target_workflow(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    model_name: str | None,
+    etrecord_method: str | None,
+    with_companion: bool,
 ) -> None:
-    """The public API should use the target advisor for measured data."""
+    """The public API routes measured inputs, method and companion to the target."""
     _register_neural_technology_api_plugins(
         monkeypatch, auto_install=lambda *_, **__: None
     )
     profile = _write_profile(tmp_path, "NX-measured")
-    profiling_data = tmp_path / "profiling-data"
-    profiling_data.mkdir()
+    model = tmp_path / model_name if model_name is not None else None
+    if model is not None:
+        model.write_bytes(b"model")
+    if model is not None and model.suffix in {".etrecord", ".bin"}:
+        profiling_data = tmp_path / "run.etdump"
+        profiling_data.write_bytes(b"capture")
+    else:
+        profiling_data = tmp_path / "profiling-data"
+        profiling_data.mkdir()
+    companion = tmp_path / "model.pte" if with_companion else None
+    if companion is not None:
+        companion.write_bytes(b"pte")
     captured: dict[str, object] = {}
 
     def fake_analyze(**kwargs: object) -> dict[str, Any]:
@@ -305,7 +329,14 @@ def test_run_advisor_routes_profiling_data_through_target_workflow(
     output = run_advisor(
         "performance",
         str(profile),
+        model=model,
         profiling_data=profiling_data,
+        companion_model=companion,
+        backend_options=(
+            {"neural-technology-profiling-data": {"etrecord_method": etrecord_method}}
+            if etrecord_method is not None
+            else None
+        ),
         validation="off",
     )
 
@@ -316,12 +347,16 @@ def test_run_advisor_routes_profiling_data_through_target_workflow(
     output_dir = captured.pop("output_dir")
     assert isinstance(output_dir, Path)
     assert output_dir.name == "mlia-output"
-    assert captured == {
+    expected: dict[str, object] = {
         "target_profile": str(profile),
         "profiling_data": [profiling_data],
         "categories": {"performance"},
-        "model": None,
+        "model": str(model) if model is not None else None,
+        "etrecord_method": etrecord_method,
     }
+    if companion is not None:
+        expected["companion_model"] = companion
+    assert captured == expected
 
 
 @pytest.mark.parametrize("collapse_enabled", [False, True])
