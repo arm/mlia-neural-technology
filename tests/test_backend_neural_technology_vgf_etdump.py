@@ -20,10 +20,10 @@ from mlia.backend.neural_technology_profiling_data import vgf_etdump, vgf_metada
 from mlia.backend.neural_technology_profiling_data.executorch_source import (
     node_category,
 )
-from mlia.nx_utils.debug_database import parse_debug_table
 from mlia.backend.neural_technology_profiling_data.parser import (
     parse_debug_database as parse_capture_debug_database,
 )
+from mlia.nx_utils.debug_database import parse_debug_table
 
 
 def test_etdump_debug_database_preserves_whitespace_header_mappings(tmp_path):
@@ -873,6 +873,11 @@ def test_mode0_preserves_zero_statistics_block() -> None:
         ("Depthwise_Conv2D", [], {"conv"}),
         ("Avg_Pool2D", [], {"pool"}),
         ("Unknown", ["aten.add.default"], {"add"}),
+        (
+            "Unknown",
+            [json.dumps({"aten_info": {"node_name": "tosa_conv2d_default"}})],
+            {"conv"},
+        ),
     ],
 )
 def test_operation_categories_use_explicit_operator_and_token_boundaries(
@@ -1703,3 +1708,134 @@ def test_runtime_fallback_reads_capture_once(monkeypatch):
     }
     assert values["Runtime Total Avg"] == 4.0
     reader.assert_called_once()
+
+
+def test_operator_mapping_uses_provenance_before_compiler_order() -> None:
+    """Inserted operations and reordered branches do not shift source links."""
+    nodes = [
+        {
+            "name": f"aten_convolution_default{suffix}",
+            "debug_handle": index + 1,
+            "target": "aten.convolution.default",
+            "category": "conv",
+        }
+        for index, suffix in enumerate(("", "_1", "_2", "_3"))
+    ]
+    state = vgf_etdump.OperatorMappingState()
+    for index in (0, 2, 1, 3, 0):
+        suffix = f"_{index}" if index else ""
+        label = json.dumps(
+            {
+                "torch_info": {
+                    "stack_trace": ["return (merged + x).relu()"],
+                    "node_trace": [
+                        {
+                            "name": f"convolution{suffix}",
+                            "target": "aten.convolution.default",
+                        }
+                    ],
+                }
+            }
+        )
+        operations = [
+            {"tosa_id": str(index * 2), "operator": "Transpose", "api_labels": [label]},
+            {
+                "tosa_id": str(index * 2 + 1),
+                "operator": "Conv2D",
+                "api_labels": [label],
+            },
+        ]
+        mapping = vgf_etdump.map_operator_group(operations, nodes, (0, 1, 0), state)
+        assert mapping["nodes"] == [nodes[index]]
+        assert all(op["matched"] for op in mapping["backend_operations"])
+        assert mapping["strategy"] == "recorded compiler operator provenance"
+
+
+@pytest.mark.parametrize("operator", ["ReduceSum", "Copy"])
+def test_operator_mapping_does_not_infer_relu_from_source_code(operator) -> None:
+    """Unresolved compiler provenance retains chain data without a false link."""
+    label = json.dumps(
+        {
+            "torch_info": {
+                "stack_trace": ["return (merged + x).relu().mean(dim=(2, 3))"],
+                "node_trace": [{"name": "mean", "target": "aten.mean.dim"}],
+            }
+        }
+    )
+    operation = {"tosa_id": "42", "operator": operator, "api_labels": [label]}
+    mapping = vgf_etdump.map_operator_group(
+        [operation],
+        [
+            {
+                "name": "relu",
+                "target": "aten.relu.default",
+                "category": "relu",
+                "debug_handle": 1,
+            }
+        ],
+        (0, 1, 0),
+        vgf_etdump.OperatorMappingState(),
+    )
+    assert mapping["nodes"] == []
+    assert "relu" not in mapping["backend_operations"][0]["categories"]
+
+
+def test_operator_mapping_skips_unmatched_inserted_anchor() -> None:
+    """Legacy labels can reach a convolution after an unmatched transpose."""
+    node = {
+        "name": "conv",
+        "target": "aten.convolution.default",
+        "category": "conv",
+        "debug_handle": 1,
+    }
+    mapping = vgf_etdump.map_operator_group(
+        [
+            {"tosa_id": "1", "operator": "Transpose", "api_labels": []},
+            {"tosa_id": "2", "operator": "Conv2D", "api_labels": []},
+        ],
+        [node],
+        (0, 1, 0),
+        vgf_etdump.OperatorMappingState(),
+    )
+    assert mapping["nodes"] == [node]
+
+
+@pytest.mark.parametrize(
+    "source_count,names",
+    [
+        (1, ["inserted_convolution"]),
+        (2, ["convolution", "convolution_1"]),
+    ],
+)
+def test_operator_mapping_retains_unresolved_histories_at_delegate(source_count, names):
+    """Neither a unique target nor conflicting histories establish identity."""
+    nodes = [
+        {
+            "name": f"aten_convolution_default{suffix}",
+            "target": "aten.convolution.default",
+            "category": "conv",
+            "debug_handle": index,
+        }
+        for index, suffix in enumerate(("", "_1")[:source_count])
+    ]
+    operation = {
+        "tosa_id": "1",
+        "operator": "Conv2D",
+        "api_labels": [
+            json.dumps(
+                {
+                    "torch_info": {
+                        "node_trace": [
+                            {"name": name, "target": "aten.convolution.default"}
+                            for name in names
+                        ]
+                    }
+                }
+            )
+        ],
+    }
+    mapping = vgf_etdump.map_operator_group(
+        [operation], nodes, (0, 1, 0), vgf_etdump.OperatorMappingState()
+    )
+    assert mapping["nodes"] == []
+    assert mapping["confidence"] == "delegate-only"

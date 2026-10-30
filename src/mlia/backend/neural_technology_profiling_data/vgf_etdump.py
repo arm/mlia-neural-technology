@@ -25,6 +25,7 @@ try:
     from mlia.backend.executorch.capture import ProfilingCapture
     from mlia.backend.executorch.etdump import read_profiling_capture
     from mlia.backend.executorch.etrecord import source_operator_id
+
     from mlia.backend.neural_technology_profiling_data.executorch_runtime import (
         build_standard_runtime_mappings,
         standard_runtime_metrics,
@@ -54,8 +55,11 @@ from mlia.backend.neural_technology_profiling_data.vgf_metadata import (
 class OperatorMappingState:
     """Track representative source nodes assigned to backend operations."""
 
-    next_candidate: dict[tuple[Any, ...], int] = field(default_factory=dict)
+    assigned_nodes: dict[tuple[Any, ...], set[str]] = field(default_factory=dict)
     backend_to_node: dict[tuple[Any, ...], dict[str, Any]] = field(default_factory=dict)
+    source_indexes: dict[tuple[Any, ...], dict[str, dict[str, dict[str, Any]]]] = field(
+        default_factory=dict
+    )
 
 
 class NoVGFProfilingDataError(ValueError):
@@ -83,6 +87,7 @@ def operation_categories(operation: dict[str, Any]) -> set[str]:
         "pool": ("pool", "pool2d", "avgpool2d", "maxpool2d"),
         "softmax": ("softmax",),
         "reshape": ("reshape", "view", "squeeze", "unsqueeze"),
+        "reduction": ("reducesum", "sum", "mean"),
     }
 
     def classify(text: str) -> set[str]:
@@ -95,10 +100,66 @@ def operation_categories(operation: dict[str, Any]) -> set[str]:
             )
         }
 
+    labels = []
+    for label in operation.get("api_labels", []):
+        try:
+            metadata = json.loads(label)
+        except ValueError:
+            labels.append(label)
+            continue
+        # Structured labels contain source code and compiler histories. Only
+        # their explicit operator identity is suitable for classification.
+        if isinstance(metadata, dict):
+            identity = metadata.get("aten_info", {})
+            if isinstance(identity, dict):
+                labels.append(
+                    str(identity.get("operator_name", identity.get("node_name", "")))
+                )
+    return classify(operation["operator"]) or classify(" ".join(labels)) or {"unknown"}
+
+
+def _provenance_node(
+    operation: dict[str, Any], source_index: dict[str, dict[str, dict[str, Any]]]
+) -> tuple[bool, dict[str, Any] | None]:
+    """Require an unambiguous recorded name-and-target match."""
+    has_provenance = False
+    named_matches = {}
+    for label in operation.get("api_labels", []):
+        try:
+            metadata = json.loads(label)
+        except ValueError:
+            continue
+        if not isinstance(metadata, dict):
+            continue
+        info = metadata.get("torch_info", {})
+        traces = info.get("node_trace", []) if isinstance(info, dict) else []
+        if not isinstance(traces, list) or not traces:
+            continue
+        has_provenance = True
+        for trace in traces:
+            if not isinstance(trace, dict):
+                continue
+            target = trace.get("target")
+            name = trace.get("name")
+            if not isinstance(target, str) or not isinstance(name, str):
+                continue
+            # ETRecord may qualify names with namespace/operator/overload,
+            # while compiler histories retain the original FX operator name.
+            parts = target.split(".")
+            if len(parts) != 3 or not all(part.isidentifier() for part in parts):
+                continue
+            suffix = re.fullmatch(re.escape(parts[1]) + r"(_[0-9]+)?", name)
+            qualified = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", target)
+            qualified = qualified.replace(".", "_").lower()
+            if suffix:
+                qualified += suffix[1] or ""
+            candidates = source_index.get(target, {})
+            for candidate_name in (name, qualified if suffix else name):
+                if candidate_name in candidates:
+                    named_matches[candidate_name] = candidates[candidate_name]
     return (
-        classify(operation["operator"])
-        or classify(" ".join(operation.get("api_labels", [])))
-        or {"unknown"}
+        has_provenance,
+        next(iter(named_matches.values())) if len(named_matches) == 1 else None,
     )
 
 
@@ -108,58 +169,87 @@ def map_operator_group(
     scope: tuple[Any, ...],
     state: OperatorMappingState,
 ) -> dict[str, Any]:
-    """Associate compiler operations with a representative source node."""
-    anchor_operation = None
-    anchor_category = None
+    """Prefer compiler provenance; retain ordered matching for legacy labels."""
+    if scope not in state.source_indexes:
+        source_index: dict[str, dict[str, dict[str, Any]]] = {}
+        for source_node in nodes:
+            identity = re.search(r"\b\w+\.\w+\.\w+\b", source_node["target"])
+            if identity is not None:
+                source_index.setdefault(identity[0], {})[source_node["name"]] = (
+                    source_node
+                )
+        state.source_indexes[scope] = source_index
     operation_entries = []
-
+    recorded_nodes = []
+    has_provenance = False
     for operation in operations:
-        categories = operation_categories(operation)
+        recorded, node = _provenance_node(operation, state.source_indexes[scope])
+        has_provenance |= recorded
+        recorded_nodes.append(node)
         operation_entries.append(
             {
                 **operation,
-                "categories": sorted(categories),
+                "categories": sorted(operation_categories(operation)),
                 "matched": False,
             }
         )
-        strong_categories = categories - {"quantization", "reshape", "unknown"}
-        if anchor_operation is None and strong_categories:
-            anchor_operation = operation
-            anchor_category = min(strong_categories)
 
-    selected = []
-    if anchor_operation is not None and anchor_category is not None:
-        candidates = [node for node in nodes if node["category"] == anchor_category]
-        backend_key = (
-            *scope,
-            anchor_category,
-            str(anchor_operation["tosa_id"]),
+    selected_node = next((node for node in recorded_nodes if node is not None), None)
+    from_provenance = selected_node is not None
+    assigned = state.assigned_nodes.setdefault(scope, set())
+    if not has_provenance:
+        for operation in operation_entries:
+            categories = set(operation["categories"]) - {
+                "quantization",
+                "reshape",
+                "unknown",
+            }
+            for category in sorted(categories):
+                backend_key = (*scope, category, str(operation["tosa_id"]))
+                selected_node = state.backend_to_node.get(backend_key)
+                if selected_node is None:
+                    selected_node = next(
+                        (
+                            node
+                            for node in nodes
+                            if node["category"] == category
+                            and node["name"] not in assigned
+                        ),
+                        None,
+                    )
+                if selected_node is not None:
+                    state.backend_to_node[backend_key] = selected_node
+                    break
+            if selected_node is not None:
+                break
+
+    selected = [selected_node] if selected_node is not None else []
+    if selected_node is not None:
+        assigned.add(selected_node["name"])
+    for operation, recorded_node in zip(operation_entries, recorded_nodes):
+        operation["matched"] = (
+            recorded_node == selected_node and selected_node is not None
+            if has_provenance
+            else bool(
+                selected_node and selected_node["category"] in operation["categories"]
+            )
         )
-        selected_node = state.backend_to_node.get(backend_key)
-        if selected_node is None:
-            cursor_key = (*scope, anchor_category)
-            candidate_index = state.next_candidate.get(cursor_key, 0)
-            if candidate_index < len(candidates):
-                selected_node = candidates[candidate_index]
-                state.backend_to_node[backend_key] = selected_node
-                state.next_candidate[cursor_key] = candidate_index + 1
-        if selected_node is not None:
-            selected = [selected_node]
-
-    primary = selected[0] if selected else None
-    selected_categories = {node["category"] for node in selected}
-    for operation in operation_entries:
-        operation["matched"] = bool(set(operation["categories"]) & selected_categories)
 
     return {
         "mapping_type": "representative_source_operator",
-        "confidence": "high-level-low" if selected else "delegate-only",
+        "confidence": "recorded-provenance"
+        if from_provenance
+        else "high-level-low"
+        if selected
+        else "delegate-only",
         "strategy": (
-            "ordered backend-operation representative inside delegate"
+            "recorded compiler operator provenance"
+            if from_provenance
+            else "ordered backend-operation representative inside delegate"
             if selected
-            else "no source candidate available; retain delegate-level association"
+            else "no unambiguous source candidate available; retain delegate-level association"
         ),
-        "primary_node": primary,
+        "primary_node": selected_node,
         "debug_handles": sorted({node["debug_handle"] for node in selected}),
         "nodes": selected,
         "backend_operations": operation_entries,
@@ -312,10 +402,11 @@ def build_mappings(
 
     return {
         "schema_version": 1,
-        "mapping_kind": "heuristic_nx_stripe_to_representative_etrecord_operator",
+        "mapping_kind": "nx_stripe_to_representative_etrecord_operator",
         "warning": (
             "NX cycles belong to the stripe and are not per-node cycles. Source nodes "
-            "are ordered representatives unless marked delegate-only."
+            "use recorded compiler provenance when unambiguous, otherwise legacy ordered "
+            "representatives or delegate-only associations."
         ),
         "source_etdump": str(Path(capture.etdump_path).resolve()),
         "source_etrecord": str(Path(capture.etrecord_path).resolve()),

@@ -20,6 +20,7 @@ def node_category(name: str, target: str) -> str:
         ("pool", ("pool", "pool1d", "pool2d", "pool3d")),
         ("softmax", ("softmax",)),
         ("reshape", ("reshape", "view", "squeeze", "unsqueeze")),
+        ("reduction", ("sum", "mean")),
     )
     # Explicit operator identity takes precedence over a generated source name.
     # Whole tokens distinguish AddMM from Add and broadcast operations from cast.

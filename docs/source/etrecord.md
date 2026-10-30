@@ -80,6 +80,17 @@ graph and links to associated operations. Chain and cascade groups display VGF
 cycle measurements; links to individual compiler or source operators do not
 imply independent timing measurements for those operators.
 
+Source-operator links may be incomplete or unavailable, and a fused chain may
+not link every operation it contains. Compilation can rename, insert, combine
+or reorder operations, leaving insufficient information to identify the
+original source operator reliably. Such operations may have no source link,
+even when the model contains an operation of the same type. Older captures
+with limited source information may also show incorrect links.
+
+Missing source links do not mean that profiling is absent: measurements remain
+available on the recorded chains and cascades. Source placement and colouring
+do not establish an individual operator's execution cost.
+
 ## Read the measurements
 
 ### VGF cycles and counters
