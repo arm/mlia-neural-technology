@@ -90,7 +90,29 @@ jobs:
           set -o pipefail
           uv run --no-sync \
             --with dist/*.whl \
-            -- pytest --no-success-flaky-report tests/ | tee coverage.txt
+            -- python - <<'PY' | tee coverage.txt
+          from importlib.metadata import distribution
+          from pathlib import Path
+          import sys
+          import tomllib
+
+          import pytest
+
+          with Path("pyproject.toml").open("rb") as pyproject:
+              addopts = tomllib.load(pyproject)["tool"]["pytest"]["ini_options"]["addopts"]
+
+          dist = distribution("mlia-neural-technology")
+          pytest_args = ["-o", "addopts=", "-o", "pythonpath="]
+          for opt in addopts:
+              if opt.startswith("--cov=src/"):
+                  path = Path(dist.locate_file(opt.removeprefix("--cov=src/")))
+                  assert path.is_dir(), f"coverage path missing from wheel: {path}"
+                  pytest_args.append(f"--cov={path}")
+              else:
+                  pytest_args.append(opt)
+          pytest_args.extend(["--no-success-flaky-report", "tests/"])
+          sys.exit(pytest.main(pytest_args))
+          PY
       - name: Publish coverage summary
         run: |
           {
