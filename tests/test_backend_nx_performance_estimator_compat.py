@@ -11,6 +11,7 @@ from unittest.mock import Mock
 
 import mlia.core.output_schema as schema
 import pytest
+from mlia.core.output_validation import validate_standardized_output
 from tosa_serializer import (
     TOSA_VERSION_MAJOR,
     TOSA_VERSION_MINOR,
@@ -20,19 +21,20 @@ from tosa_serializer import (
     TosaSerializer,
     TosaSerializerAttribute,
 )
+
 from mlia.backend.ml_sdk_model_converter.tosa_reader import (
     read_tosa_flatbuffer_ops,
     read_tosa_mlir_ops,
 )
+from mlia.backend.nx_performance_estimator.advice import NXAdviceRecord
 from mlia.backend.nx_performance_estimator.compat import (
-    _collect_tosa_compiler_records,
-    _CompilerRecord,
     NXCompatibilityChecker,
     NXModelCompatibilityInfo,
     TOSAModel,
     VGFModel,
+    _collect_tosa_compiler_records,
+    _CompilerRecord,
 )
-from mlia.backend.nx_performance_estimator.advice import NXAdviceRecord
 from mlia.backend.nx_performance_estimator.config import (
     NXPerformanceEstimatorConfig,
 )
@@ -42,7 +44,6 @@ from mlia.backend.nx_performance_estimator.provenance import (
 )
 from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
 from mlia.backend.nx_performance_estimator.vgf import GCPEVGFSegment, GCPEVGFSegments
-from mlia.core.output_validation import validate_standardized_output
 
 
 def test_compatibility_advice_requires_nx_placement(tmp_path: Path) -> None:
@@ -235,6 +236,9 @@ def test_tosa_compatibility_scenarios(
     output = compatibility.to_standardized_output(model)
 
     result = output["results"][0]
+    assert result["checks"]
+    assert all(check["status"] == "pass" for check in result["checks"])
+    assert all(check["details"] == {"reasons": []} for check in result["checks"])
     assert [call.args[0] for call in advice_mock.call_args_list] == [
         tmp_path / f"split_{index}.vgf" for index in range(3)
     ]
@@ -1211,3 +1215,29 @@ def test_vgf_compatibility_preserves_segment_scoped_source_ids(
         check["entity_id"] for check in output["results"][0]["checks"]
     } == source_ids
     validate_standardized_output(output)
+
+
+def test_estimator_failure_remains_a_whole_model_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The public checker must not invent operator fallback on compiler failure."""
+    from mlia.core.errors import InternalError
+
+    vgf_path = tmp_path / "model.vgf"
+    vgf_path.write_bytes(b"vgf")
+    segment = GCPEVGFSegment(
+        segment_index=0,
+        segment_name="graph",
+        path=vgf_path,
+        debug_names=SpirvDebugNameMap({}, {}),
+        structural_source_operator_ids=["source_operator/segment_0/spirv-1"],
+    )
+    module = "mlia.backend.nx_performance_estimator.compat"
+    monkeypatch.setattr(
+        f"{module}.prepare_gcpe_compatible_vgfs", lambda *_args: [segment]
+    )
+    runner = Mock(side_effect=InternalError("Graph compiler failed: unsupported graph"))
+    monkeypatch.setattr(f"{module}.run_nx_performance_estimator", runner)
+    with pytest.raises(InternalError, match="unsupported graph"):
+        NXCompatibilityChecker(tmp_path).check_compatibility(VGFModel(vgf_path))
+    runner.assert_called_once()

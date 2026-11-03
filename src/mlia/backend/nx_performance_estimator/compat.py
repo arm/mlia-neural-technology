@@ -14,6 +14,10 @@ from functools import singledispatchmethod
 from pathlib import Path
 from typing import Any
 
+import mlia.core.output_schema as schema
+from mlia.backend.repo import get_backend_repository
+from mlia.utils.filesystem import sha256
+
 # from tosa-tools
 from tosa import (
     TosaGraph,
@@ -21,7 +25,6 @@ from tosa import (
 from tosa_serializer import TOSA_VERSION_MAJOR, TOSA_VERSION_MINOR, TosaSerializer
 
 import mlia
-import mlia.core.output_schema as schema
 from mlia.backend.ml_sdk_model_converter.conversion import (
     MLSDKModelConverter,
 )
@@ -34,12 +37,12 @@ from mlia.backend.ml_sdk_model_converter.tosa_reader import (
     read_tosa_mlir_ops,
     tosa_flatbuffers_available,
 )
-from mlia.backend.nx_performance_estimator.config import (
-    NXPerformanceEstimatorConfig,
-)
 from mlia.backend.nx_performance_estimator.advice import (
     NXAdviceRecord,
     add_vgf_performance_advice,
+)
+from mlia.backend.nx_performance_estimator.config import (
+    NXPerformanceEstimatorConfig,
 )
 from mlia.backend.nx_performance_estimator.output_parsing import (
     NXDebugDatabaseParser,
@@ -49,16 +52,14 @@ from mlia.backend.nx_performance_estimator.provenance import (
     source_provenance_from_api_label,
 )
 from mlia.backend.nx_performance_estimator.runner import (
-    run_nx_performance_estimator,
     get_nx_resource_dir,
+    run_nx_performance_estimator,
 )
 from mlia.backend.nx_performance_estimator.vgf import (
     GCPEVGFSegment,
     prepare_gcpe_compatible_vgfs,
 )
-from mlia.backend.repo import get_backend_repository
 from mlia.nx_utils.boundaries.filesystem import write_persistent_state_bytes_with_notice
-from mlia.utils.filesystem import sha256
 
 logger = logging.getLogger(__name__)
 
@@ -441,14 +442,11 @@ class NXModelCompatibilityInfo:
                     )
                 )
 
-            if supported:
-                status = schema.CheckStatus.PASS
-                details: dict[str, Any] = {}
-            else:
-                status = schema.CheckStatus.FAIL
-                details = {}
-                if record.error:
-                    details["error"] = record.error
+            status = schema.CheckStatus.PASS if supported else schema.CheckStatus.FAIL
+            # The estimator debug database supplies placement, not per-operator
+            # rejection diagnostics. Do not infer reasons from NX/EE assignment
+            # or attribute a whole-model compiler failure to an operator.
+            details: dict[str, Any] = {"reasons": []}
 
             checks.append(
                 schema.Check(
@@ -490,9 +488,9 @@ class NXModelCompatibilityInfo:
             entity_kinds.append(schema.EntityKind(id=_CONVERTED_OPERATOR_ENTITY_KIND))
 
         # Determine overall result status
-        if not records:
-            result_status = schema.ResultStatus.OK
-        elif all(r.compat_level in ("TOSA", "Shader", "TOSA/Shader") for r in records):
+        if not records or all(
+            r.compat_level in ("TOSA", "Shader", "TOSA/Shader") for r in records
+        ):
             result_status = schema.ResultStatus.OK
         elif any(r.compat_level in ("TOSA", "Shader", "TOSA/Shader") for r in records):
             result_status = schema.ResultStatus.PARTIAL

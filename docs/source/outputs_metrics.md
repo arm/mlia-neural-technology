@@ -289,3 +289,32 @@ result construction.
 - See [CLI](cli.md) for commands that produce estimator and measured results.
 - See [Troubleshooting](troubleshooting.md) for conversion, estimator, and
   profiling-data diagnostics.
+
+## Terminal compatibility reasons
+
+NX compatibility uses the shared entity-linked check structure. Current
+estimator debug databases report NX, EE or NX/EE placement, not per-operator
+rejection diagnostics. Checks for those reported placements pass and have an
+empty `details.reasons` list:
+
+```json
+{
+  "id": "nx_support_0",
+  "entity_id": "source_operator/example",
+  "status": "pass",
+  "details": {"reasons": []}
+}
+```
+
+When a backend provides a reason, the shared representation is a
+`details.reasons` list of description/detail objects. NX does not currently
+populate these from its placement data. EE placement is supported execution,
+not CPU fallback. An operation omitted by the compiler is not evidence of an
+unsupported operation. Compiler failures remain whole-model errors with the
+available diagnostic; they are not converted into operator reasons.
+
+The terminal retains Name, Kind, ID and Placement, and shows Reason only when
+a displayed entity has a reported reason. Consequently current NX placement
+results do not show that column. JSON retains `kind` and the explicit empty
+reasons lists. Supporting per-operator NX rejection reasons requires an
+attributable diagnostic source from the toolchain.
