@@ -9,7 +9,7 @@ from collections.abc import Iterable
 
 
 class ApiLabelParser:
-    """Recover full SPIR-V names from unescaped semicolon-delimited fields."""
+    """Decode JSON label arrays and recover names from legacy delimited fields."""
 
     def __init__(self, known_api_labels: Iterable[str] | None = None) -> None:
         """Index known names once, preferring the longest complete match."""
@@ -21,12 +21,38 @@ class ApiLabelParser:
         self._json_decoder = json.JSONDecoder()
 
     def parse(self, value: str) -> list[str]:
-        """Recover known labels, JSON payloads and plain fallback labels.
+        """Decode the complete field using its wire-format terminator.
 
-        Debug producers concatenate labels without escaping semicolons inside
-        the names. Match complete SPIR-V names before interpreting delimiters
-        (MLCE-1937). Unknown JSON payloads remain intact even without source
-        names; other unknown values use semicolon-delimited fallback labels.
+        Legacy nonempty lists end in a semicolon, including a list whose only
+        label is the literal string ``[]``. New lists are JSON arrays of strings.
+        Empty legacy fields contain no labels. Invalid encodings are rejected
+        rather than reinterpreted as source names.
+        """
+        value = value.strip()
+        if not value:
+            return []
+        if value.endswith(";"):
+            return self._parse_semicolon_labels(value)
+        if not value.endswith("]"):
+            raise ValueError(
+                "Unsupported API label encoding: expected a semicolon-terminated "
+                "list or a JSON array of strings."
+            )
+        try:
+            labels = json.loads(value)
+        except json.JSONDecodeError as err:
+            raise ValueError(f"Invalid JSON API label array: {err.msg}.") from err
+        if not isinstance(labels, list) or any(
+            not isinstance(label, str) for label in labels
+        ):
+            raise ValueError("API labels must be a JSON array of strings.")
+        return labels
+
+    def _parse_semicolon_labels(self, value: str) -> list[str]:
+        """Recover complete known names and JSON payloads in the legacy format.
+
+        Semicolons inside names are unescaped. Prefer complete SPIR-V names
+        (MLCE-1937), then atomic JSON payloads, then plain delimiter splitting.
         """
         labels: list[str] = []
         cursor = 0

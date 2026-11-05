@@ -533,6 +533,9 @@ def test_known_api_labels_do_not_affect_other_third_columns() -> None:
         ),
         ("first;known;label;last;", ["known;label"], ["first", "known;label", "last"]),
         ("first;second;", [], ["first", "second"]),
+        ('"quoted;label";', [], ['"quoted;label"']),
+        ('["a","b"];', [], ['["a","b"]']),
+        ("[];", [], ["[]"]),
         ("", [], []),
     ],
 )
@@ -555,6 +558,27 @@ def test_api_labels_use_shared_recovery_in_every_table_shape(
     records = parser.parse_debug_database()
 
     assert records[f"{table_name}_to_api_labels"]["10"] == expected
+
+
+def test_mixed_label_encodings_preserve_rows_after_legacy_quotes() -> None:
+    """Legacy unescaped quotes must not consume subsequent CSV records."""
+    parser = NXDebugDatabaseParser(known_api_labels=['"unclosed;label'])
+    parser.raw_xmlish = (
+        '<debug><table name="shader_op_id"><![CDATA[\n'
+        '"id", "api_labels"\n'
+        '1, "unclosed;label;\n'
+        '2, "[""second;label"",""third""]"\n'
+        "3, [];\n"
+        "4, []\n"
+        "]]></table></debug>"
+    )
+
+    assert parser.parse_debug_database()["shader_op_id_to_api_labels"] == {
+        "1": ['"unclosed;label'],
+        "2": ["second;label", "third"],
+        "3": ["[]"],
+        "4": [],
+    }
 
 
 def test_parse_debug_database_uses_empty_list_for_blank_api_labels() -> None:
@@ -818,14 +842,13 @@ def test_parse_debug_database_preserves_fallback_labels_between_known_labels() -
     ]
 
 
-def test_parse_debug_database_preserves_trailing_fallback_label() -> None:
-    """A trailing fallback label without a delimiter is retained."""
+def test_parse_debug_database_rejects_unterminated_legacy_labels() -> None:
+    """Missing legacy terminators are not a supported wire encoding."""
     parser = NXDebugDatabaseParser(known_api_labels=["known"])
     parser.raw_xmlish = _debug_database_with_api_labels("known;fallback")
 
-    records = parser.parse_debug_database()
-
-    assert records["tosa_op_id_to_api_labels"]["879"] == ["known", "fallback"]
+    with pytest.raises(ValueError, match="API label"):
+        parser.parse_debug_database()
 
 
 def test_parse_debug_database_mixes_semicolon_known_and_fallback_labels() -> None:

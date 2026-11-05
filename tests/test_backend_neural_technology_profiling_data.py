@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import struct
 import subprocess
@@ -602,6 +604,31 @@ def test_parse_framed_debug_database(tmp_path: Path) -> None:
 
     debug_database = parse_debug_database(path)
 
+    assert debug_database["stripe_op_id_to_op_id"] == {"0": ["30"]}
+
+
+@pytest.mark.parametrize("codepoint", [0x0085, 0x2028, 0x2029], ids=["NEL", "LS", "PS"])
+@pytest.mark.parametrize("line_ending", ["\n", "\r\n"], ids=["LF", "CRLF"])
+@pytest.mark.parametrize("encoding", ["semicolon", "json"])
+def test_profiling_labels_preserve_unicode_line_separators(
+    tmp_path: Path, codepoint: int, line_ending: str, encoding: str
+) -> None:
+    """Unicode text separators inside labels are not database record boundaries."""
+    label = f"before{chr(codepoint)}after"
+    encoded = (
+        json.dumps([label], ensure_ascii=False) if encoding == "json" else f"{label};"
+    )
+    payload = _debug_database_payload().replace(
+        "10\tConv2D\tTOSACONV2D_spirv_id_504;\n",
+        f"10\tConv2D\t{encoded}\n",
+    )
+    payload = payload.replace("\n", line_ending) + "\0"
+    path = tmp_path / "debug_database.bin"
+    path.write_bytes(_debug_database_blob(payload))
+
+    debug_database = parse_debug_database(path)
+
+    assert debug_database["tosa_op_id_to_api_labels"]["10"] == [label]
     assert debug_database["stripe_op_id_to_op_id"] == {"0": ["30"]}
 
 
@@ -1356,6 +1383,61 @@ def test_estimation_and_profiling_recover_identical_api_labels(
         f"{headers}\n{row_prefix}{raw_labels};\n"
         "]]></table></debug>"
     )
+    assert captured["tosa_op_id_to_api_labels"]["10"] == labels
+    assert (
+        estimated.parse_debug_database()[f"{table_name}_to_api_labels"]["10"] == labels
+    )
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [
+        [],
+        ["None"],
+        ["2:0", "4:0"],
+        ["a;b", "c", "a;b"],
+        ["", "[]", " spaced "],
+        ['quote "', "comma,semicolon;", "slash\\path", "tab\tline\n", "操作"],
+        ['{"source": "first(); second()"}', "literal ]]> marker ]]> twice"],
+    ],
+)
+@pytest.mark.parametrize(
+    ("table_name", "headers", "row_prefix"),
+    [
+        ("tosa_op_id", '"id", "tosa_op", "api_labels"', "10, Conv2D, "),
+        ("tosa_op_id", '"id", "api_labels"', "10, "),
+        ("shader_op_id", '"id", "api_labels"', "10, "),
+    ],
+)
+def test_estimation_and_profiling_decode_json_label_arrays(
+    tmp_path: Path,
+    labels: list[str],
+    table_name: str,
+    headers: str,
+    row_prefix: str,
+) -> None:
+    """Both transports decode new label arrays without needing source names."""
+    encoded = json.dumps(labels, ensure_ascii=False)
+    payload = _debug_database_payload().replace(
+        "10\tConv2D\tTOSACONV2D_spirv_id_504;\n",
+        f"10\tConv2D\t{encoded}\n",
+    )
+    path = tmp_path / "debug_database.bin"
+    path.write_bytes(_debug_database_blob(payload))
+    captured = parse_debug_database(path)
+
+    # The new estimator writer CSV-quotes fields after a comma and space,
+    # then splits embedded CDATA terminators into adjacent CDATA sections.
+    cell = io.StringIO()
+    csv.writer(cell, lineterminator="\n").writerow([encoded])
+    csv_field = cell.getvalue().rstrip("\n").replace("]]>", "]]]]><![CDATA[>")
+    estimated = NXDebugDatabaseParser()
+    estimated.raw_xmlish = (
+        f'<debug><table name="{table_name}"><![CDATA[\n'
+        f"{headers}\n{row_prefix}{csv_field}\n"
+        "]]></table></debug>"
+    )
+
     assert captured["tosa_op_id_to_api_labels"]["10"] == labels
     assert (
         estimated.parse_debug_database()[f"{table_name}_to_api_labels"]["10"] == labels

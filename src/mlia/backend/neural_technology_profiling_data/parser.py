@@ -1440,7 +1440,7 @@ def _parse_debug_sections(
     payload: str,
     api_label_parser: ApiLabelParser,
 ) -> dict[str, list[dict[str, list[str]]]]:
-    lines = [line.rstrip("\r\0") for line in payload.splitlines()]
+    lines = [line.rstrip("\r\0") for line in payload.split("\n")]
     if "----" not in lines:
         raw_sections = [[line] for line in lines if line]
     else:

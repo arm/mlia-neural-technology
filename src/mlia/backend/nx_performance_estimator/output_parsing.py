@@ -8,7 +8,8 @@ import csv
 import logging
 import re
 from abc import abstractmethod
-from itertools import islice
+from io import StringIO
+from itertools import islice, pairwise
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
@@ -155,12 +156,14 @@ class NXOutputParser:
         return field
 
     def extract_cdata(self, xml_string: str) -> str:
-        """Extract CDATA section from a string."""
-        matches = re.findall(r"<!\[CDATA\[(.*?)\]\]>", xml_string, re.DOTALL)
-        if len(matches) != 1:
+        """Extract one logical CDATA payload, including adjacent escaped sections."""
+        matches = list(re.finditer(r"<!\[CDATA\[(.*?)\]\]>", xml_string, re.DOTALL))
+        if not matches or any(
+            left.end() != right.start() for left, right in pairwise(matches)
+        ):
             raise RuntimeError(f"No single CDATA section in:\n{xml_string}")
 
-        return str(matches[0]).strip()
+        return "".join(match.group(1) for match in matches).strip()
 
 
 class NXPerformanceDatabaseParser(NXOutputParser):
@@ -257,6 +260,26 @@ class NXDebugDatabaseParser(NXOutputParser):
         super().__init__(db_path)
         self.debug_db: dict = {}
         self.api_label_parser = ApiLabelParser(known_api_labels)
+
+    def get_csv_reader(self, table_data: str) -> Iterator[list[str]]:
+        """Read quoted CSV rows or legacy rows with an unquoted final field."""
+        stream = StringIO(table_data)
+        headers = next(csv.reader(stream, skipinitialspace=True, strict=True))
+        yield headers
+        while True:
+            start = stream.tell()
+            try:
+                row = next(csv.reader(stream, skipinitialspace=True, strict=True))
+            except StopIteration:
+                return
+            except csv.Error:
+                row = None
+            if row is None or len(row) > len(headers):
+                # The legacy writer does not escape quotes or commas in labels.
+                # Preserve the original text for final-field reconstruction.
+                stream.seek(start)
+                row = next(csv.reader([stream.readline()], quoting=csv.QUOTE_NONE))
+            yield row
 
     def parse_debug_database(self) -> DebugDatabaseContentsType:
         """Parse the contents of the debug DB.
