@@ -63,6 +63,12 @@ matching TOSA opcode. The spec defines their thresholds; regular convolution
 rejects any non-positive weight dimension, while depthwise advice requires a
 known rank-four shape and input depth from one through three.
 
+The depthwise 3-by-3 to pointwise 1-by-1 rule tracks eligible tensor result IDs
+per segment. Connected RESCALE operations carry eligibility forward; other
+operations do not. The threshold uses the pointwise CONV2D output channels,
+which are the first dimension of its weight shape. A known count of 63 qualifies;
+64 does not. Advice links to the pointwise operation.
+
 Skip analysis retains operand sets unchanged. It tests membership in the TOSA
 result map at each traversal step rather than mutating those sets to remove
 constant operands. For each candidate direct parent, a backwards search from the

@@ -227,3 +227,157 @@ def test_depthwise_conv2d_advice(
     for record in advice:
         assert "Consider using regular CONV2D" in record.message
         assert record.entity_id == "source_operator/segment_0/spirv-449"
+
+
+@pytest.mark.parametrize(
+    ("depthwise_shape", "conv_shape", "expected"),
+    [
+        ((3, 3, 16, 1), (16, 1, 1, 16), True),
+        ((5, 5, 16, 1), (16, 1, 1, 16), False),
+        ((3, 3, 16, 1), (16, 1, 2, 16), False),
+        (None, (16, 1, 1, 16), False),
+    ],
+)
+def test_depthwise_pointwise_advice_requires_kernel_shapes(
+    depthwise_shape: tuple[int, ...] | None,
+    conv_shape: tuple[int, ...],
+    expected: bool,
+) -> None:
+    """Only a 3x3 depthwise feeding a 1x1 convolution qualifies."""
+    state = _SpirvSegmentState(
+        tosa_sets={10}, value_shapes={50: depthwise_shape, 51: conv_shape}
+    )
+    advice: list[NXAdviceRecord] = []
+    for words in (
+        ((15 << 16) | 12, 1, 449, 10, 4, 0, 0, 0, 0, 0, 100, 50, 0, 0, 0),
+        ((15 << 16) | 12, 1, 450, 10, 2, 0, 0, 0, 0, 0, 449, 51, 0, 0, 0),
+    ):
+        _spirv_op_callback(0, struct.pack("<15I", *words), advice, {0: state})
+    matches = [
+        record for record in advice if "Detected a depthwise 3x3" in record.message
+    ]
+    assert len(matches) == int(expected)
+
+
+@pytest.mark.parametrize(
+    ("intervening", "conv_segment", "conv_input", "expected"),
+    [
+        ("metadata", 0, 449, True),
+        ("unrelated_add", 0, 449, True),
+        ("consumed_add", 0, 451, False),
+        ("metadata", 1, 449, False),
+    ],
+)
+def test_depthwise_pointwise_advice_uses_connected_ids_in_same_segment(
+    intervening: str, conv_segment: int, conv_input: int, expected: bool
+) -> None:
+    """Metadata and unrelated operations preserve edges; segment IDs stay local."""
+    segments = {
+        0: _SpirvSegmentState(
+            tosa_sets={10}, value_shapes={50: (3, 3, 16, 1), 51: (16, 1, 1, 16)}
+        ),
+        1: _SpirvSegmentState(tosa_sets={10}, value_shapes={51: (16, 1, 1, 16)}),
+    }
+    advice: list[NXAdviceRecord] = []
+
+    def visit(segment: int, words: tuple[int, ...]) -> None:
+        _spirv_op_callback(
+            segment,
+            struct.pack(f"<{len(words)}I", *words),
+            advice,
+            segments,
+        )
+
+    depthwise = ((15 << 16) | 12, 1, 449, 10, 4, 0, 0, 0, 0, 0, 100, 50, 0, 0, 0)
+    visit(0, depthwise)
+    if intervening == "metadata":
+        visit(0, ((3 << 16) | 5, 449, 0))  # SPIR-V OpName.
+    else:
+        visit(0, ((6 << 16) | 12, 1, 451, 10, 1, 449))  # TOSA ADD.
+    conv = ((15 << 16) | 12, 1, 450, 10, 2, 0, 0, 0, 0, 0, conv_input, 51, 0, 0, 0)
+    visit(conv_segment, conv)
+
+    matches = [
+        record for record in advice if "Detected a depthwise 3x3" in record.message
+    ]
+    assert len(matches) == int(expected)
+    if expected:
+        assert matches[0].entity_id == "source_operator/segment_0/spirv-450"
+
+
+@pytest.mark.parametrize(
+    ("intervening", "middle_input", "conv_input", "output_channels", "expected"),
+    [
+        (None, 0, 449, 16, True),
+        ("rescale", 449, 450, 16, True),
+        ("rescale_chain", 449, 452, 16, True),
+        ("rescale", 999, 450, 16, False),
+        ("rescale", 449, 999, 16, False),
+        ("add", 449, 450, 16, False),
+        ("short_rescale", 449, 450, 16, False),
+        ("rescale", 449, 450, 63, True),
+        ("rescale", 449, 450, 64, False),
+    ],
+)
+def test_depthwise_to_pointwise_advice_follows_connected_rescale(
+    intervening: str | None,
+    middle_input: int,
+    conv_input: int,
+    output_channels: int,
+    expected: bool,
+) -> None:
+    """Only a connected depthwise path through RESCALE qualifies for advice."""
+    segments = {
+        0: _SpirvSegmentState(
+            tosa_sets={10},
+            value_shapes={50: (3, 3, 16, 1), 51: (output_channels, 1, 1, 16)},
+        )
+    }
+    advice: list[NXAdviceRecord] = []
+
+    def visit(words: tuple[int, ...]) -> None:
+        _spirv_op_callback(0, struct.pack(f"<{len(words)}I", *words), advice, segments)
+
+    visit(((15 << 16) | 12, 1, 449, 10, 4, 0, 0, 0, 0, 0, 100, 50, 0, 0, 0))
+    if intervening in ("rescale", "rescale_chain"):
+        visit(
+            ((15 << 16) | 12, 1, 450, 10, 65, 0, 0, 0, 0, 0, middle_input, 0, 0, 0, 0)
+        )
+        if intervening == "rescale_chain":
+            visit(((15 << 16) | 12, 1, 452, 10, 65, 0, 0, 0, 0, 0, 450, 0, 0, 0, 0))
+    elif intervening == "add":
+        visit(((6 << 16) | 12, 1, 450, 10, 1, middle_input))
+    elif intervening == "short_rescale":
+        visit(((6 << 16) | 12, 1, 450, 10, 65, middle_input))
+    visit(((15 << 16) | 12, 1, 451, 10, 2, 0, 0, 0, 0, 0, conv_input, 51, 0, 0, 0))
+
+    matches = [
+        record for record in advice if "Detected a depthwise 3x3" in record.message
+    ]
+    assert len(matches) == int(expected)
+    if expected:
+        assert matches[0].entity_id == "source_operator/segment_0/spirv-451"
+
+
+def test_depthwise_pointwise_advice_covers_multiple_consumers() -> None:
+    """A depthwise result can feed a direct CONV2D and a RESCALE branch."""
+    state = _SpirvSegmentState(
+        tosa_sets={10}, value_shapes={50: (3, 3, 16, 1), 51: (16, 1, 1, 16)}
+    )
+    advice: list[NXAdviceRecord] = []
+    instructions = (
+        ((15 << 16) | 12, 1, 449, 10, 4, 0, 0, 0, 0, 0, 100, 50, 0, 0, 0),
+        ((15 << 16) | 12, 1, 450, 10, 2, 0, 0, 0, 0, 0, 449, 51, 0, 0, 0),
+        ((15 << 16) | 12, 1, 451, 10, 65, 0, 0, 0, 0, 0, 449, 0, 0, 0, 0),
+        ((15 << 16) | 12, 1, 452, 10, 2, 0, 0, 0, 0, 0, 451, 51, 0, 0, 0),
+    )
+    for words in instructions:
+        _spirv_op_callback(0, struct.pack("<15I", *words), advice, {0: state})
+
+    matches = [
+        record for record in advice if "Detected a depthwise 3x3" in record.message
+    ]
+    assert [record.entity_id for record in matches] == [
+        "source_operator/segment_0/spirv-450",
+        "source_operator/segment_0/spirv-452",
+    ]

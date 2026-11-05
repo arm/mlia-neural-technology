@@ -283,6 +283,13 @@ Use these artifacts to determine whether a failure occurred during conversion,
 segment preparation, estimator execution, capture ingestion, or standardized
 result construction.
 
+## Static optimization advice
+
+You may see an advice section advising to opt for a normal 3x3 convolution over a
+depthwise 3x3 convolution to 1x1 convolution chain. The "fewer than 64 output
+channels" refers to the 1x1 convolution's output channels - the first dimension of
+its weight shape.
+
 ## Cross-links
 
 - See [Backends and analysis modes](backends.md) for backend ownership.

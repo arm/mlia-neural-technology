@@ -23,6 +23,7 @@ this documentation request.
 - [x] 2.2 Implement shallow depthwise advice for input depths one through three; verify depth boundaries and missing/invalid shapes with `test_depthwise_conv2d_advice`.
 - [x] 2.3 Detect skip edges above 128 KiB without mutating operands or traversing constants; verify direct, multi-hop, threshold, shared-ancestor, and constant-operand cases with `test_skip_connection_advice`.
 - [x] 2.4 Preserve existing advice and derive segment-scoped IDs; verify the parameterized `test_performance_advice` cases.
+- [x] 2.5 Document that the depthwise 3-by-3 to pointwise 1-by-1 recommendation uses the pointwise CONV2D output-channel count; verify the 63/64 boundary in `test_depthwise_to_pointwise_advice_follows_connected_rescale`.
 
 ## 3. Integration And Entity Attribution
 

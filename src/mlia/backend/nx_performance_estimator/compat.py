@@ -483,6 +483,30 @@ class NXModelCompatibilityInfo:
             for entity in entities
             if entity.placement == schema.PlacementType.NX.value
         }
+        source_prefix = f"{schema.ENTITY_KIND_SOURCE_OPERATOR}/"
+        output_advice: list[schema.Advice] = []
+        for record in self.advice:
+            entity_id = record.entity_id
+            if entity_id is None:
+                continue
+            if not source_operator_attribution_available and entity_id.startswith(
+                source_prefix
+            ):
+                entity_id = (
+                    f"{_CONVERTED_OPERATOR_ENTITY_KIND}/"
+                    f"{entity_id.removeprefix(source_prefix)}"
+                )
+            if entity_id not in nx_entity_ids:
+                continue
+            output_advice.append(
+                schema.Advice(
+                    id=record.id,
+                    category=schema.AdviceCategory(record.category),
+                    severity=schema.AdviceSeverity(record.severity),
+                    message=record.message,
+                    affected_entity_ids=[entity_id],
+                )
+            )
         entity_kinds = provenance_builder.entity_kind_declarations()
         if converted_operator_entities:
             entity_kinds.append(schema.EntityKind(id=_CONVERTED_OPERATOR_ENTITY_KIND))
@@ -508,17 +532,7 @@ class NXModelCompatibilityInfo:
             checks=checks,
             entities=entities,
             entity_kinds=entity_kinds,
-            advice=[
-                schema.Advice(
-                    id=record.id,
-                    category=schema.AdviceCategory(record.category),
-                    severity=schema.AdviceSeverity(record.severity),
-                    message=record.message,
-                    affected_entity_ids=[record.entity_id],
-                )
-                for record in self.advice
-                if record.entity_id is not None and record.entity_id in nx_entity_ids
-            ],
+            advice=output_advice,
         )
 
         return schema.StandardizedOutput(

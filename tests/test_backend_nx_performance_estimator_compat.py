@@ -46,8 +46,11 @@ from mlia.backend.nx_performance_estimator.statistics import NXPerformanceStats
 from mlia.backend.nx_performance_estimator.vgf import GCPEVGFSegment, GCPEVGFSegments
 
 
-def test_compatibility_advice_requires_nx_placement(tmp_path: Path) -> None:
-    """Only include advice linked to an entity placed exclusively on NX."""
+@pytest.mark.parametrize("source_attribution", [True, False])
+def test_compatibility_advice_requires_nx_placement(
+    tmp_path: Path, source_attribution: bool
+) -> None:
+    """Only include advice linked to an NX entity in its reporting namespace."""
     compatibility = NXModelCompatibilityInfo()
     for index, placement in enumerate(("NX", "EE", "NX/EE")):
         compatibility.add_estimator_placement(
@@ -72,11 +75,15 @@ def test_compatibility_advice_requires_nx_placement(tmp_path: Path) -> None:
                 f"advice/{index}", "performance", "info", "Advice", entity_id
             )
         )
-    output = compatibility.to_standardized_output(_model_file(tmp_path))
+    output = compatibility.to_standardized_output(
+        _model_file(tmp_path),
+        source_operator_attribution_available=source_attribution,
+    )
     validate_standardized_output(output)
     advice = output["results"][0]["advice"]
     assert [record["id"] for record in advice] == ["advice/0"]
-    assert advice[0]["affected_entity_ids"] == ["source_operator/0"]
+    expected_id = "source_operator/0" if source_attribution else "converted_operator/0"
+    assert advice[0]["affected_entity_ids"] == [expected_id]
 
 
 def _model_file(tmp_path: Path) -> Path:

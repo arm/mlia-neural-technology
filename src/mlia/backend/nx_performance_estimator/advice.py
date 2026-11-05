@@ -24,6 +24,7 @@ _OP_CONSTANT_COMPOSITE = 44
 _OP_TYPE_TENSOR_ARM = 4163
 _TOSA_CONV2D = 2
 _TOSA_DEPTHWISE_CONV2D = 4
+_TOSA_RESCALE = 65
 _TOSA_INSTRUCTION_SET = "TOSA.001000.1"
 _SKIP_CONNECTION_SIZE_THRESHOLD = 128 * 1024
 # Tensor-producing instructions relevant to constant and computed weights:
@@ -46,6 +47,31 @@ _SpirvId: TypeAlias = int
 
 
 @dataclass
+class _SpirvAdvicePredicates:
+    """Result IDs reachable from a depthwise 3x3 through RESCALE operations."""
+
+    depthwise3x3_result_ids: set[_SpirvId] = field(default_factory=set)
+
+    def add_depthwise3x3(self, result_id: _SpirvId) -> None:
+        self.depthwise3x3_result_ids.add(result_id)
+
+    def add_rescale(self, input_id: _SpirvId, result_id: _SpirvId) -> None:
+        """Carry eligibility through a connected RESCALE operation."""
+        if input_id in self.depthwise3x3_result_ids:
+            self.depthwise3x3_result_ids.add(result_id)
+
+    def is_direct_depthwise3x3_to_conv1x1(
+        self,
+        input_id: _SpirvId,
+        kernel_height: int,
+        kernel_width: int,
+    ) -> bool:
+        return (kernel_height, kernel_width) == (1, 1) and (
+            input_id in self.depthwise3x3_result_ids
+        )
+
+
+@dataclass
 class _SpirvSegmentState:
     """A helper struct for SPIR-V module lookups while traversals."""
 
@@ -60,6 +86,9 @@ class _SpirvSegmentState:
     tensor_sizes: dict[_SpirvId, int] = field(default_factory=dict)
     value_sizes: dict[_SpirvId, int] = field(default_factory=dict)
     parents: dict[_SpirvId, set[_SpirvId]] = field(default_factory=dict)
+    advice_predicates: _SpirvAdvicePredicates = field(
+        default_factory=_SpirvAdvicePredicates
+    )
 
 
 def _spirv_op_callback(
@@ -77,56 +106,60 @@ def _spirv_op_callback(
     opcode = header & 0xFFFF
     # Inspect only the prefix needed for metadata, not weight payloads.
     words = struct.unpack_from(f"<{min(word_count, 15)}I", operation)
-    state = segment_state.setdefault(segment_idx, _SpirvSegmentState())
+    segment_data = segment_state.setdefault(segment_idx, _SpirvSegmentState())
 
     if opcode == _OP_EXT_INST_IMPORT and word_count >= 3:
         # words: [header, result_id, ...NUL-terminated UTF-8 name packed into words].
         _header, result_id, *_name_words = words
         name = operation[8:].split(b"\0", 1)[0].decode("utf-8", errors="replace")
         if name == _TOSA_INSTRUCTION_SET:
-            state.tosa_sets.add(result_id)
+            segment_data.tosa_sets.add(result_id)
     elif opcode == _OP_TYPE_INT and word_count == 4:
         # words: [header, type_id, bit_width, signedness (0=unsigned, 1=signed)].
         _header, type_id, bit_width, signedness = words
-        state.integer_types[type_id] = (bit_width, bool(signedness))
-        state.element_bit_widths[type_id] = bit_width
+        segment_data.integer_types[type_id] = (bit_width, bool(signedness))
+        segment_data.element_bit_widths[type_id] = bit_width
     elif opcode == _OP_TYPE_FLOAT and word_count >= 3:
         # words: [header, type_id, bit_width, optional floating-point encoding].
         _header, type_id, bit_width, *_encoding = words
-        state.element_bit_widths[type_id] = bit_width
+        segment_data.element_bit_widths[type_id] = bit_width
     elif opcode == _OP_CONSTANT and word_count >= 4:
         # words: [header, type_id, result_id, ...literal value words].
         # A 64-bit integer uses two value words, least-significant word first.
         _header, type_id, result_id, *_value_words = words
-        integer_type = state.integer_types.get(type_id)
+        integer_type = segment_data.integer_types.get(type_id)
         if integer_type is not None:
             width, signed = integer_type
             if 0 < width <= 64 and word_count == 3 + (width + 31) // 32:
                 value = int.from_bytes(operation[12:], "little") & ((1 << width) - 1)
                 if signed and value & (1 << (width - 1)):
                     value -= 1 << width
-                state.integers[result_id] = value
+                segment_data.integers[result_id] = value
     elif opcode == _OP_TYPE_ARRAY and word_count == 4:
         # words: [header, type_id, element_type_id, length_constant_id].
         # OpTypeTensorARM shapes are integer arrays, not tensor constants.
         _header, type_id, element_type_id, length_id = words
-        length = state.integers.get(length_id)
-        if element_type_id in state.integer_types and length is not None and length > 0:
-            state.shape_array_lengths[type_id] = length
+        length = segment_data.integers.get(length_id)
+        if (
+            element_type_id in segment_data.integer_types
+            and length is not None
+            and length > 0
+        ):
+            segment_data.shape_array_lengths[type_id] = length
     elif opcode == _OP_CONSTANT_COMPOSITE and word_count >= 3:
         # words: [header, type_id, result_id, ...constituent_ids].
         _header, type_id, result_id, *_constituent_ids = words
         # Check the shape-array type before traversing operands: quantized tensor
         # constants also contain integer IDs, but their payloads can be enormous.
-        if state.shape_array_lengths.get(type_id) == word_count - 3:
+        if segment_data.shape_array_lengths.get(type_id) == word_count - 3:
             dimensions = []
             for (dimension_id,) in struct.iter_unpack("<I", memoryview(operation)[12:]):
                 # Shape operands reference scalar constants, not literal dimensions.
-                if dimension_id not in state.integers:
+                if dimension_id not in segment_data.integers:
                     break
-                dimensions.append(state.integers[dimension_id])
+                dimensions.append(segment_data.integers[dimension_id])
             else:
-                state.shapes[result_id] = tuple(dimensions)
+                segment_data.shapes[result_id] = tuple(dimensions)
     elif opcode == _OP_TYPE_TENSOR_ARM and word_count >= 3:
         # words: [header, tensor_type_id, element_type_id, rank_id?, shape_id?].
         # Rank and shape are optional references to constant instructions.
@@ -134,44 +167,55 @@ def _spirv_op_callback(
         shape = None
         if word_count == 5:
             rank_id, shape_id = shape_operands
-            candidate_shape = state.shapes.get(shape_id)
-            if candidate_shape is not None and state.integers.get(rank_id) == len(
-                candidate_shape
-            ):
+            candidate_shape = segment_data.shapes.get(shape_id)
+            if candidate_shape is not None and segment_data.integers.get(
+                rank_id
+            ) == len(candidate_shape):
                 shape = candidate_shape
-        state.tensor_shapes[tensor_type_id] = shape
-        bit_width = state.element_bit_widths.get(element_type_id)
+        segment_data.tensor_shapes[tensor_type_id] = shape
+        bit_width = segment_data.element_bit_widths.get(element_type_id)
         if (
             shape is not None
             and all(dimension > 0 for dimension in shape)
             and bit_width is not None
             and bit_width > 0
         ):
-            state.tensor_sizes[tensor_type_id] = (prod(shape) * bit_width + 7) // 8
+            segment_data.tensor_sizes[tensor_type_id] = (
+                prod(shape) * bit_width + 7
+            ) // 8
 
     if opcode in _TENSOR_VALUE_OPCODES and word_count >= 3:
         # words: [header, result_type_id, result_id, ...opcode-specific operands].
         _header, result_type_id, result_id, *_operands = words
-        state.value_shapes[result_id] = state.tensor_shapes.get(result_type_id)
-        if result_type_id in state.tensor_sizes:
-            state.value_sizes[result_id] = state.tensor_sizes[result_type_id]
+        segment_data.value_shapes[result_id] = segment_data.tensor_shapes.get(
+            result_type_id
+        )
+        if result_type_id in segment_data.tensor_sizes:
+            segment_data.value_sizes[result_id] = segment_data.tensor_sizes[
+                result_type_id
+            ]
 
     if opcode != _OP_EXT_INST or word_count < 5:
         return
 
     _header, _result_type_id, result_id, set_id, instruction, *_ = words
-    if set_id not in state.tosa_sets:
+    if set_id not in segment_data.tosa_sets:
         return
     # TOSA operands are IDs. Read all of them, including those beyond the prefix
     # used for CONV2D, then discard non-TOSA producers after reading the segment.
-    state.parents[result_id] = set(
+    segment_data.parents[result_id] = set(
         struct.unpack_from(f"<{word_count - 5}I", operation, 20)
     )
     if word_count == 15:
         if instruction == _TOSA_CONV2D:
-            _conv2d_callback(segment_idx, words, state, out_advice)
+            _conv2d_callback(segment_idx, words, segment_data, out_advice)
+            return
         elif instruction == _TOSA_DEPTHWISE_CONV2D:
-            _depthwise_conv2d_callback(segment_idx, words, state, out_advice)
+            _depthwise_conv2d_callback(segment_idx, words, segment_data, out_advice)
+            return
+
+    if instruction == _TOSA_RESCALE and word_count > 10:
+        segment_data.advice_predicates.add_rescale(words[10], result_id)
 
 
 def _add_skip_connection_advice(
@@ -246,7 +290,7 @@ def _conv2d_callback(
         _dilation_id,
         _acc_type_id,
         _local_bound_id,
-        _input_id,
+        input_id,
         weight_id,
         _bias_id,
         _input_zp_id,
@@ -263,6 +307,9 @@ def _conv2d_callback(
         return
 
     output_channels, kernel_height, kernel_width, input_channels = weight_shape
+    is_direct_pair = state.advice_predicates.is_direct_depthwise3x3_to_conv1x1(
+        input_id, kernel_height, kernel_width
+    )
     kernel_size = kernel_height * kernel_width
     depth_factor = 8
     if kernel_size == 1:
@@ -277,10 +324,11 @@ def _conv2d_callback(
         message += f"Input depth (currently {input_channels}) should be a multiple of {depth_factor} for maximum hardware utilization. "
     if output_channels % depth_factor != 0:
         message += f"Output depth (currently {output_channels}) should be a multiple of {depth_factor} for maximum hardware utilization. "
+    if is_direct_pair and output_channels < 64:
+        message += "Detected a depthwise 3x3 convolution followed by a 1x1 convolution with fewer than 64 output channels. Opt for a normal 3x3 convolution. "
     message = message.strip()
 
     if message:
-        message
         advice_id = f"advice/segment_{segment_idx}/spirv_{result_id}"
         out_advice.append(
             NXAdviceRecord(
@@ -324,7 +372,10 @@ def _depthwise_conv2d_callback(
     weight_shape = state.value_shapes.get(weight_id)
     if weight_shape is None or len(weight_shape) != 4:
         return
-    _kernel_height, _kernel_width, input_depth, _channel_multiplier = weight_shape
+    kernel_height, kernel_width, input_depth, _channel_multiplier = weight_shape
+    if (kernel_height, kernel_width) == (3, 3):
+        state.advice_predicates.add_depthwise3x3(result_id)
+
     if not 0 < input_depth < 4:
         return
     out_advice.append(
@@ -352,5 +403,5 @@ def add_vgf_performance_advice(
         segment_state=segment_state,
     )
     for_each_vgf_op(vgf_path, callback)
-    for segment_idx, state in segment_state.items():
-        _add_skip_connection_advice(segment_idx, state, advice)
+    for segment_idx, segment_data in segment_state.items():
+        _add_skip_connection_advice(segment_idx, segment_data, advice)

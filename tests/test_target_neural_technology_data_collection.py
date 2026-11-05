@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import mlia.core.output_schema as schema
+from mlia.backend.nx_performance_estimator.advice import NXAdviceRecord
 from mlia.backend.nx_performance_estimator.compat import NXModelCompatibilityInfo
 from mlia.backend.ml_sdk_model_converter.conversion import get_front_end_output_subdir
 from mlia.backend.nx_performance_estimator.config import (
@@ -393,6 +394,24 @@ def test_tflite_compatibility_uses_converted_operator_entities(
         op_type="MUL",
         source_operator_id=schema.vgf_source_operator_id(0, 11),
     )
+    compatibility.advice.extend(
+        [
+            NXAdviceRecord(
+                "advice/0",
+                "performance",
+                "info",
+                "Connected depthwise and pointwise convolutions",
+                schema.vgf_source_operator_id(0, 10),
+            ),
+            NXAdviceRecord(
+                "advice/1",
+                "performance",
+                "info",
+                "EE operator advice",
+                schema.vgf_source_operator_id(0, 11),
+            ),
+        ]
+    )
 
     monkeypatch.setattr(
         "mlia.target.neural_technology.data_collection.transform_front_end_model",
@@ -447,6 +466,10 @@ def test_tflite_compatibility_uses_converted_operator_entities(
         "converted_operator/segment_0/spirv-11",
     ]
     assert [check["status"] for check in result["checks"]] == ["pass", "pass"]
+    assert [advice["id"] for advice in result["advice"]] == ["advice/0"]
+    assert result["advice"][0]["affected_entity_ids"] == [
+        "converted_operator/segment_0/spirv-10"
+    ]
     metrics = {metric["name"]: metric for metric in result["metrics"]}
     assert metrics[schema.METRIC_NAME_ACCELERATOR_OPERATOR_PERCENTAGE]["value"] == 50.0
     validate_standardized_output(collected.standardized_output)

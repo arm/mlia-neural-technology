@@ -82,6 +82,25 @@ or at least 4.
 - **WHEN** a depthwise operation has input depth 4
 - **THEN** no shallow-depth advice is emitted
 
+### Requirement: Recommend regular convolution for a depthwise-pointwise pair
+
+Analysis SHALL detect a depthwise 3-by-3 convolution whose result feeds a 1-by-1
+CONV2D in the same segment, directly or through connected RESCALE operations.
+When the 1-by-1 CONV2D has known positive weights and fewer than 64 output
+channels, analysis SHALL recommend considering a normal 3-by-3 convolution and
+link the advice to the 1-by-1 CONV2D. The output-channel count is the first
+dimension of that CONV2D's weight shape, [output, height, width, input].
+
+#### Scenario: Below the output-channel threshold
+
+- **WHEN** the 1-by-1 CONV2D has 63 output channels and consumes a qualifying depthwise result, directly or through RESCALE
+- **THEN** the advice identifies the pair and recommends considering a normal 3-by-3 convolution
+
+#### Scenario: At the output-channel threshold
+
+- **WHEN** the 1-by-1 CONV2D has 64 output channels and consumes a qualifying depthwise result
+- **THEN** no depthwise-pointwise recommendation is emitted for that pair
+
 ### Requirement: Identify large skip connections
 
 Analysis SHALL identify a skip edge when a merge directly consumes a TOSA result

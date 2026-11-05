@@ -18,6 +18,8 @@ compatibility reports.
   without retaining tensor constant payloads as shape data.
 - Recommend input/output depth alignment for CONV2D according to kernel area.
 - Recommend considering regular CONV2D for depthwise input depths below four.
+- Recommend considering a normal 3-by-3 convolution when a depthwise 3-by-3
+  feeds a 1-by-1 CONV2D with fewer than 64 output channels.
 - Detect direct skip edges with an alternate operation path and a known tensor
   size greater than 128 KiB; explain their potential poor cache utilization.
 - Gather performance and compatibility advice from every prepared graph segment.
