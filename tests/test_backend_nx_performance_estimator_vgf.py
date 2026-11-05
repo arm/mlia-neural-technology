@@ -466,7 +466,7 @@ def test_validate_gcpe_vgf_checks_descriptor_only_resources(
 @pytest.mark.parametrize("dimension", [-1, -(2**63), 544])
 def test_validate_real_vgf_shape_dimensions(tmp_path: Path, dimension: int) -> None:
     """Real encoder/decoder shapes follow the same rules as the published NSS VGF."""
-    import vgfpy
+    from mlia._vendor.neural_technology import vgfpy
 
     from mlia.backend.nx_performance_estimator.vgf import validate_gcpe_compatible_vgf
 
@@ -543,7 +543,8 @@ def test_real_multi_segment_vgf_splits_into_expected_single_segment_outputs(
     tmp_path: Path,
 ) -> None:
     """A generated real multi-segment VGF splits into valid single-segment outputs."""
-    vgfpy = pytest.importorskip("vgfpy")
+    from mlia._vendor.neural_technology import vgfpy
+
     source = tmp_path / "generated_multi_graph.vgf"
 
     words = [

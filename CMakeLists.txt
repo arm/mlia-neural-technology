@@ -1,6 +1,12 @@
 # SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 
+# This file bundles a native build of the vgfpy module into the mlia-neural-technology wheel.
+# This is necessary because we need version 0.10.0 of this module to create 
+# VGFs with version 0.4.3 which is needed for our bundled GCPE version.
+# Newer versions emit VGF 0.5.0, which the bundled GCPE cannot read.
+# There is no upstream version 0.10.0 of vgfpy available, so we must bundle it.
+
 cmake_minimum_required(VERSION 3.28)
 project(mlia_neural_technology_native LANGUAGES C CXX)
 
@@ -54,9 +60,6 @@ set(ML_SDK_VGF_LIB_ENABLE_FUZZER OFF CACHE BOOL "" FORCE)
 set(ML_SDK_GENERATE_CPACK OFF CACHE BOOL "" FORCE)
 set(PYBIND11_FINDPYTHON ON CACHE BOOL "" FORCE)
 
-# Temporary workaround: the VGF package published on PyPI does not currently
-# contain a usable vgfpy extension. Build the pinned upstream bindings from
-# source until fixed wheels are available from ai-ml-sdk-vgf-library.
 FetchContent_Declare(
   VGF_Library
   GIT_REPOSITORY https://github.com/arm/ai-ml-sdk-vgf-library.git
@@ -64,5 +67,10 @@ FetchContent_Declare(
   EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(VGF_Library)
+
+# Give our bundled bindings a separate registry key so they can coexist with upstream
+# vgfpy (for example, Model Explorer's dependency), otherwise they will conflict
+# and fail to register.
+target_compile_definitions(vgfpy PRIVATE "PYBIND11_COMPILER_TYPE=\"_mlia_private_vgf\"")
 
 add_custom_target(mlia_neural_technology_native ALL DEPENDS vgfpy)

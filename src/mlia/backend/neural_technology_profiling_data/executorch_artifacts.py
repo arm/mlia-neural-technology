@@ -8,7 +8,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-import vgfpy
+# Use the vendored VGF 0.10.0 binding to avoid adding a separate dependency
+# on upstream vgfpy.
+from mlia._vendor.neural_technology import vgfpy
 from mlia.backend.executorch.pte import PTEReader
 from mlia.core.errors import ConfigurationError
 

@@ -170,7 +170,7 @@ def _find_built_vgfpy(build_root: Path) -> Path:
 
 
 def _build_vgfpy(root: Path) -> Path:
-    """Temporarily build vgfpy from source until PyPI provides usable wheels."""
+    """Build the private VGF binding pinned to GCPE's supported file format."""
     build_root = root / VGF_BUILD_DIR
     subprocess.run(
         [
@@ -319,7 +319,9 @@ class CustomBuildHook(BuildHookInterface):
             if platform.system() == "Linux":
                 build_data["tag"] = _linux_wheel_tag()
             vgfpy = _build_vgfpy(root)
-            force_include[str(vgfpy.relative_to(root))] = vgfpy.name
+            force_include[str(vgfpy.relative_to(root))] = (
+                f"mlia/_vendor/neural_technology/{vgfpy.name}"
+            )
             build_data["pure_python"] = False
             build_data["infer_tag"] = True
 

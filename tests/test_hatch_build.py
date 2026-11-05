@@ -370,7 +370,8 @@ def test_build_hook_force_includes_native_and_estimator_artifacts(
 
     force_include = build_data["force_include"]
     assert isinstance(force_include, dict)
-    assert force_include[vgfpy.name] == vgfpy.name
+    assert force_include[vgfpy.name] == f"mlia/_vendor/neural_technology/{vgfpy.name}"
+    assert vgfpy.name not in force_include.values()
     assert build_data["pure_python"] is False
     assert build_data["infer_tag"] is True
     vendor_dir = PROJECT_ROOT / "src/mlia/_vendor/artifacts/nx-performance-estimator"

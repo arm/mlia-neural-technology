@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import vgfpy  # type: ignore[import-untyped]
+# Use our pinned VGF 0.10.0 binding: upstream encoders can emit VGF 0.5.0,
+# which GCPE cannot read. Its private namespace also avoids upstream collisions.
+from mlia._vendor.neural_technology import vgfpy  # type: ignore[import-untyped]
 
 from mlia.backend.nx_performance_estimator.debug_info import SpirvDebugNameMap
 from mlia.backend.nx_performance_estimator.debug_info import read_vgf_spirv_debug_names

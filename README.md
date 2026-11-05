@@ -155,6 +155,12 @@ Linux wheels use a `manylinux_2_39` platform tag so installers reject older
 glibc versions. Builds on newer glibc versions retain that higher minimum.
 The bundled native `vgfpy` extension also requires a matching CPython ABI.
 
+When upgrading from an older versioned wheel (`>=0.1.1,<=0.3.0`), the
+uninstallation of the older wheel may break your python environment's
+installation of the `ai-ml-sdk-vgf-library` package resulting in `import vgfpy`
+failing. This can be fixed by simply reinstalling the `ai-ml-sdk-vgf-library`
+package.
+
 Install into an environment that already contains `mlia`:
 
 ```bash
