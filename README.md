@@ -3,9 +3,10 @@ SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
 SPDX-License-Identifier: Apache-2.0
 --->
 
-# MLIA Neural Technology Plugin
+# MLIA Plugin for Arm Mali with Neural Technology
 
-This package contains the MLIA target plugin for Arm Neural Technology flows
+This package contains the MLIA target plugin for supported Arm Mali GPUs with
+Neural Technology
 and packages the backend integrations used to estimate performance and work with
 TOSA-related assets in that environment.
 
@@ -260,6 +261,8 @@ uv build
 - `tests/`: unit tests covering plugins, CLI integration, and target/backend behaviour.
 
 ## Documentation
+
+[Read the documentation on Arm Developer](https://developer.arm.com/dev-docs/mlia-neural-technology/).
 
 Additional package documentation lives in [docs/README.md](docs/README.md). The
 [Python API walkthrough](docs/source/neural_technology_api_walkthrough.ipynb)

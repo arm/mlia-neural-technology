@@ -50,3 +50,7 @@ plugin package.
 Use the core `mlia` documentation for shared CLI, Python API, and architecture
 guidance. Use these docs for Neural Technology-specific targets, backends,
 metrics, and troubleshooting.
+
+## Published documentation
+
+[Read the documentation on Arm Developer](https://developer.arm.com/dev-docs/mlia-neural-technology/).

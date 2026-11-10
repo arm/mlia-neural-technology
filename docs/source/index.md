@@ -1,14 +1,16 @@
-<!---
-SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
-SPDX-License-Identifier: Apache-2.0
---->
+---
+# SPDX-FileCopyrightText: Copyright 2026, Arm Limited and/or its affiliates.
+# SPDX-License-Identifier: Apache-2.0
+sidebar_position: 1
+slug: /documentation
+---
 
-# MLIA Neural Technology
+# MLIA for Arm Mali with Neural Technology
 
 ## Purpose
 
-`mlia-neural-technology` registers Neural Technology target and backend
-capabilities with MLIA. These docs cover target profiles, model estimation,
+`mlia-neural-technology` registers target and backend capabilities for supported
+Arm Mali GPUs with Neural Technology in MLIA. These docs cover target profiles, model estimation,
 measured profiling data, output interpretation, and troubleshooting.
 
 ## Supported plugins
@@ -35,3 +37,6 @@ reports.
 - [Download the Python API walkthrough notebook](neural_technology_api_walkthrough.ipynb)
 - [Troubleshooting](troubleshooting.md)
 - [Development](development.md)
+
+For shared CLI, installation, and plugin architecture guidance, see the
+[MLIA core documentation](https://developer.arm.com/dev-docs/mlia/).

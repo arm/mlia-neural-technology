@@ -1,0 +1,59 @@
+{
+  "title": "Arm Mali with Neural Technology",
+  "headline": "Explore inference on Arm Mali GPUs.",
+  "lead": "Analyze supported models for Arm Mali GPUs with Neural Technology, using performance estimates or measured profiling data.",
+  "category": "Target plugin",
+  "start": "/cli",
+  "focus": [
+    {
+      "title": "Choose a target profile",
+      "description": "Select a supported target profile for Arm Mali with Neural Technology.",
+      "to": "/target_profiles"
+    },
+    {
+      "title": "Choose an analysis mode",
+      "description": "Use model estimation or measured profiling data.",
+      "to": "/backends"
+    },
+    {
+      "title": "Interpret the results",
+      "description": "Understand metrics, breakdowns, and source provenance.",
+      "to": "/outputs_metrics"
+    }
+  ],
+  "note": "Model-based estimation and measured profiling are separate analysis modes.",
+  "learningTitle": "Estimate performance for Arm Mali with Neural Technology",
+  "learningDescription": "Install the plugin, analyze quantized MobileNet models, check operator compatibility, and interpret performance estimates.",
+  "learning": "https://learn.arm.com/learning-paths/mobile-graphics-and-gaming/mlia-nx-performance-estimator/",
+  "repository": "https://github.com/arm/mlia-neural-technology",
+  "guides": [
+    {
+      "title": "Outputs and Metrics",
+      "to": "/outputs_metrics"
+    },
+    {
+      "title": "Mali with Neural Technology target profiles",
+      "to": "/target_profiles"
+    },
+    {
+      "title": "ETRecord and ETDump Profiling",
+      "to": "/etrecord"
+    },
+    {
+      "title": "Troubleshooting",
+      "to": "/troubleshooting"
+    },
+    {
+      "title": "Backends and Analysis Modes",
+      "to": "/backends"
+    },
+    {
+      "title": "CLI Guide",
+      "to": "/cli"
+    },
+    {
+      "title": "Development",
+      "to": "/development"
+    }
+  ]
+}
