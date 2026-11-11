@@ -7,13 +7,30 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from mlia.backend.install import BackendInstallation, PackagePathChecker
+from mlia.backend.install import BackendInstallation, EulaDocument, PackagePathChecker
 from mlia.backend.nx_performance_estimator.installer import (
     DEFAULT_LICENSE_FILE,
     InstallerError,
     InstallerOptions,
     install_package,
 )
+
+
+def _resolve_nx_eula(_source: Path | None) -> list[EulaDocument]:
+    """Read the separately packaged NX Performance Estimator EULA."""
+    try:
+        text = DEFAULT_LICENSE_FILE.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as err:
+        raise RuntimeError(
+            "Unable to read the NX Performance Estimator licence terms from "
+            f"'{DEFAULT_LICENSE_FILE}'."
+        ) from err
+    if not text.lstrip("\ufeff").strip():
+        raise RuntimeError(
+            "The NX Performance Estimator licence terms are empty at "
+            f"'{DEFAULT_LICENSE_FILE}'."
+        )
+    return [EulaDocument("Arm End User License Agreement", text)]
 
 
 class NXPerformanceEstimatorInstaller:
@@ -57,6 +74,7 @@ def get_nx_performance_estimator_installation() -> BackendInstallation:
         backend_installer=NXPerformanceEstimatorInstaller(),
         vendor_path="nx-performance-estimator",
         requires_eula=True,
+        eula_resolver=_resolve_nx_eula,
     )
 
     return nx_performance_estimator_installation

@@ -3,6 +3,7 @@
 """Tests for Neural Technology backend installation metadata."""
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +15,7 @@ from mlia.backend.nx_performance_estimator.plugin import NXPerformanceEstimatorP
 from mlia.backend.nx_performance_estimator.install import (
     NXPerformanceEstimatorInstaller,
 )
+from mlia.backend.nx_performance_estimator.installer import DEFAULT_LICENSE_FILE
 from mlia.backend.registry import BackendRegistry
 from mlia.backend.tosa_flatbuffers.plugin import TosaFlatBuffersPlugin
 
@@ -46,6 +48,79 @@ def test_nx_performance_estimator_only_manages_estimator_backend() -> None:
         System.LINUX_AMD64,
         System.WINDOWS_AMD64,
     ]
+
+
+def test_nx_performance_estimator_exposes_packaged_eula() -> None:
+    """Frontend metadata should expose the EULA used by the NX installer."""
+    registry = BackendRegistry()
+    NXPerformanceEstimatorPlugin.register(registry)
+    installation = registry.items["nx-performance-estimator"].installation
+
+    assert installation is not None
+    assert installation.eula_resolver is not None
+    documents = list(installation.eula_resolver(None))
+
+    assert len(documents) == 1
+    assert documents[0].title == "Arm End User License Agreement"
+    assert documents[0].text == DEFAULT_LICENSE_FILE.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "license_state", ["missing", "empty", "non-utf8", "bom-only", "bom-whitespace"]
+)
+def test_nx_eula_resolver_rejects_invalid_packaged_terms(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, license_state: str
+) -> None:
+    """Do not offer frontend consent without readable, meaningful terms."""
+    license_file = tmp_path / "license_agreement.txt"
+    if license_state == "empty":
+        license_file.write_text("", encoding="utf-8")
+    elif license_state == "non-utf8":
+        license_file.write_bytes(b"\xff")
+    elif license_state == "bom-only":
+        license_file.write_text("\ufeff", encoding="utf-8")
+    elif license_state == "bom-whitespace":
+        license_file.write_text("\ufeff \n\t", encoding="utf-8")
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.install.DEFAULT_LICENSE_FILE",
+        license_file,
+    )
+    registry = BackendRegistry()
+    NXPerformanceEstimatorPlugin.register(registry)
+    installation = registry.items["nx-performance-estimator"].installation
+
+    assert installation is not None
+    assert installation.eula_resolver is not None
+    with pytest.raises(RuntimeError, match="licence terms"):
+        list(installation.eula_resolver(None))
+
+
+def test_nx_eula_resolver_rejects_unreadable_packaged_terms(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Report an actionable error when the packaged EULA cannot be opened."""
+    license_file = tmp_path / "license_agreement.txt"
+    license_file.write_text("terms", encoding="utf-8")
+    monkeypatch.setattr(
+        "mlia.backend.nx_performance_estimator.install.DEFAULT_LICENSE_FILE",
+        license_file,
+    )
+    read_text = Path.read_text
+
+    def fail_for_license(path: Path, *args: object, **kwargs: object) -> str:
+        if path == license_file:
+            raise PermissionError("unreadable")
+        return read_text(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "read_text", fail_for_license)
+    registry = BackendRegistry()
+    NXPerformanceEstimatorPlugin.register(registry)
+    installation = registry.items["nx-performance-estimator"].installation
+
+    assert installation is not None
+    assert installation.eula_resolver is not None
+    with pytest.raises(RuntimeError, match="licence terms"):
+        list(installation.eula_resolver(None))
 
 
 @pytest.mark.parametrize(
