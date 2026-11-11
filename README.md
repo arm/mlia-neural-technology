@@ -19,6 +19,8 @@ The package is distributed as `mlia-neural-technology` and contributes:
 - The internal `tosa-flatbuffers` serialization integration.
 - Bundled Neural Technology target profiles and backend configuration assets.
 
+[Read the documentation on Arm Developer](https://developer.arm.com/dev-docs/mlia-neural-technology/).
+
 > Start here: Arm Learning Path
 >
 > [Estimate neural accelerator (NX) performance with ML Inference Advisor](https://learn.arm.com/learning-paths/mobile-graphics-and-gaming/mlia-nx-performance-estimator/)
@@ -28,15 +30,15 @@ The package is distributed as `mlia-neural-technology` and contributes:
 ## Table of Contents
 
 - [Overview](#overview)
+- [Installation](#installation)
 - [Supported targets](#supported-targets)
 - [Backends in this package](#backends-in-this-package)
-- [Installation](#installation)
-- [Releases](#releases)
 - [Reporting bugs](#reporting-bugs)
 - [Development Setup](#development-setup)
 - [Common Commands](#common-commands)
 - [Project Layout](#project-layout)
 - [Documentation](#documentation)
+- [Releases](#releases)
 - [License](#license)
 - [Trademarks and copyrights](#trademarks-and-copyrights)
 
@@ -55,6 +57,50 @@ For upstream model formats, the compatible converter plugins are:
 
 - `mlia-converters-litert` for LiteRT / TensorFlow Lite `.tflite` inputs.
 - `mlia-converters-pytorch` for `.pt2` and `.pte` inputs.
+
+## Installation
+
+The wheel requires CPython 3.12 (`>=3.12,<3.13`). On x86-64 Linux, it requires
+Ubuntu 24.04 or newer, or another distribution with glibc 2.39 or newer.
+Linux wheels use a `manylinux_2_39` platform tag so installers reject older
+glibc versions. Builds on newer glibc versions retain that higher minimum.
+The bundled native `vgfpy` extension also requires a matching CPython ABI.
+
+When upgrading from an older versioned wheel (`>=0.1.1,<=0.3.0`), the
+uninstallation of the older wheel may break your python environment's
+installation of the `ai-ml-sdk-vgf-library` package resulting in `import vgfpy`
+failing. This can be fixed by simply reinstalling the `ai-ml-sdk-vgf-library`
+package.
+
+Install into an environment that already contains `mlia`:
+
+```bash
+uv pip install mlia-neural-technology
+```
+
+A typical MLIA workflow then references one of the bundled profiles, for
+example:
+
+```bash
+mlia check my_model.tosa --target-profile neural-technology
+```
+
+Measured profiling data can be analyzed without a source model when one dispatch
+is selected:
+
+```bash
+mlia check --target-profile neural-technology --performance \
+  --profiling-data ./capture/pipeline_000000/session_000000/dispatch_000000
+```
+
+Use `.tosa` as the clearest default model example for this package on its own.
+Direct LiteRT / TensorFlow Lite `.tflite`, `.pt2`, and `.pte` flows depend on the
+matching converter plugins being installed.
+
+The supported Python range and required core MLIA dependency are maintained in
+[`pyproject.toml`](pyproject.toml), which is the authoritative source for current
+installation requirements. This package is intended to be used as part of a
+wider MLIA installation rather than as a standalone CLI.
 
 ## Supported targets
 
@@ -148,55 +194,6 @@ observations rather than proving a complete inference was recorded. See
 measurement interpretation, supported decoder layouts and incomplete-capture
 limitations.
 
-## Installation
-
-The wheel requires CPython 3.12 (`>=3.12,<3.13`). On x86-64 Linux, it requires
-Ubuntu 24.04 or newer, or another distribution with glibc 2.39 or newer.
-Linux wheels use a `manylinux_2_39` platform tag so installers reject older
-glibc versions. Builds on newer glibc versions retain that higher minimum.
-The bundled native `vgfpy` extension also requires a matching CPython ABI.
-
-When upgrading from an older versioned wheel (`>=0.1.1,<=0.3.0`), the
-uninstallation of the older wheel may break your python environment's
-installation of the `ai-ml-sdk-vgf-library` package resulting in `import vgfpy`
-failing. This can be fixed by simply reinstalling the `ai-ml-sdk-vgf-library`
-package.
-
-Install into an environment that already contains `mlia`:
-
-```bash
-uv pip install mlia-neural-technology
-```
-
-A typical MLIA workflow then references one of the bundled profiles, for
-example:
-
-```bash
-mlia check my_model.tosa --target-profile neural-technology
-```
-
-Measured profiling data can be analyzed without a source model when one dispatch
-is selected:
-
-```bash
-mlia check --target-profile neural-technology --performance \
-  --profiling-data ./capture/pipeline_000000/session_000000/dispatch_000000
-```
-
-Use `.tosa` as the clearest default model example for this package on its own.
-Direct LiteRT / TensorFlow Lite `.tflite`, `.pt2`, and `.pte` flows depend on the
-matching converter plugins being installed.
-
-The supported Python range and required core MLIA dependency are maintained in
-[`pyproject.toml`](pyproject.toml), which is the authoritative source for current
-installation requirements. This package is intended to be used as part of a
-wider MLIA installation rather than as a standalone CLI.
-
-## Releases
-
-Latest changes and release history can be found in
-[MLIA Neural Technology releases](https://github.com/arm/mlia-neural-technology/releases).
-
 ## Reporting bugs
 
 Report bugs by creating GitHub issues. Use the
@@ -262,11 +259,14 @@ uv build
 
 ## Documentation
 
-[Read the documentation on Arm Developer](https://developer.arm.com/dev-docs/mlia-neural-technology/).
-
 Additional package documentation lives in [docs/README.md](docs/README.md). The
 [Python API walkthrough](docs/source/neural_technology_api_walkthrough.ipynb)
 covers `torch.nn.Module` inputs and structured Python results.
+
+## Releases
+
+Latest changes and release history can be found in
+[MLIA Neural Technology releases](https://github.com/arm/mlia-neural-technology/releases).
 
 ## License
 
