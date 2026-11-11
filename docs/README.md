@@ -39,6 +39,17 @@ uv run --no-sync mkdocs serve
 
 The generated site will be written to `.mkdocs/site/`.
 
+For a distribution opened through `file://`, build with the offline
+configuration:
+
+```bash
+uv run --no-sync mkdocs build --strict --no-directory-urls -f mkdocs-offline.yml
+```
+
+This includes a file-compatible search index in `.mkdocs/site/`. In-page search
+still requires an internet connection to load Material's worker shim from its
+CDN.
+
 ## Scope
 
 These docs cover the Neural Technology target, model estimation, measured
