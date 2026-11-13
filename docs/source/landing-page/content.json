@@ -16,8 +16,8 @@
       "to": "/backends"
     },
     {
-      "title": "Interpret the results",
-      "description": "Understand metrics, breakdowns, and source provenance.",
+      "title": "Use results and advice",
+      "description": "Read metrics, breakdowns, source provenance, and available advice to decide what to improve.",
       "to": "/outputs_metrics"
     }
   ],
